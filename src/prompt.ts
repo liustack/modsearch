@@ -8,17 +8,15 @@ export function buildSearchPrompt(options: BuildSearchPromptOptions): string {
   const normalizedQuery = options.query.trim();
   const maxResults = Math.max(1, Math.floor(options.maxResults));
 
-  const basePrompt = `请搜索：${normalizedQuery}
+  const basePrompt = `Search the web for: ${normalizedQuery}. Return structured search results.
 
-你是一个通用搜索结果聚合引擎。你的任务是返回可供文本 LLM 消费的结构化搜索结果。
+Output requirements:
+1. Output JSON only, no Markdown.
+2. Prefer authoritative sources and preserve traceable links.
+3. If time-sensitive, prioritize the latest information and note uncertain points in the uncertainty field.
+4. Return at most ${maxResults} results.
 
-输出要求：
-1. 只输出 JSON，不要输出 Markdown。
-2. 结果应尽量覆盖权威来源，并保留可追溯链接。
-3. 如果时间敏感，请优先最新信息，并在 uncertainty 里标注不确定点。
-4. 最多返回 ${maxResults} 条结果。
-
-输出 JSON 结构：
+Output JSON schema:
 {
   "summary": "",
   "items": [
@@ -38,5 +36,5 @@ export function buildSearchPrompt(options: BuildSearchPromptOptions): string {
     return basePrompt;
   }
 
-  return `${basePrompt}\n\n附加约束：\n${options.extraPrompt.trim()}`;
+  return `${basePrompt}\n\nAdditional constraints:\n${options.extraPrompt.trim()}`;
 }

@@ -14,7 +14,7 @@ describe('buildGeminiInvocation', () => {
       providerBin: 'gemini',
       model: 'gemini-2.5-flash',
       maxResults: 5,
-      extraPrompt: '优先最近7天',
+      extraPrompt: 'Prioritize last 7 days',
       workdir: '/Users/leon/projects/modsearch',
     });
 
@@ -27,9 +27,9 @@ describe('buildGeminiInvocation', () => {
     expect(invocation.cwd).toBe('/Users/leon/projects/modsearch');
 
     const prompt = invocation.args[invocation.args.indexOf('-p') + 1] as string;
-    expect(prompt).toContain('请搜索：OpenAI latest news');
-    expect(prompt).toContain('最多返回 5 条结果');
-    expect(prompt).toContain('优先最近7天');
+    expect(prompt).toContain('Search the web for: OpenAI latest news');
+    expect(prompt).toContain('Return at most 5 results');
+    expect(prompt).toContain('Prioritize last 7 days');
   });
 });
 
