@@ -58,3 +58,4 @@ modsearch -q "TypeScript 5.9 release notes" -o search.json --provider gemini-cli
 - `dist/`
 - `skills/**/outputs/`
 - common logs/cache/system files
+
