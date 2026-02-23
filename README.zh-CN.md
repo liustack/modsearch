@@ -1,13 +1,13 @@
 # ModSearch
 
-面向 AI Agent 的搜索外挂 CLI，用于把查询词转换成结构化网页搜索证据，补齐 LLM 工作流中的搜索能力缺口。
+为 OpenClaw、Claude Code 等 AI 编程工具提供外挂搜索能力，把查询词转换成结构化网页搜索证据，补齐 LLM 工作流中的搜索缺口。
 
 ## 特性
 
 - 面向 Agent 场景，提供稳定可复用的外部搜索上下文
 - Provider 可扩展架构（v1 默认提供 `gemini-cli`）
 - 输出结构化 JSON（`summary`、`items`、`uncertainty`）
-- 适合作为 Agent Skill 工具被 Claude Code / Codex 等调用
+- 适合作为 Agent Skill 工具被 OpenClaw / Claude Code / Codex 等调用
 - 单一职责：只做搜索，不做视觉解析、不做页面抓取
 
 ## 安装
@@ -22,11 +22,29 @@ npm install -g @liustack/modsearch
 npx @liustack/modsearch [options]
 ```
 
+或作为 **Agent Skill** 安装 — 在任何支持 Agent Skill 的 AI 编程工具（Claude Code、Codex、OpenCode、OpenClaw、Cursor、Antigravity 等）中输入：
+
+```
+Install the skill from https://github.com/liustack/modsearch
+```
+
+或使用 `skills` CLI 直接安装：
+
+```bash
+npx skills add https://github.com/liustack/modsearch --skill modsearch
+```
+
 如果使用默认 provider，请先安装并认证 Gemini CLI：
 
 ```bash
 npm install -g @google/gemini-cli
 gemini
+```
+
+或通过 `npx` 直接运行（无需全局安装）：
+
+```bash
+npx @google/gemini-cli          # 启动交互式认证
 ```
 
 ## 用法
@@ -62,11 +80,6 @@ ModSearch 从设计上支持 provider 扩展。
 ## Agent Skill
 
 - [modsearch/SKILL.md](skills/modsearch/SKILL.md)
-
-## 说明
-
-- `modsearch` 只做搜索能力。
-- `modlens` / `modfetch` 是其他独立项目，不在本仓库实现。
 
 ## 免责声明
 

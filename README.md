@@ -1,6 +1,6 @@
 # ModSearch
 
-A CLI toolkit for AI agents that turns search queries into structured web evidence, bridging the search gap for LLM workflows.
+A search plugin for OpenClaw, Claude Code, and other AI coding agents — turns search queries into structured web evidence, bridging the search gap for LLM workflows.
 
 [中文说明](README.zh-CN.md)
 
@@ -9,7 +9,7 @@ A CLI toolkit for AI agents that turns search queries into structured web eviden
 - Built for agent workflows that need reliable external search context
 - Provider-extensible architecture (ships with `gemini-cli` as default provider)
 - Outputs machine-consumable JSON (`summary`, `items`, `uncertainty`)
-- Designed to be called from Agent Skills (Claude Code, Codex, Cursor, etc.)
+- Designed to be called from Agent Skills (OpenClaw, Claude Code, Codex, Cursor, etc.)
 - Single responsibility: search only (no image parsing, no page fetching)
 
 ## Install
@@ -22,6 +22,18 @@ Or run with `npx`:
 
 ```bash
 npx @liustack/modsearch [options]
+```
+
+Or install as an **Agent Skill** — tell any AI coding tool that supports agent skills (Claude Code, Codex, OpenCode, OpenClaw, Cursor, Antigravity, etc.):
+
+```
+Install the skill from https://github.com/liustack/modsearch
+```
+
+Or use the `skills` CLI directly:
+
+```bash
+npx skills add https://github.com/liustack/modsearch --skill modsearch
 ```
 
 If you use the default provider, install and authenticate Gemini CLI first:
@@ -66,11 +78,6 @@ ModSearch is provider-extensible by design.
 ## Agent Skill
 
 - [modsearch/SKILL.md](skills/modsearch/SKILL.md)
-
-## Notes
-
-- `modsearch` focuses on search only.
-- `modlens` and `modfetch` belong to separate projects and are intentionally out of scope.
 
 ## Disclaimer
 

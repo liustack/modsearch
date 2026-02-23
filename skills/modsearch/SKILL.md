@@ -12,10 +12,6 @@ Use this skill when:
 - Current model/toolchain cannot perform direct search reliably
 - You need structured search results before downstream summarization/fetch
 
-Do not use this skill for:
-- Image understanding (`modlens`)
-- Web page content extraction (`modfetch`)
-
 ## Prerequisites
 
 ```bash
@@ -35,10 +31,18 @@ npm install -g @google/gemini-cli
 gemini
 ```
 
+Or run directly with `npx` (no global install required):
+
+```bash
+npx @google/gemini-cli          # launch interactive auth
+```
+
 ## Command
 
 ```bash
 modsearch -q "<query>"
+# or via npx
+npx @liustack/modsearch -q "<query>"
 ```
 
 Optional:
