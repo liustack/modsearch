@@ -1,4 +1,6 @@
 import { geminiCliProvider } from './geminiCli.ts';
+import { tavilyProvider } from './tavily.ts';
+import type { RunSearchResult } from '../search.ts';
 
 export interface ProviderInvocation {
   command: string;
@@ -18,11 +20,13 @@ export interface BuildProviderInvocationOptions {
 export interface SearchProvider {
   name: string;
   buildInvocation: (options: BuildProviderInvocationOptions) => ProviderInvocation;
+  execute?: (options: BuildProviderInvocationOptions) => Promise<RunSearchResult>;
 }
 
 const PROVIDERS: Record<string, SearchProvider> = {
   'gemini-cli': geminiCliProvider,
   gemini: geminiCliProvider,
+  tavily: tavilyProvider,
 };
 
 export function resolveProvider(providerName = 'gemini-cli'): SearchProvider {
