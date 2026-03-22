@@ -22,7 +22,7 @@ export async function executeTavilySearch(
 
   const response = await client.search(options.query, {
     maxResults,
-    searchDepth: 'advanced',
+    searchDepth: 'basic',
     includeAnswer: true,
   });
 
@@ -30,7 +30,7 @@ export async function executeTavilySearch(
     title: r.title ?? '',
     url: r.url ?? '',
     snippet: r.content ?? '',
-    source: new URL(r.url).hostname,
+    source: r.url ? new URL(r.url).hostname : '',
     published_at: null,
     relevance: r.score ?? (1 - idx * 0.05),
   }));
