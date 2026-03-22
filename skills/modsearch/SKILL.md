@@ -71,7 +71,25 @@ Detailed schema: `references/output-schema.md`
 - If provider command fails (missing auth, quota, network, binary not found), report exact error and suggest provider setup checks.
 - If JSON is partially malformed, keep `rawText` and continue with best-effort extraction.
 
+## Tavily Provider
+
+To use the Tavily search provider, set the `TAVILY_API_KEY` environment variable:
+
+```bash
+export TAVILY_API_KEY="tvly-YOUR_API_KEY"
+```
+
+Then run with `--provider tavily` (or `-p tavily`):
+
+```bash
+modsearch -q "<query>" -p tavily
+# or via npx
+npx @liustack/modsearch -q "<query>" -p tavily
+```
+
+Get your API key at https://app.tavily.com (1,000 free credits/month).
+
 ## Implementation Note
 
-v1 uses Gemini CLI as the default provider (`gemini -p` with JSON output mode).  
+v1 uses Gemini CLI as the default provider (`gemini -p` with JSON output mode).
 The architecture is provider-extensible and can support any search-capable model or service provider in future versions.
