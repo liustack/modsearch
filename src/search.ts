@@ -119,6 +119,18 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
   }
 
   const provider = resolveProvider(options.provider);
+
+  if (provider.execute) {
+    return provider.execute({
+      query,
+      model: options.model,
+      maxResults: options.maxResults,
+      extraPrompt: options.prompt,
+      providerBin: options.providerBin,
+      workdir: options.workdir,
+    });
+  }
+
   const invocation = provider.buildInvocation({
     query,
     model: options.model,
