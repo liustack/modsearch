@@ -124,6 +124,10 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Use `-m gemini-3.1-pro-high` for hard research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
+## Note for Codex users
+
+DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch still earns its keep when your channel has no built-in search (DashScope and most third-party gateways), when you need to read a specific page (`-u` fetch, which built-in search does not do), or in any harness without native search tools.
+
 ## Why a bridge instead of a bigger model?
 
 - **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever) for its price and reasoning. ModSearch adds the live web without touching that choice.

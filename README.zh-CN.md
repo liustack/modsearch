@@ -124,6 +124,10 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 难啃的调研问题，换 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
+## 给 Codex 用户的说明
+
+DeepSeek 官方 Responses 端点自带服务端 `web_search` 工具，Codex 配 `web_search = "live"` 直连 `api.deepseek.com` 时，普通搜索已经被覆盖（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 的价值在这些场景：你的渠道没有内置搜索（DashScope 和大多数第三方网关）、你要读某个具体页面（`-u` 抓取，内置搜索做不了）、以及任何没有原生搜索工具的宿主。
+
 ## 为什么外挂，而不是换更大的模型？
 
 - **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）是为了价格和推理能力。ModSearch 只接网线，不动这个选择。
