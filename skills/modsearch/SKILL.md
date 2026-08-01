@@ -93,3 +93,13 @@ Structure is enforced by a JSON schema at the provider level. Full schema: `refe
 - Exit code 1 with `Provider CLI not found`: Antigravity CLI is not installed. Install it, then retry.
 - `no structured result` or auth-flavored errors: ask the user to run `agy` and sign in, or check quota.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
+
+## Alternative Provider: Tavily
+
+When `TAVILY_API_KEY` is set (get one at https://app.tavily.com, 1,000 free credits/month), search can run on Tavily instead of agy:
+
+```bash
+modsearch -q "<query>" -p tavily
+```
+
+Tavily covers search mode only. Page fetch (`-u`) always goes through the default `antigravity-cli` provider.

@@ -1,4 +1,5 @@
 import { antigravityCliProvider } from './antigravity.ts';
+import { tavilyProvider } from './tavily.ts';
 
 export type RunMode = 'search' | 'fetch';
 
@@ -32,14 +33,18 @@ export interface ProviderParsedOutput {
 export interface SearchProvider {
   name: string;
   defaultModel: string;
-  buildInvocation: (options: BuildProviderInvocationOptions) => ProviderInvocation;
-  parseOutput: (stdout: string) => ProviderParsedOutput;
+  // Subprocess providers implement buildInvocation + parseOutput.
+  // In-process API providers (e.g. tavily) implement execute instead.
+  buildInvocation?: (options: BuildProviderInvocationOptions) => ProviderInvocation;
+  parseOutput?: (stdout: string) => ProviderParsedOutput;
+  execute?: (options: BuildProviderInvocationOptions) => Promise<ProviderParsedOutput>;
 }
 
 const PROVIDERS: Record<string, SearchProvider> = {
   'antigravity-cli': antigravityCliProvider,
   antigravity: antigravityCliProvider,
   agy: antigravityCliProvider,
+  tavily: tavilyProvider,
 };
 
 export function resolveProvider(providerName = 'antigravity-cli'): SearchProvider {
