@@ -15,6 +15,7 @@ export default defineConfig({
         rollupOptions: {
             external: [
                 'commander',
+                '@tavily/core',
                 'child_process',
                 'fs',
                 'path'
