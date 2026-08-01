@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="https://raw.githubusercontent.com/liustack/modsearch/main/assets/banner.jpg" width="100%" alt="ModSearch, plug-in web search and page fetch for text-only LLMs" />
   <h1>ModSearch</h1>
   <p><b>Plug-in web search and page fetch for text-only LLMs. Free.</b></p>
   <p>
@@ -8,9 +9,9 @@
   <p><a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-Your favorite model is brilliant but stuck in the past. DeepSeek-V4-Flash reasons beautifully at a bargain price, but ask it about anything after its training cutoff and it guesses. Running inside Claude Code, OpenClaw, Codex, or any harness without search tools, it cannot look anything up, and it cannot read a URL you paste.
+DeepSeek-V4-Flash reasons beautifully at a bargain price, and it's frozen at its training cutoff. Ask about anything newer and it guesses. Running inside Claude Code, OpenClaw, Codex, or any harness without search tools, it can't look anything up, and it can't read a URL you paste in.
 
-ModSearch fixes both with one command. Give it a query and it returns real, current search results as structured JSON. Give it a URL and it fetches the page as clean markdown evidence. The browsing is done by [Antigravity CLI](https://antigravity.google) (`agy`), so it rides Google's free quota, not your API bill.
+One command fixes both. Give ModSearch a query and it comes back with real, current search results as structured JSON. Give it a URL and it fetches the page as clean markdown evidence. The actual browsing happens in [Antigravity CLI](https://antigravity.google) (`agy`), so it runs on Google's free quota, not your API bill.
 
 ```text
 your text-only model ──▶ modsearch skill (auto-triggers on fresh-info needs)
@@ -27,7 +28,7 @@ your text-only model ──▶ modsearch skill (auto-triggers on fresh-info need
               structured JSON evidence ──▶ model answers with sources
 ```
 
-Install the skill once, and your agent searches and reads the web by itself. No model switch, no API key, no prompt surgery.
+Install the skill once and your agent starts searching and reading the web on its own. No model swap, no API key, no prompt surgery.
 
 ## Quick start
 
@@ -38,7 +39,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # opens browser sign-in, then exit
 ```
 
-**2. Install the skill** — tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**2. Install the skill.** Tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modsearch
@@ -50,7 +51,7 @@ or do it yourself:
 npx -y skills add liustack/modsearch
 ```
 
-**3. Use it.** Ask your agent anything time-sensitive, or paste a URL. The skill triggers automatically whenever the model needs the live web.
+**3. Use it.** Ask your agent anything time-sensitive, or paste in a URL. The skill fires automatically whenever the model needs the live web.
 
 ## See it work
 
@@ -82,7 +83,7 @@ Real output, truncated:
 }
 ```
 
-Fetch a page, with an answer focus:
+Fetch a page, with a focus for the answer:
 
 ```bash
 npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skills does it ship"
@@ -100,7 +101,7 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 }
 ```
 
-A search takes 5-20 seconds, a fetch 10-30. The JSON structure is enforced by schema at the provider level, so your agent never has to fish JSON out of markdown again.
+A search takes 5-20 seconds, a fetch 10-30. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
 ## CLI reference
 
@@ -122,25 +123,25 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 | `--provider-bin <path>` | Provider binary | `agy` |
 | `--workdir <path>` | Working directory for the provider | |
 
-Use `-m gemini-3.1-pro-high` for hard research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
+Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
-## Note for Codex users
+## Using it in Codex (DeepSeek and friends)
 
-DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch still earns its keep when your channel has no built-in search (DashScope and most third-party gateways), when you need to read a specific page (`-u` fetch, which built-in search does not do), or in any harness without native search tools.
+DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch still earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or you're in a harness without native search tools at all.
 
 ## Why a bridge instead of a bigger model?
 
-- **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever) for its price and reasoning. ModSearch adds the live web without touching that choice.
-- **Evidence beats vibes.** Answers come back with URLs, dates, and an explicit `uncertainty` list, so your agent cites instead of guessing.
-- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 runs on its successor, Antigravity CLI, behind the same provider interface, so the next engine swap is one file, not a rewrite. v2 also absorbed page fetching, which used to be a separate project (modfetch, now retired).
+- **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever else) for its price and its reasoning, not its search skills. ModSearch adds the live web without touching that choice.
+- **Evidence beats vibes.** Answers come back with URLs, dates, and an explicit `uncertainty` list, so your agent cites sources instead of guessing.
+- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 moved to its successor, Antigravity CLI, behind the same provider interface, so the next engine swap costs one file, not a rewrite. v2 also absorbed page fetching, which used to be its own project (modfetch, now retired).
 
-ModLens, the sibling project, does the same trick for vision: [liustack/modlens](https://github.com/liustack/modlens).
+ModLens, ModSearch's sibling project, plays the same trick for vision: [liustack/modlens](https://github.com/liustack/modlens).
 
 ## Built with liustack
 
-ModSearch v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)** — four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
+ModSearch v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)**. Four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
 
-**If ModSearch just gave your model a network cable, liustack gives your whole workflow discipline:**
+**ModSearch gave your model a network cable. liustack gives your whole workflow discipline:**
 
 ```bash
 npx -y skills add liustack/liustack -g
@@ -150,12 +151,12 @@ npx -y skills add liustack/liustack -g
 
 ## Security notes
 
-- ModSearch invokes `agy` with `--dangerously-skip-permissions`, because print mode skips tool calls without it. The prompt restricts the agent to searching and fetching, and instructs it to treat page content as data, never as instructions. Still, fetched pages are untrusted input: prefer running inside a sandboxed workspace.
-- Search output is evidence, not gospel: results the engine could not verify land in `uncertainty`. The fabricated-looking numeric `relevance` score from v1 was removed, item order carries the ranking.
+- ModSearch runs `agy` with `--dangerously-skip-permissions`, because print mode skips every tool call without it. The prompt keeps the agent to searching and fetching only, and tells it to treat page content as data, never as instructions. Even so, fetched pages are untrusted input, so prefer running inside a sandboxed workspace.
+- Search output is evidence, not gospel. Results the engine could not verify land in `uncertainty`. The numeric `relevance` score from v1 looked precise but was fabricated, so v2 dropped it. Item order now carries the ranking.
 
 ## Disclaimer
 
-Personal learning and experimentation only. Not for commercial use. Antigravity CLI usage falls under your own Google account terms and quota.
+Personal learning and experimentation only, not for commercial use. Antigravity CLI usage runs under your own Google account's terms and quota.
 
 ## License
 
