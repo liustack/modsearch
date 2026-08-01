@@ -12,17 +12,20 @@ const program = new Command();
 
 program
   .name('modsearch')
-  .description('Provider-extensible search bridge for LLM agent workflows')
+  .description(
+    'Plug-in web search and page fetch for text-only LLMs: query or URL in, structured JSON evidence out',
+  )
   .version(__APP_VERSION__)
-  .requiredOption('-q, --query <text>', 'Search query text')
+  .option('-q, --query <text>', 'Search query (or answer focus when combined with -u)')
+  .option('-u, --url <url>', 'Fetch this web page instead of searching')
   .option('-o, --output <path>', 'Write result JSON to a file')
-  .option('-p, --provider <name>', 'Search provider name', 'gemini-cli')
-  .option('-m, --model <name>', 'Model name (provider-specific)')
-  .option('--prompt <text>', 'Extra prompt constraints for this search')
+  .option('-p, --provider <name>', 'Provider name', 'antigravity-cli')
+  .option('-m, --model <name>', 'Provider model name (default: gemini-3.6-flash-low)')
+  .option('--prompt <text>', 'Extra constraints for this run')
   .option('--max-results <n>', 'Maximum number of search results', '8')
-  .option('--timeout <ms>', 'Command timeout in milliseconds', '180000')
-  .option('--provider-bin <path>', 'Provider CLI binary path')
-  .option('--workdir <path>', 'Working directory to run provider command')
+  .option('--timeout <ms>', 'Provider timeout in milliseconds', '180000')
+  .option('--provider-bin <path>', 'Provider binary path (default: agy)')
+  .option('--workdir <path>', 'Working directory for the provider command')
   .action(async (options) => {
     try {
       const timeoutMs = Number.parseInt(options.timeout, 10);
@@ -37,6 +40,7 @@ program
 
       const result = await runSearch({
         query: options.query,
+        url: options.url,
         provider: options.provider,
         model: options.model,
         prompt: options.prompt,

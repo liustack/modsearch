@@ -1,4 +1,6 @@
-import { geminiCliProvider } from './geminiCli.ts';
+import { antigravityCliProvider } from './antigravity.ts';
+
+export type RunMode = 'search' | 'fetch';
 
 export interface ProviderInvocation {
   command: string;
@@ -7,25 +9,40 @@ export interface ProviderInvocation {
 }
 
 export interface BuildProviderInvocationOptions {
-  query: string;
+  mode: RunMode;
+  query?: string;
+  url?: string;
   model?: string;
   maxResults?: number;
   extraPrompt?: string;
   providerBin?: string;
   workdir?: string;
+  timeoutMs: number;
+}
+
+export interface ProviderParsedOutput {
+  result: unknown;
+  meta: {
+    conversationId: string | null;
+    durationSeconds: number | null;
+    usage: unknown | null;
+  };
 }
 
 export interface SearchProvider {
   name: string;
+  defaultModel: string;
   buildInvocation: (options: BuildProviderInvocationOptions) => ProviderInvocation;
+  parseOutput: (stdout: string) => ProviderParsedOutput;
 }
 
 const PROVIDERS: Record<string, SearchProvider> = {
-  'gemini-cli': geminiCliProvider,
-  gemini: geminiCliProvider,
+  'antigravity-cli': antigravityCliProvider,
+  antigravity: antigravityCliProvider,
+  agy: antigravityCliProvider,
 };
 
-export function resolveProvider(providerName = 'gemini-cli'): SearchProvider {
+export function resolveProvider(providerName = 'antigravity-cli'): SearchProvider {
   const normalized = providerName.trim().toLowerCase();
   const provider = PROVIDERS[normalized];
 

@@ -1,20 +1,9 @@
 import { spawn } from 'child_process';
-import { resolveProvider } from './providers/index.ts';
-
-export interface ProviderJsonOutput {
-  session_id?: string;
-  response: string;
-  stats?: unknown;
-  [key: string]: unknown;
-}
-
-export interface ExtractedSearchPayload {
-  structured: unknown | null;
-  rawText: string;
-}
+import { resolveProvider, type ProviderInvocation, type RunMode } from './providers/index.ts';
 
 export interface RunSearchOptions {
-  query: string;
+  query?: string;
+  url?: string;
   provider?: string;
   model?: string;
   prompt?: string;
@@ -25,15 +14,17 @@ export interface RunSearchOptions {
 }
 
 export interface RunSearchResult {
-  query: string;
+  mode: RunMode;
+  query: string | null;
+  url: string | null;
   provider: string;
-  structured: unknown | null;
-  rawText: string;
+  result: unknown;
   meta: {
     generatedAt: string;
-    model: string | null;
-    providerSessionId: string | null;
-    providerStats: unknown | null;
+    model: string;
+    conversationId: string | null;
+    durationSeconds: number | null;
+    usage: unknown | null;
   };
 }
 
@@ -43,133 +34,76 @@ interface CommandResult {
 }
 
 const DEFAULT_TIMEOUT_MS = 180_000;
+// Give the provider's own timeout a chance to fire first; SIGTERM is the backstop.
+const KILL_GRACE_MS = 30_000;
 
-export function parseProviderJsonOutput(stdout: string): ProviderJsonOutput {
-  const trimmed = stdout.trim();
-  let parsed = tryParseJson(trimmed);
+export function resolveMode(query?: string, url?: string): RunMode {
+  const hasQuery = Boolean(query?.trim());
+  const hasUrl = Boolean(url?.trim());
 
-  if (parsed === null) {
-    const firstBrace = trimmed.indexOf('{');
-    const lastBrace = trimmed.lastIndexOf('}');
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      parsed = tryParseJson(trimmed.slice(firstBrace, lastBrace + 1));
-    }
+  if (!hasQuery && !hasUrl) {
+    throw new Error('Provide a search query (-q) or a URL to fetch (-u).');
   }
 
-  if (parsed === null) {
-    throw new Error('Failed to parse provider JSON output.');
-  }
-
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    typeof (parsed as { response?: unknown }).response !== 'string'
-  ) {
-    throw new Error('Provider JSON output is missing a string `response` field.');
-  }
-
-  return parsed as ProviderJsonOutput;
+  return hasUrl ? 'fetch' : 'search';
 }
 
-export function extractSearchPayload(text: string): ExtractedSearchPayload {
-  const rawText = text.trim();
-
-  const direct = tryParseJson(rawText);
-  if (direct !== null) {
-    return {
-      structured: direct,
-      rawText,
-    };
+export function validateUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    throw new Error(`Fetch URL must start with http:// or https://, got: ${trimmed}`);
   }
-
-  const fencedMatch = /```(?:json)?\s*([\s\S]*?)```/i.exec(rawText);
-  if (fencedMatch) {
-    const parsedFenced = tryParseJson(fencedMatch[1].trim());
-    if (parsedFenced !== null) {
-      return {
-        structured: parsedFenced,
-        rawText,
-      };
-    }
-  }
-
-  const firstBrace = rawText.indexOf('{');
-  const lastBrace = rawText.lastIndexOf('}');
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    const possibleJson = rawText.slice(firstBrace, lastBrace + 1);
-    const parsedObject = tryParseJson(possibleJson);
-    if (parsedObject !== null) {
-      return {
-        structured: parsedObject,
-        rawText,
-      };
-    }
-  }
-
-  return {
-    structured: null,
-    rawText,
-  };
+  return trimmed;
 }
 
 export async function runSearch(options: RunSearchOptions): Promise<RunSearchResult> {
-  const query = options.query?.trim();
-  if (!query) {
-    throw new Error('Search query is required.');
-  }
+  const query = options.query?.trim() || undefined;
+  const url = options.url?.trim() ? validateUrl(options.url) : undefined;
+  const mode = resolveMode(query, url);
 
   const provider = resolveProvider(options.provider);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const model = options.model || provider.defaultModel;
+
   const invocation = provider.buildInvocation({
+    mode,
     query,
-    model: options.model,
+    url,
+    model,
     maxResults: options.maxResults,
     extraPrompt: options.prompt,
     providerBin: options.providerBin,
     workdir: options.workdir,
+    timeoutMs,
   });
 
-  const commandResult = await runCommand(
-    provider.name,
-    invocation.command,
-    invocation.args,
-    invocation.cwd,
-    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-  );
-  const providerOutput = parseProviderJsonOutput(commandResult.stdout);
-  const extracted = extractSearchPayload(providerOutput.response);
+  const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
+  const parsed = provider.parseOutput(commandResult.stdout);
 
   return {
-    query,
+    mode,
+    query: query ?? null,
+    url: url ?? null,
     provider: provider.name,
-    structured: extracted.structured,
-    rawText: extracted.rawText,
+    result: parsed.result,
     meta: {
       generatedAt: new Date().toISOString(),
-      model: options.model ?? null,
-      providerSessionId: providerOutput.session_id ?? null,
-      providerStats: providerOutput.stats ?? null,
+      model,
+      conversationId: parsed.meta.conversationId,
+      durationSeconds: parsed.meta.durationSeconds,
+      usage: parsed.meta.usage,
     },
   };
 }
 
-function tryParseJson(text: string): unknown | null {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 function runCommand(
   providerName: string,
-  command: string,
-  args: string[],
-  cwd: string,
+  invocation: ProviderInvocation,
   timeoutMs: number,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: invocation.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -193,7 +127,11 @@ function runCommand(
     child.on('error', (error) => {
       clearTimeout(timer);
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(new Error(`Provider CLI not found: ${command}`));
+        reject(
+          new Error(
+            `Provider CLI not found: ${invocation.command}. Install Antigravity CLI and sign in first.`,
+          ),
+        );
         return;
       }
       reject(error);
