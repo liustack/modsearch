@@ -125,6 +125,8 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
+Prefer an API-based engine? With `TAVILY_API_KEY` set, `-p tavily` runs search mode on [Tavily](https://app.tavily.com) instead (1,000 free credits/month, community contribution by [@mani2001](https://github.com/mani2001)). Page fetch (`-u`) stays on the default provider.
+
 ## Using it in Codex (DeepSeek and friends)
 
 DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch still earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or you're in a harness without native search tools at all.

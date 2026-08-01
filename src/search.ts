@@ -1,5 +1,10 @@
 import { spawn } from 'child_process';
-import { resolveProvider, type ProviderInvocation, type RunMode } from './providers/index.ts';
+import {
+  resolveProvider,
+  type ProviderInvocation,
+  type ProviderParsedOutput,
+  type RunMode,
+} from './providers/index.ts';
 
 export interface RunSearchOptions {
   query?: string;
@@ -65,7 +70,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const model = options.model || provider.defaultModel;
 
-  const invocation = provider.buildInvocation({
+  const providerOptions = {
     mode,
     query,
     url,
@@ -75,10 +80,18 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     providerBin: options.providerBin,
     workdir: options.workdir,
     timeoutMs,
-  });
+  };
 
-  const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
-  const parsed = provider.parseOutput(commandResult.stdout);
+  let parsed: ProviderParsedOutput;
+  if (provider.execute) {
+    parsed = await provider.execute(providerOptions);
+  } else if (provider.buildInvocation && provider.parseOutput) {
+    const invocation = provider.buildInvocation(providerOptions);
+    const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
+    parsed = provider.parseOutput(commandResult.stdout);
+  } else {
+    throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
+  }
 
   return {
     mode,

@@ -125,6 +125,8 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 调研问题难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
+更想用 API 型引擎？设好 `TAVILY_API_KEY` 后，`-p tavily` 让搜索模式跑在 [Tavily](https://app.tavily.com) 上（每月 1000 次免费额度，社区贡献者 [@mani2001](https://github.com/mani2001)）。网页抓取（`-u`）仍走默认 provider。
+
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
 DeepSeek 官方 Responses 端点自带服务端 `web_search` 工具，Codex 配上 `web_search = "live"` 直连 `api.deepseek.com` 时，普通搜索已经被顺手覆盖了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 真正派上用场是这三种情况：你的渠道没内置搜索（DashScope 和大多数第三方网关都是这样）、你要精读某一个具体页面（`-u` 抓取，内置搜索干不了这个）、或者你用的宿主压根没有原生搜索工具。
