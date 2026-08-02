@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/liustack/modsearch/main/assets/banner.jpg" width="100%" alt="ModSearch, plug-in web search and page fetch for text-only LLMs" />
   <h1>ModSearch</h1>
-  <p><b>Plug-in web search and page fetch for text-only LLMs. Free.</b></p>
+  <p><b>Free plug-in web search for your text-only LLM.</b></p>
   <p>
     <a href="https://www.npmjs.com/package/@liustack/modsearch"><img src="https://img.shields.io/npm/v/@liustack/modsearch" alt="npm"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
@@ -9,9 +9,9 @@
   <p><a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-DeepSeek-V4-Flash reasons beautifully at a bargain price, and it's frozen at its training cutoff. Ask about anything newer and it guesses. Running inside Claude Code, OpenClaw, Codex, or any harness without search tools, it can't look anything up, and it can't read a URL you paste in.
+DeepSeek-V4-Flash gives you a lot of model for very little money: fast and strong, but its built-in web search is weak, and most third-party gateways ship no search at all. A model that cannot look things up or read a web page is a real handicap these days.
 
-One command fixes both. Give ModSearch a query and it comes back with real, current search results as structured JSON. Give it a URL and it fetches the page as clean markdown evidence. The actual browsing happens in [Antigravity CLI](https://antigravity.google) (`agy`), so it runs on Google's free quota, not your API bill.
+ModSearch fixes this with a completely free setup. It never touches your config and never adds a local proxy. It's just a search-engine plug-in, usable as a CLI or as an Agent Skill, that returns structured web search results and can parse pages too. Under the hood it runs on [Antigravity CLI](https://antigravity.google) (`agy`), whose search comes from free-quota Google Search. And Google Search is, without much argument, the best search engine on earth. How it works:
 
 ```text
 your text-only model ──▶ modsearch skill (auto-triggers on fresh-info needs)
@@ -39,7 +39,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # opens browser sign-in, then exit
 ```
 
-**2. Install the skill.** Tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**2. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modsearch
@@ -51,7 +51,7 @@ or do it yourself:
 npx -y skills add liustack/modsearch
 ```
 
-**3. Use it.** Ask your agent anything time-sensitive, or paste in a URL. The skill fires automatically whenever the model needs the live web.
+**3. Use it.** Ask anything time-sensitive, or paste in a URL. The skill fires whenever the model needs the live web.
 
 ## See it work
 
@@ -95,13 +95,16 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
   "result": {
     "summary": "Extracted structured evidence from liustack/liustack GitHub README focused on the skills shipped by the package.",
     "content": "#### Shipped Skills\n1. **`shaping`** (Before you start) ...\n2. **`coding`** (While coding) ...\n3. **`dig`** (When there's a bug) ...\n4. **`snapshot`** (When handing off) ...",
-    "links": [ { "text": "shaping SKILL.md", "url": "https://github.com/liustack/liustack/blob/main/skills/shaping/SKILL.md" } ],
+    "links": [
+      {
+        "text": "shaping SKILL.md",
+        "url": "https://github.com/liustack/liustack/blob/main/skills/shaping/SKILL.md"
+      }
+    ],
     "uncertainty": []
   }
 }
 ```
-
-A search takes 5-20 seconds, a fetch 10-30. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
 Here is fetch mode inside the Codex desktop app: drop a blog URL, ask what it says, and get a structured summary back in 25 seconds. No browser tab involved.
 
@@ -133,11 +136,9 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
-Prefer an API-based engine? With `TAVILY_API_KEY` set, `-p tavily` runs search mode on [Tavily](https://app.tavily.com) instead (1,000 free credits/month, community contribution by [@mani2001](https://github.com/mani2001)). Page fetch (`-u`) stays on the default provider.
-
 ## Using it in Codex (DeepSeek and friends)
 
-DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch still earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or you're in a harness without native search tools at all.
+DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or your harness has no native search tools at all.
 
 ## Why a bridge instead of a bigger model?
 
@@ -147,22 +148,22 @@ DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so
 
 ModLens, ModSearch's sibling project, plays the same trick for vision: [liustack/modlens](https://github.com/liustack/modlens).
 
-## Built with liustack
+## Shameless plug
 
-ModSearch v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)**. Four Agent Skills, one loop: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. A lighter, sharper alternative to Superpowers.
+This project runs on LIUSTACK Skills. ModSearch v2 was shaped, coded, and shipped with **[liustack](https://github.com/liustack/liustack)** end to end: `shaping` before you build, `coding` while you build, `dig` when it breaks, `snapshot` when you hand off. Lighter than Superpowers, and sharper.
 
-**ModSearch gave your model a network cable. liustack gives your whole workflow discipline:**
+**ModSearch gives your model a network cable. LIUSTACK Skills gives your dev workflow wings:**
 
 ```bash
 npx -y skills add liustack/liustack -g
 ```
 
-⭐ Like the idea? [Star ModSearch](https://github.com/liustack/modsearch) and [star liustack](https://github.com/liustack/liustack). Stars are how the next developer finds them.
+⭐ Like it? [Star ModSearch](https://github.com/liustack/modsearch) and [star liustack](https://github.com/liustack/liustack). Stars are how the next developer finds them.
 
 ## Security notes
 
-- ModSearch runs `agy` with `--dangerously-skip-permissions`, because print mode skips every tool call without it. The prompt keeps the agent to searching and fetching only, and tells it to treat page content as data, never as instructions. Even so, fetched pages are untrusted input, so prefer running inside a sandboxed workspace.
-- Search output is evidence, not gospel. Results the engine could not verify land in `uncertainty`. The numeric `relevance` score from v1 looked precise but was fabricated, so v2 dropped it. Item order now carries the ranking.
+- ModSearch runs `agy` with `--dangerously-skip-permissions`, because print mode can fail in some setups without it. The prompt keeps the agent to searching and fetching only, and tells it to treat page content as data, never as instructions. Even so, fetched pages are untrusted input, so prefer running inside a sandboxed workspace.
+- Search output is evidence. Whatever the engine cannot verify lands in `uncertainty`. The precise-looking but fabricated numeric `relevance` score from v1 is gone, item order carries the ranking.
 
 ## Disclaimer
 
