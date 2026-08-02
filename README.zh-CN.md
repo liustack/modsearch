@@ -107,6 +107,10 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 ![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
+开放问题也接得住：问一句「看看今天有啥有趣的 AI 新鲜事」，36 秒回来六条带来源的趣闻，末尾还主动交代哪些信息来自检索聚合、细节可能有出入。
+
+![纯文本 DeepSeek 通过 ModSearch 跑开放式新闻搜索](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+
 ## CLI 参数
 
 ```bash

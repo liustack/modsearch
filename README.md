@@ -107,6 +107,10 @@ Here is fetch mode inside the Codex desktop app: drop a blog URL, ask what it sa
 
 ![Text-only DeepSeek summarizing a blog URL via ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
+Open-ended questions work too: ask "anything fun in AI today" and get six sourced stories back in 36 seconds, with an honest note about which details came from aggregated retrieval.
+
+![Text-only DeepSeek running an open-ended news search via ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+
 ## CLI reference
 
 ```bash
