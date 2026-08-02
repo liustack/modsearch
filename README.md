@@ -103,6 +103,10 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 A search takes 5-20 seconds, a fetch 10-30. The JSON shape is locked in by a schema at the provider level, so your agent never has to fish JSON out of markdown again.
 
+Here is fetch mode inside the Codex desktop app: drop a blog URL, ask what it says, and get a structured summary back in 25 seconds. No browser tab involved.
+
+![Text-only DeepSeek summarizing a blog URL via ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
 ## CLI reference
 
 ```bash
