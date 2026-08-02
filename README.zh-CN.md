@@ -103,6 +103,10 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 搜索一次 5-20 秒，抓取一次 10-30 秒。JSON 结构由 provider 层的 schema 硬性保证，你的 agent 不用再从 markdown 里抠 JSON 出来。
 
+抓取模式在 Codex 桌面 App 里跑起来是这样：丢一个博客链接，问一句「说的什么」，25 秒拿到结构化摘要，浏览器都不用开。
+
+![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
 ## CLI 参数
 
 ```bash
