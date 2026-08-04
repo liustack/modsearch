@@ -10,7 +10,7 @@ Provide the `modsearch` CLI tool that turns search queries and page URLs into st
 - **Two modes, one CLI**: `-q` searches the web, `-u` fetches a single page (absorbed from the retired `modfetch` project). `-u` plus `-q` fetches with an answer focus.
 - **Schema-enforced JSON output**: the provider is invoked with `--json-schema`, so the structured result comes back guaranteed, no markdown scraping.
 - **Single responsibility**: this project handles the live web (search + fetch). Image parsing lives in `modlens`.
-- **X routing**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota; grok failure falls back to the default provider silently. Explicit `-p` beats routing. One shared output contract for every engine.
+- **Provider classes + chains**: providers carry a class, `web` (antigravity-cli, playwright, tavily) or `social` (grok-cli for X). Routing picks the class from the query, then walks the in-class chain on availability and runtime failure: web search agy -> playwright -> tavily, fetch agy -> playwright, X grok -> web chain with an uncertainty note. Explicit `-p` or a config-pinned provider disables routing. One shared output contract for every engine; `provider`/`class` in the envelope say who answered.
 
 ```bash
 pnpm install
@@ -21,13 +21,15 @@ pnpm install
 ```
 src/
 ├── main.ts       # CLI entry
-├── search.ts     # orchestration: mode resolution, routing, provider run, envelope
+├── config.ts     # layered config: flags > env > ~/.modsearch/config.json
+├── search.ts     # orchestration: mode resolution, class routing, chain fallback, envelope
 ├── prompt.ts     # search + fetch prompt templates
 ├── schema.ts     # JSON schemas enforced on the provider
 └── providers/
     ├── index.ts        # provider interface + registry
     ├── antigravity.ts  # agy invocation + output parsing
     ├── grok.ts         # Grok Build route for X queries + routing triggers
+    ├── playwright.ts   # headless-browser provider: Google/Bing SERP + page fetch
     └── tavily.ts       # Tavily API provider (search only)
 
 Tests are co-located: each module has an adjacent `*.test.ts`.

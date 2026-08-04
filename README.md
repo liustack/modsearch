@@ -136,6 +136,12 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
+## One query, a chain of engines
+
+Providers come in two classes. Web class: `antigravity-cli` (agy, LLM-synthesized answers on Google's index), `playwright` (a real headless Chrome scraping Google and falling back to Bing when blocked, zero accounts, zero quota), `tavily` (API, free tier key). Social class: `grok-cli` for X. Without `-p`, modsearch routes by class and walks the chain on failure, so a dead agy quota degrades your search to browser scraping instead of an error page, and `-u` page fetches get the same safety net. The result's `provider` and `class` fields always tell you who answered.
+
+Defaults live in `~/.modsearch/config.json` (`modsearch config init/set/show`, keys stored 0600 and masked on show). Env vars beat the file, flags beat both. One-time browser setup if you never had playwright: `npx playwright install chromium`.
+
 ## X (Twitter) search, if you have Grok Build
 
 X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.

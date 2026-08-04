@@ -24,18 +24,38 @@ Do not use this skill for:
 
 ```bash
 modsearch --version
-agy --version
 ```
 
-If `modsearch` is missing, run it via `npx @liustack/modsearch` instead.
+If `modsearch` is missing, run it via `npx @liustack/modsearch` instead. Nothing else is strictly required: providers are routed by availability, and the playwright provider (bundled headless browser) works with zero accounts.
 
-If `agy` (Antigravity CLI) is missing:
+For the best results, `agy` (Antigravity CLI) adds LLM-synthesized answers on Google's index:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 ```
 
 If `agy` is installed but not signed in, ask the user to run `agy` once in a terminal and complete the Google sign-in. This cannot be done non-interactively.
+
+## Providers, classes, and the chain
+
+Every provider belongs to a class: `web` (public web: `antigravity-cli`, `playwright`, `tavily`) or `social` (login-walled data: `grok-cli` for X). Without `-p`, modsearch routes by class and walks the in-class chain on failure:
+
+- Web search: `antigravity-cli` (LLM synthesis, needs agy + quota) then `playwright` (free browser scraping Google, auto-downgrading to Bing when blocked) then `tavily` (needs an API key).
+- Page fetch (`-u`): `antigravity-cli` then `playwright`.
+- X queries: `grok-cli`, degrading to the web chain with an honest uncertainty note when grok is missing or fails.
+
+So agy quota exhaustion is not fatal: the browser takes over automatically. The output's `provider` and `class` fields tell you who actually answered. If the playwright provider errors with a missing browser, run `npx playwright install chromium` once.
+
+## Configuration
+
+`~/.modsearch/config.json` holds defaults (0600 perms, keys masked on show). Env vars override the file, flags override everything:
+
+```bash
+modsearch config init                        # write a starter config
+modsearch config set tavily.apiKey <key>
+modsearch config set provider playwright     # pin one provider, disables routing
+modsearch config show
+```
 
 ## Commands
 
@@ -91,8 +111,8 @@ Structure is enforced by a JSON schema at the provider level. Full schema: `refe
 
 ## Failure Handling
 
-- Exit code 1 with `Provider CLI not found`: Antigravity CLI is not installed. Install it, then retry.
-- `no structured result` or auth-flavored errors: ask the user to run `agy` and sign in, or check quota.
+- `Every provider in the chain failed`: the error lists each provider's failure. Act on the first fixable one (agy sign-in or quota, `npx playwright install chromium`, tavily key).
+- agy quota exhausted: not fatal, playwright answers instead. Only mention agy if the user asks why summaries got more mechanical.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
 
 ## X (Twitter) queries
