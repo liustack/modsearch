@@ -136,6 +136,12 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 调研问题难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
+## 一条查询，一整条引擎链
+
+Provider 分两类。web 类：`antigravity-cli`（agy，走 Google 索引带 LLM 综合）、`playwright`（真无头 Chrome 直接刮 Google，被拦自动换 Bing，零账号零额度）、`tavily`（API，免费档需 key）。social 类：`grok-cli` 管 X。不带 `-p` 时按类路由、失败沿类内链条下移：agy 周配额烧穿时，搜索自动降级成浏览器刮取而不是报错收场，`-u` 抓网页同样有这张安全网。结果里的 `provider` 和 `class` 字段永远告诉你到底谁答的题。
+
+默认值放在 `~/.modsearch/config.json`（`modsearch config init/set/show`，key 落盘 0600、展示打码）。环境变量盖文件，命令行参数盖一切。没装过 playwright 浏览器的话一次性执行：`npx playwright install chromium`。
+
 ## 有 Grok Build，就送你 X（推特）搜索
 
 X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。

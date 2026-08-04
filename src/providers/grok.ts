@@ -44,7 +44,7 @@ export function isXQuery(query: string): boolean {
   return trimmed.length > 0 && X_QUERY_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
-function commandOnPath(bin: string): boolean {
+export function commandOnPath(bin: string): boolean {
   if (bin.includes(path.sep)) {
     return fs.existsSync(bin);
   }
@@ -234,6 +234,7 @@ function tryParseJson(text: string): unknown | null {
 
 export const grokCliProvider: SearchProvider = {
   name: 'grok-cli',
+  providerClass: 'social',
   defaultModel: '',
   buildInvocation: buildGrokInvocation,
   parseOutput: parseGrokOutput,
