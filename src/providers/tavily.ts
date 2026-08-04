@@ -71,7 +71,6 @@ function safeHostname(url: string): string | undefined {
 
 export const tavilyProvider: SearchProvider = {
   name: 'tavily',
-  providerClass: 'web',
   defaultModel: 'tavily-basic',
   execute: executeTavilySearch,
 };

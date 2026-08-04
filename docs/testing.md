@@ -24,5 +24,5 @@ pnpm typecheck                              # tsc --noEmit, run before tests
 
 - No network in unit tests: Tavily is mocked via `vi.mock('@tavily/core', ...)`; the agy and grok binaries are replaced with tiny shell scripts in a temp dir that echo canned envelopes.
 - To fake the home directory or PATH (grok availability checks), set `process.env.HOME` / `process.env.PATH` and restore them in `afterEach`; `os.homedir()` follows `HOME` on POSIX.
-- Providers with subprocess transports test `buildInvocation`/`parseOutput` as pure functions. Routing tests the whole class-chain contract through `runSearch` with fake binaries. The playwright provider is tested on its pure parts only (URL building, redirect unwrapping, summaries): never launch a real browser in `pnpm test`.
+- Providers with subprocess transports test `buildInvocation`/`parseOutput` as pure functions. X routing tests the whole route-and-fallback contract through `runSearch` with fake binaries.
 - Real `agy`/`grok` calls are end-to-end verification, not unit tests. They consume real quota: keep them out of `pnpm test`.

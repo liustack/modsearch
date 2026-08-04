@@ -1,9 +1,7 @@
 import { spawn } from 'child_process';
-import { loadConfigFile, resolveProviderSettings, type ModsearchConfig } from './config.ts';
-import { commandOnPath, grokAvailable, isXQuery } from './providers/grok.ts';
+import { grokAvailable, isXQuery } from './providers/grok.ts';
 import {
   resolveProvider,
-  type ProviderClass,
   type ProviderInvocation,
   type ProviderParsedOutput,
   type RunMode,
@@ -30,8 +28,6 @@ export interface RunSearchResult {
   query: string | null;
   url: string | null;
   provider: string;
-  /** Which class of source answered: 'web' (public web) or 'social' (login-walled data). */
-  class: ProviderClass;
   result: unknown;
   meta: {
     generatedAt: string;
@@ -71,90 +67,47 @@ export function validateUrl(url: string): string {
 }
 
 /**
- * Note injected when an X-flavored query has to be answered by a web-class
- * provider because the social chain is empty or failed at runtime.
+ * Pick the provider for this run. Explicit `-p` always wins. Otherwise
+ * X-flavored search queries route entirely to Grok Build when it is installed
+ * and signed in, so they spend no agy quota at all; everything else goes to
+ * the default provider.
  */
-export const X_DEGRADE_NOTE =
-  'X-direct coverage unavailable (Grok Build missing, signed out, or failed). These are second-hand mentions from the public web, which cannot see inside X.';
-
-export interface ChainAvailability {
-  agy: boolean;
-  grok: boolean;
-  tavily: boolean;
-}
-
-/**
- * Ordered provider chain for one run. Two classes: 'social' (X via Grok
- * Build) and 'web' (agy first for LLM synthesis, playwright as the free
- * quota-less browser fallback, tavily last because it burns credits). A
- * social request appends the web chain as its degrade path.
- */
-export function buildChain(args: {
+export function routeProvider(options: {
   mode: RunMode;
-  wantSocial: boolean;
-  availability: ChainAvailability;
-}): SearchProvider[] {
-  const { mode, wantSocial, availability } = args;
-
-  const web: SearchProvider[] = [];
-  if (availability.agy) {
-    web.push(resolveProvider('antigravity-cli'));
+  query?: string;
+  provider?: string;
+  x?: boolean;
+  grokBin?: string;
+}): SearchProvider {
+  const requested = options.provider?.trim();
+  if (requested) {
+    return resolveProvider(requested);
   }
-  web.push(resolveProvider('playwright'));
-  if (mode === 'search' && availability.tavily) {
-    web.push(resolveProvider('tavily'));
+  if (
+    options.mode === 'search' &&
+    options.query &&
+    options.x !== false &&
+    (options.x === true || isXQuery(options.query)) &&
+    grokAvailable(options.grokBin)
+  ) {
+    return resolveProvider('grok-cli');
   }
-
-  if (mode === 'search' && wantSocial) {
-    const chain: SearchProvider[] = [];
-    if (availability.grok) {
-      chain.push(resolveProvider('grok-cli'));
-    }
-    return [...chain, ...web];
-  }
-  return web;
+  return resolveProvider();
 }
 
 export async function runSearch(options: RunSearchOptions): Promise<RunSearchResult> {
   const query = options.query?.trim() || undefined;
   const url = options.url?.trim() ? validateUrl(options.url) : undefined;
   const mode = resolveMode(query, url);
+
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
-  const config = loadConfigFile();
-  const settings = (name: string) => resolveProviderSettings(name, config);
-
-  const agyBin = options.providerBin || settings('antigravity-cli').bin || 'agy';
-  const grokBin = options.grokBin || settings('grok-cli').bin || 'grok';
-  const headless = settings('playwright').headless !== 'false';
-  const tavilyKey = settings('tavily').apiKey;
-  if (tavilyKey && !process.env.TAVILY_API_KEY) {
-    // The tavily SDK reads the env var; bridge the config file into it.
-    process.env.TAVILY_API_KEY = tavilyKey;
-  }
-
-  // Explicit -p, or a provider pinned in the config file, disables routing.
-  const pinnedName = options.provider?.trim() || config.provider?.trim() || '';
-  let chain: SearchProvider[];
-  let wantSocial = false;
-  if (pinnedName) {
-    chain = [resolveProvider(pinnedName)];
-  } else {
-    wantSocial =
-      mode === 'search' &&
-      !!query &&
-      options.x !== false &&
-      (options.x === true || isXQuery(query));
-    chain = buildChain({
-      mode,
-      wantSocial,
-      availability: {
-        agy: commandOnPath(agyBin),
-        grok: grokAvailable(grokBin),
-        tavily: Boolean(tavilyKey || process.env.TAVILY_API_KEY),
-      },
-    });
-  }
+  let provider = routeProvider({
+    mode,
+    query,
+    provider: options.provider,
+    x: options.x,
+    grokBin: options.grokBin,
+  });
 
   const providerOptions = {
     mode,
@@ -162,65 +115,43 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     url,
     maxResults: options.maxResults,
     extraPrompt: options.prompt,
-    providerBin: agyBin,
-    grokBin,
-    headless,
+    providerBin: options.providerBin,
+    grokBin: options.grokBin,
     workdir: options.workdir,
     timeoutMs,
   };
 
-  const failures: string[] = [];
-  for (const provider of chain) {
-    const model = options.model || settings(provider.name).model || provider.defaultModel;
-    let parsed: ProviderParsedOutput;
-    try {
+  let model = options.model || provider.defaultModel;
+  let parsed: ProviderParsedOutput;
+  try {
+    parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
+  } catch (error) {
+    // The grok route is best-effort: when it was chosen by routing (not by an
+    // explicit -p) and fails at runtime, fall back to the default provider
+    // silently instead of surfacing a broken bonus path.
+    if (provider.name === 'grok-cli' && !options.provider?.trim()) {
+      provider = resolveProvider();
+      model = options.model || provider.defaultModel;
       parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
-    } catch (error) {
-      if (chain.length === 1) {
-        throw error;
-      }
-      failures.push(`${provider.name}: ${error instanceof Error ? error.message : String(error)}`);
-      continue;
+    } else {
+      throw error;
     }
-
-    // A web provider answering an X-flavored query is a degraded answer:
-    // say so inside the result instead of pretending Google can see X.
-    if (wantSocial && provider.providerClass === 'web') {
-      injectUncertainty(parsed.result, X_DEGRADE_NOTE);
-    }
-
-    return {
-      mode,
-      query: query ?? null,
-      url: url ?? null,
-      provider: provider.name,
-      class: provider.providerClass,
-      result: parsed.result,
-      meta: {
-        generatedAt: new Date().toISOString(),
-        model,
-        conversationId: parsed.meta.conversationId,
-        durationSeconds: parsed.meta.durationSeconds,
-        usage: parsed.meta.usage,
-      },
-    };
   }
 
-  throw new Error(
-    `Every provider in the chain failed.\n${failures.map((line) => `  - ${line}`).join('\n')}`,
-  );
-}
-
-function injectUncertainty(result: unknown, note: string): void {
-  if (!result || typeof result !== 'object') {
-    return;
-  }
-  const shaped = result as { uncertainty?: unknown };
-  if (Array.isArray(shaped.uncertainty)) {
-    shaped.uncertainty.unshift(note);
-  } else {
-    shaped.uncertainty = [note];
-  }
+  return {
+    mode,
+    query: query ?? null,
+    url: url ?? null,
+    provider: provider.name,
+    result: parsed.result,
+    meta: {
+      generatedAt: new Date().toISOString(),
+      model,
+      conversationId: parsed.meta.conversationId,
+      durationSeconds: parsed.meta.durationSeconds,
+      usage: parsed.meta.usage,
+    },
+  };
 }
 
 async function runProvider(

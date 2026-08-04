@@ -1,16 +1,8 @@
 import { antigravityCliProvider } from './antigravity.ts';
 import { grokCliProvider } from './grok.ts';
-import { playwrightProvider } from './playwright.ts';
 import { tavilyProvider } from './tavily.ts';
 
 export type RunMode = 'search' | 'fetch';
-
-/**
- * Two classes of evidence source. 'web' providers answer from the public web
- * (Google index, SERP scraping, search APIs). 'social' providers reach data
- * behind a login wall that public crawlers cannot see (X via Grok Build).
- */
-export type ProviderClass = 'web' | 'social';
 
 export interface ProviderInvocation {
   command: string;
@@ -28,7 +20,6 @@ export interface BuildProviderInvocationOptions {
   providerBin?: string;
   grokBin?: string;
   workdir?: string;
-  headless?: boolean;
   timeoutMs: number;
 }
 
@@ -43,7 +34,6 @@ export interface ProviderParsedOutput {
 
 export interface SearchProvider {
   name: string;
-  providerClass: ProviderClass;
   defaultModel: string;
   // Subprocess providers implement buildInvocation + parseOutput.
   // In-process API providers (e.g. tavily) implement execute instead.
@@ -59,8 +49,6 @@ const PROVIDERS: Record<string, SearchProvider> = {
   tavily: tavilyProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
-  playwright: playwrightProvider,
-  browser: playwrightProvider,
 };
 
 export function resolveProvider(providerName = 'antigravity-cli'): SearchProvider {

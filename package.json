@@ -1,6 +1,6 @@
 {
   "name": "@liustack/modsearch",
-  "version": "2.4.0",
+  "version": "2.3.0",
   "description": "Plug-in web search and page fetch for text-only LLMs, powered by the free Antigravity CLI",
   "type": "module",
   "bin": {
@@ -44,8 +44,7 @@
   },
   "dependencies": {
     "@tavily/core": "^0.6.0",
-    "commander": "^13.1.0",
-    "playwright": "^1.62.1"
+    "commander": "^13.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.7",

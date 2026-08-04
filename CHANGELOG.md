@@ -1,11 +1,5 @@
 # Changelog
 
-## 2.4.0 - 2026-08-05
-
-- Provider classes and in-class chains: `web` (public web) and `social` (login-walled data). Routing picks the class from the query and walks the chain on failure: web search runs antigravity-cli, then playwright, then tavily; page fetch runs antigravity-cli, then playwright; X queries run grok-cli and degrade to the web chain with an honest uncertainty note instead of failing. agy quota exhaustion no longer bricks anything. Output gains a `class` field.
-- New `playwright` provider: a real headless Chrome (system Chrome channel preferred) scrapes the Google results page, auto-downgrades to Bing when Google blocks, and browser-extracts any page in fetch mode. No accounts, no quota, no LLM: mechanical summaries, honest uncertainty.
-- Layered config at `~/.modsearch/config.json` via `modsearch config init/set/show` (0600 perms, masked keys): pin a provider, store the tavily key, point at custom agy/grok binaries, toggle playwright headless. Flags > env > file.
-
 ## 2.3.0 - 2026-08-05
 
 - X handling redesigned from companion source to routing: an X-flavored query now runs entirely on Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota at all, and silently falls back to the default provider when grok is absent or fails mid-run. The short-lived `x` section from 2.2.0 is gone: every engine returns the same `{ summary, items, uncertainty }` contract, X posts arrive as items (`source: "x.com"`, title carries the handle), and `provider` names the engine that answered.
