@@ -26,6 +26,9 @@ program
   .option('--timeout <ms>', 'Provider timeout in milliseconds', '180000')
   .option('--provider-bin <path>', 'Provider binary path (default: agy)')
   .option('--workdir <path>', 'Working directory for the provider command')
+  .option('--x', 'Force the X (Twitter) companion source even without X keywords in the query')
+  .option('--no-x', 'Disable the X companion source')
+  .option('--grok-bin <path>', 'Grok Build binary path for the X source (default: grok)')
   .action(async (options) => {
     try {
       const timeoutMs = Number.parseInt(options.timeout, 10);
@@ -48,6 +51,8 @@ program
         providerBin: options.providerBin,
         maxResults,
         workdir: options.workdir,
+        x: options.x,
+        grokBin: options.grokBin,
       });
 
       const output = JSON.stringify(result, null, 2);

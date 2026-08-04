@@ -1,6 +1,6 @@
 ---
 name: modsearch
-description: "Plug-in web search and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence."
+description: "Plug-in web search and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also covers X (Twitter): when the user asks what people are saying on X/Twitter (推特/推文/tweets/x.com), the same search command returns real X posts too, provided a signed-in Grok Build CLI is on the machine."
 allowed-tools:
   - Bash
 ---
@@ -13,6 +13,7 @@ Use this skill when:
 - The answer needs source links or verifiable external facts
 - The user gives a URL to read and the harness has no fetch tool
 - You need search evidence before deciding which page to read in depth
+- The user asks what people are saying on X/Twitter (推特, 推文, tweets, threads, reactions on x.com)
 
 Do not use this skill for:
 
@@ -71,7 +72,7 @@ modsearch -q "<query>" -o <output.json> -m <model> --max-results <n> --prompt "<
 
 ## Output Contract
 
-Top level: `{ mode, query, url, provider, result, meta }`.
+Top level: `{ mode, query, url, provider, result, x?, meta }`. The optional `x` block is the X (Twitter) companion result, see below.
 
 Search mode `result`:
 
@@ -93,6 +94,15 @@ Structure is enforced by a JSON schema at the provider level. Full schema: `refe
 - Exit code 1 with `Provider CLI not found`: Antigravity CLI is not installed. Install it, then retry.
 - `no structured result` or auth-flavored errors: ask the user to run `agy` and sign in, or check quota.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
+
+## X (Twitter) posts
+
+X is invisible to normal web search engines. When this machine has [Grok Build CLI](https://x.ai/news/grok-build-cli) installed and signed in (SuperGrok or X Premium login), modsearch covers X automatically: any query mentioning twitter, tweet, 推特, 推文, x.com, or "on X" also runs an X search in parallel and attaches an `x` section to the output. Do not probe for grok yourself and do not configure anything: run the normal `-q` command and read the output.
+
+- `x.result.posts[]`: `{ author, snippet, url?, published_at? }`, real posts with handles and x.com status links
+- `x.result.summary` and `x.result.uncertainty[]`: same contract spirit as the main result
+- The `x` section is silently absent when Grok Build is missing, not signed in, or errored. That is normal: answer from the main result, and only mention that X coverage needs Grok Build if the user explicitly asked for X content.
+- `--x` forces the X source when the query lacks X keywords. `--no-x` disables it.
 
 ## Alternative Provider: Tavily
 

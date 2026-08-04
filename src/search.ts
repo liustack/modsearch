@@ -5,6 +5,7 @@ import {
   type ProviderParsedOutput,
   type RunMode,
 } from './providers/index.ts';
+import { grokAvailable, isXQuery, startXSearch, type XSection } from './xSource.ts';
 
 export interface RunSearchOptions {
   query?: string;
@@ -16,6 +17,9 @@ export interface RunSearchOptions {
   providerBin?: string;
   maxResults?: number;
   workdir?: string;
+  /** X companion source: true forces it, false disables it, undefined = auto. */
+  x?: boolean;
+  grokBin?: string;
 }
 
 export interface RunSearchResult {
@@ -24,6 +28,8 @@ export interface RunSearchResult {
   url: string | null;
   provider: string;
   result: unknown;
+  /** Present only when the X companion source ran and succeeded. */
+  x?: XSection;
   meta: {
     generatedAt: string;
     model: string;
@@ -82,16 +88,41 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     timeoutMs,
   };
 
+  // X companion source: runs in parallel with the main provider for X-flavored
+  // queries when a signed-in Grok Build CLI is on this machine. Every failure
+  // path is silent; the main result never depends on it.
+  const wantX =
+    mode === 'search' &&
+    !!query &&
+    options.x !== false &&
+    (options.x === true || isXQuery(query)) &&
+    grokAvailable(options.grokBin);
+  const xRun = wantX
+    ? startXSearch({
+        query,
+        maxPosts: options.maxResults ?? 5,
+        timeoutMs,
+        grokBin: options.grokBin,
+      })
+    : null;
+
   let parsed: ProviderParsedOutput;
-  if (provider.execute) {
-    parsed = await provider.execute(providerOptions);
-  } else if (provider.buildInvocation && provider.parseOutput) {
-    const invocation = provider.buildInvocation(providerOptions);
-    const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
-    parsed = provider.parseOutput(commandResult.stdout);
-  } else {
-    throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
+  try {
+    if (provider.execute) {
+      parsed = await provider.execute(providerOptions);
+    } else if (provider.buildInvocation && provider.parseOutput) {
+      const invocation = provider.buildInvocation(providerOptions);
+      const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
+      parsed = provider.parseOutput(commandResult.stdout);
+    } else {
+      throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
+    }
+  } catch (error) {
+    xRun?.abort();
+    throw error;
   }
+
+  const xSection = xRun ? await xRun.result : null;
 
   return {
     mode,
@@ -99,6 +130,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     url: url ?? null,
     provider: provider.name,
     result: parsed.result,
+    ...(xSection ? { x: xSection } : {}),
     meta: {
       generatedAt: new Date().toISOString(),
       model,

@@ -136,6 +136,18 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
+## X (Twitter) search, if you have Grok Build
+
+X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
+
+ModSearch treats it as a bonus source, not a dependency. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the search runs Grok in parallel and attaches an `x` section: real posts, author handles, x.com status links. No Grok Build, no X keywords, or a grok hiccup mid-flight: the section is silently absent and the normal result stands. Nothing to configure.
+
+```bash
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # x section appears on its own
+modsearch -q "community mood about the release" --x   # force it without keywords
+modsearch -q "..." --no-x                             # keep X out of it
+```
+
 ## Using it in Codex (DeepSeek and friends)
 
 DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or your harness has no native search tools at all.

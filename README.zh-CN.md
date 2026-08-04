@@ -136,6 +136,18 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 调研问题难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
+## 有 Grok Build，就送你 X（推特）搜索
+
+X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
+
+ModSearch 把它当赠品，不当依赖。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，搜索就会并行多跑一路 Grok，在结果旁边附一个 `x` 区块：真实帖子、作者 handle、原帖链接。没装 Grok Build、查询跟 X 无关、或者 grok 半路抽风，这个区块就安静缺席，主结果照常返回。零配置。
+
+```bash
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # x 区块自动出现
+modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制带上
+modsearch -q "..." --no-x                             # 不想要就关掉
+```
+
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
 DeepSeek 官方 Responses 端点自带服务端 `web_search` 工具，Codex 配上 `web_search = "live"` 直连 `api.deepseek.com` 时，普通搜索已经被顺手覆盖了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 真正派上用场是这三种情况：你的渠道没内置搜索（DashScope 和大多数第三方网关都是这样）、你要精读某一个具体页面（`-u` 抓取，内置搜索干不了这个）、或者你用的宿主压根没有原生搜索工具。
