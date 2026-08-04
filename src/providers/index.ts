@@ -1,4 +1,5 @@
 import { antigravityCliProvider } from './antigravity.ts';
+import { grokCliProvider } from './grok.ts';
 import { tavilyProvider } from './tavily.ts';
 
 export type RunMode = 'search' | 'fetch';
@@ -17,6 +18,7 @@ export interface BuildProviderInvocationOptions {
   maxResults?: number;
   extraPrompt?: string;
   providerBin?: string;
+  grokBin?: string;
   workdir?: string;
   timeoutMs: number;
 }
@@ -45,6 +47,8 @@ const PROVIDERS: Record<string, SearchProvider> = {
   antigravity: antigravityCliProvider,
   agy: antigravityCliProvider,
   tavily: tavilyProvider,
+  'grok-cli': grokCliProvider,
+  grok: grokCliProvider,
 };
 
 export function resolveProvider(providerName = 'antigravity-cli'): SearchProvider {

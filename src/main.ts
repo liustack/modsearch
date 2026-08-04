@@ -19,16 +19,19 @@ program
   .option('-q, --query <text>', 'Search query (or answer focus when combined with -u)')
   .option('-u, --url <url>', 'Fetch this web page instead of searching')
   .option('-o, --output <path>', 'Write result JSON to a file')
-  .option('-p, --provider <name>', 'Provider name', 'antigravity-cli')
+  .option(
+    '-p, --provider <name>',
+    'Provider name (default: auto-routed; antigravity-cli, or grok-cli for X/Twitter queries when Grok Build is signed in)',
+  )
   .option('-m, --model <name>', 'Provider model name (default: gemini-3.6-flash-low)')
   .option('--prompt <text>', 'Extra constraints for this run')
   .option('--max-results <n>', 'Maximum number of search results', '8')
   .option('--timeout <ms>', 'Provider timeout in milliseconds', '180000')
   .option('--provider-bin <path>', 'Provider binary path (default: agy)')
   .option('--workdir <path>', 'Working directory for the provider command')
-  .option('--x', 'Force the X (Twitter) companion source even without X keywords in the query')
-  .option('--no-x', 'Disable the X companion source')
-  .option('--grok-bin <path>', 'Grok Build binary path for the X source (default: grok)')
+  .option('--x', 'Force the grok-cli X route even without X keywords in the query')
+  .option('--no-x', 'Never route to grok-cli; use the default provider')
+  .option('--grok-bin <path>', 'Grok Build binary path for the X route (default: grok)')
   .action(async (options) => {
     try {
       const timeoutMs = Number.parseInt(options.timeout, 10);

@@ -140,12 +140,12 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
 
-ModSearch 把它当赠品，不当依赖。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，搜索就会并行多跑一路 Grok，在结果旁边附一个 `x` 区块：真实帖子、作者 handle、原帖链接。没装 Grok Build、查询跟 X 无关、或者 grok 半路抽风，这个区块就安静缺席，主结果照常返回。零配置。
+ModSearch 的做法是路由，不是堆引擎。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，这条查询就整条改走 Grok：真实帖子、作者 handle、原帖链接，JSON 结构跟普通搜索一模一样，而且一点 agy 额度都不花（那点额度本来就紧张，留给 Google 真正擅长的活）。没装 Grok Build，或者 grok 半路失手，查询就安静回落到默认引擎。零配置。
 
 ```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # x 区块自动出现
-modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制带上
-modsearch -q "..." --no-x                             # 不想要就关掉
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # 自动改走 grok-cli
+modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制路由
+modsearch -q "..." --no-x                          # 锁定默认引擎
 ```
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）

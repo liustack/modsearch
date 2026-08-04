@@ -140,12 +140,12 @@ Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract
 
 X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
 
-ModSearch treats it as a bonus source, not a dependency. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the search runs Grok in parallel and attaches an `x` section: real posts, author handles, x.com status links. No Grok Build, no X keywords, or a grok hiccup mid-flight: the section is silently absent and the normal result stands. Nothing to configure.
+ModSearch handles it by routing, not by piling engines up. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the whole search runs on Grok instead of agy: real posts, author handles, x.com status links, in the exact same JSON shape as every other search, and zero agy quota spent (that quota is thin, save it for what Google is actually good at). No Grok Build, or grok stumbles mid-run: the query silently falls back to the normal engine. Nothing to configure.
 
 ```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # x section appears on its own
-modsearch -q "community mood about the release" --x   # force it without keywords
-modsearch -q "..." --no-x                             # keep X out of it
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"       # routes to grok-cli on its own
+modsearch -q "community mood about the release" --x   # force the route without keywords
+modsearch -q "..." --no-x                             # pin the default engine
 ```
 
 ## Using it in Codex (DeepSeek and friends)

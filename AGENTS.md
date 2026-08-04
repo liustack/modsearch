@@ -10,7 +10,7 @@ Provide the `modsearch` CLI tool that turns search queries and page URLs into st
 - **Two modes, one CLI**: `-q` searches the web, `-u` fetches a single page (absorbed from the retired `modfetch` project). `-u` plus `-q` fetches with an answer focus.
 - **Schema-enforced JSON output**: the provider is invoked with `--json-schema`, so the structured result comes back guaranteed, no markdown scraping.
 - **Single responsibility**: this project handles the live web (search + fetch). Image parsing lives in `modlens`.
-- **X companion source, not a provider**: X-flavored `-q` queries additionally run Grok Build (`grok`) in parallel and attach an `x` section. Strictly best-effort and silent on every failure; the main provider result never depends on it.
+- **X routing**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota; grok failure falls back to the default provider silently. Explicit `-p` beats routing. One shared output contract for every engine.
 
 ```bash
 pnpm install
@@ -21,13 +21,13 @@ pnpm install
 ```
 src/
 ├── main.ts       # CLI entry
-├── search.ts     # orchestration: mode resolution, provider run, x merge, envelope
+├── search.ts     # orchestration: mode resolution, routing, provider run, envelope
 ├── prompt.ts     # search + fetch prompt templates
 ├── schema.ts     # JSON schemas enforced on the provider
-├── xSource.ts    # X (Twitter) companion source riding a local Grok Build CLI
 └── providers/
     ├── index.ts        # provider interface + registry
     ├── antigravity.ts  # agy invocation + output parsing
+    ├── grok.ts         # Grok Build route for X queries + routing triggers
     └── tavily.ts       # Tavily API provider (search only)
 
 Tests are co-located: each module has an adjacent `*.test.ts`.

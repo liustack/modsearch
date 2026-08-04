@@ -1,11 +1,12 @@
 import { spawn } from 'child_process';
+import { grokAvailable, isXQuery } from './providers/grok.ts';
 import {
   resolveProvider,
   type ProviderInvocation,
   type ProviderParsedOutput,
   type RunMode,
+  type SearchProvider,
 } from './providers/index.ts';
-import { grokAvailable, isXQuery, startXSearch, type XSection } from './xSource.ts';
 
 export interface RunSearchOptions {
   query?: string;
@@ -17,7 +18,7 @@ export interface RunSearchOptions {
   providerBin?: string;
   maxResults?: number;
   workdir?: string;
-  /** X companion source: true forces it, false disables it, undefined = auto. */
+  /** X routing: true forces the grok route, false disables it, undefined = auto. */
   x?: boolean;
   grokBin?: string;
 }
@@ -28,8 +29,6 @@ export interface RunSearchResult {
   url: string | null;
   provider: string;
   result: unknown;
-  /** Present only when the X companion source ran and succeeded. */
-  x?: XSection;
   meta: {
     generatedAt: string;
     model: string;
@@ -67,62 +66,77 @@ export function validateUrl(url: string): string {
   return trimmed;
 }
 
+/**
+ * Pick the provider for this run. Explicit `-p` always wins. Otherwise
+ * X-flavored search queries route entirely to Grok Build when it is installed
+ * and signed in, so they spend no agy quota at all; everything else goes to
+ * the default provider.
+ */
+export function routeProvider(options: {
+  mode: RunMode;
+  query?: string;
+  provider?: string;
+  x?: boolean;
+  grokBin?: string;
+}): SearchProvider {
+  const requested = options.provider?.trim();
+  if (requested) {
+    return resolveProvider(requested);
+  }
+  if (
+    options.mode === 'search' &&
+    options.query &&
+    options.x !== false &&
+    (options.x === true || isXQuery(options.query)) &&
+    grokAvailable(options.grokBin)
+  ) {
+    return resolveProvider('grok-cli');
+  }
+  return resolveProvider();
+}
+
 export async function runSearch(options: RunSearchOptions): Promise<RunSearchResult> {
   const query = options.query?.trim() || undefined;
   const url = options.url?.trim() ? validateUrl(options.url) : undefined;
   const mode = resolveMode(query, url);
 
-  const provider = resolveProvider(options.provider);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const model = options.model || provider.defaultModel;
+  let provider = routeProvider({
+    mode,
+    query,
+    provider: options.provider,
+    x: options.x,
+    grokBin: options.grokBin,
+  });
 
   const providerOptions = {
     mode,
     query,
     url,
-    model,
     maxResults: options.maxResults,
     extraPrompt: options.prompt,
     providerBin: options.providerBin,
+    grokBin: options.grokBin,
     workdir: options.workdir,
     timeoutMs,
   };
 
-  // X companion source: runs in parallel with the main provider for X-flavored
-  // queries when a signed-in Grok Build CLI is on this machine. Every failure
-  // path is silent; the main result never depends on it.
-  const wantX =
-    mode === 'search' &&
-    !!query &&
-    options.x !== false &&
-    (options.x === true || isXQuery(query)) &&
-    grokAvailable(options.grokBin);
-  const xRun = wantX
-    ? startXSearch({
-        query,
-        maxPosts: options.maxResults ?? 5,
-        timeoutMs,
-        grokBin: options.grokBin,
-      })
-    : null;
-
+  let model = options.model || provider.defaultModel;
   let parsed: ProviderParsedOutput;
   try {
-    if (provider.execute) {
-      parsed = await provider.execute(providerOptions);
-    } else if (provider.buildInvocation && provider.parseOutput) {
-      const invocation = provider.buildInvocation(providerOptions);
-      const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
-      parsed = provider.parseOutput(commandResult.stdout);
-    } else {
-      throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
-    }
+    parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
   } catch (error) {
-    xRun?.abort();
-    throw error;
+    // The grok route is best-effort: when it was chosen by routing (not by an
+    // explicit -p) and fails at runtime, fall back to the default provider
+    // silently instead of surfacing a broken bonus path.
+    if (provider.name === 'grok-cli' && !options.provider?.trim()) {
+      provider = resolveProvider();
+      model = options.model || provider.defaultModel;
+      parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
+    } else {
+      throw error;
+    }
   }
-
-  const xSection = xRun ? await xRun.result : null;
 
   return {
     mode,
@@ -130,7 +144,6 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     url: url ?? null,
     provider: provider.name,
     result: parsed.result,
-    ...(xSection ? { x: xSection } : {}),
     meta: {
       generatedAt: new Date().toISOString(),
       model,
@@ -139,6 +152,22 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
       usage: parsed.meta.usage,
     },
   };
+}
+
+async function runProvider(
+  provider: SearchProvider,
+  providerOptions: Parameters<NonNullable<SearchProvider['buildInvocation']>>[0],
+  timeoutMs: number,
+): Promise<ProviderParsedOutput> {
+  if (provider.execute) {
+    return provider.execute(providerOptions);
+  }
+  if (provider.buildInvocation && provider.parseOutput) {
+    const invocation = provider.buildInvocation(providerOptions);
+    const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
+    return provider.parseOutput(commandResult.stdout);
+  }
+  throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
 }
 
 function runCommand(
@@ -174,7 +203,7 @@ function runCommand(
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         reject(
           new Error(
-            `Provider CLI not found: ${invocation.command}. Install Antigravity CLI and sign in first.`,
+            `Provider CLI not found: ${invocation.command}. Install it and sign in first.`,
           ),
         );
         return;
