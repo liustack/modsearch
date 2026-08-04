@@ -72,7 +72,7 @@ modsearch -q "<query>" -o <output.json> -m <model> --max-results <n> --prompt "<
 
 ## Output Contract
 
-Top level: `{ mode, query, url, provider, result, x?, meta }`. The optional `x` block is the X (Twitter) companion result, see below.
+Top level: `{ mode, query, url, provider, result, meta }`. `provider` names the engine that actually answered (`antigravity-cli`, `grok-cli`, or `tavily`).
 
 Search mode `result`:
 
@@ -95,14 +95,13 @@ Structure is enforced by a JSON schema at the provider level. Full schema: `refe
 - `no structured result` or auth-flavored errors: ask the user to run `agy` and sign in, or check quota.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
 
-## X (Twitter) posts
+## X (Twitter) queries
 
-X is invisible to normal web search engines. When this machine has [Grok Build CLI](https://x.ai/news/grok-build-cli) installed and signed in (SuperGrok or X Premium login), modsearch covers X automatically: any query mentioning twitter, tweet, 推特, 推文, x.com, or "on X" also runs an X search in parallel and attaches an `x` section to the output. Do not probe for grok yourself and do not configure anything: run the normal `-q` command and read the output.
+X is invisible to normal web search engines. modsearch handles this by routing: when the query mentions twitter, tweet, 推特, 推文, x.com, or "on X" and this machine has a signed-in [Grok Build CLI](https://x.ai/news/grok-build-cli) (SuperGrok or X Premium login), the whole search runs on `grok-cli` instead of `antigravity-cli`, spending no agy quota. The output contract is identical to a normal search: `result.items[]` are real X posts (title carries the author handle, source is "x.com", url is the x.com status link), and the envelope's `provider` field tells you which engine answered.
 
-- `x.result.posts[]`: `{ author, snippet, url?, published_at? }`, real posts with handles and x.com status links
-- `x.result.summary` and `x.result.uncertainty[]`: same contract spirit as the main result
-- The `x` section is silently absent when Grok Build is missing, not signed in, or errored. That is normal: answer from the main result, and only mention that X coverage needs Grok Build if the user explicitly asked for X content.
-- `--x` forces the X source when the query lacks X keywords. `--no-x` disables it.
+- Nothing to configure and nothing to probe first: run the normal `-q` command and read the output.
+- No Grok Build, not signed in, or grok failed mid-run: the query silently falls back to the default provider. If the user explicitly wanted X content and `provider` came back `antigravity-cli`, tell them X coverage needs Grok Build installed and signed in.
+- `--x` forces the grok route without X keywords. `--no-x` pins the default provider. Explicit `-p` always beats routing.
 
 ## Alternative Provider: Tavily
 
