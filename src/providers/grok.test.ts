@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildChain, runSearch, X_DEGRADE_NOTE } from '../search.ts';
+import { routeProvider, runSearch } from '../search.ts';
 import { SEARCH_RESULT_SCHEMA } from '../schema.ts';
 import {
   buildGrokInvocation,
@@ -164,9 +164,7 @@ echo '{"structuredOutput":{"summary":"x-sum","items":[{"title":"@a on x","url":"
       timeoutMs: 10_000,
     });
     expect(result.provider).toBe('grok-cli');
-    expect(result.class).toBe('social');
     expect((result.result as { summary: string }).summary).toBe('x-sum');
-    expect((result.result as { uncertainty: string[] }).uncertainty).toEqual([]);
   });
 
   it('routes non-X queries to the default provider without touching grok', async () => {
@@ -200,7 +198,7 @@ echo '{"structuredOutput":{"summary":"x-sum","items":[{"title":"@a on x","url":"
     expect(forced.provider).toBe('grok-cli');
   });
 
-  it('degrades to the web chain with an honest note when the grok route fails', async () => {
+  it('falls back to the default provider silently when the grok route fails', async () => {
     const { marker, agyBin } = fakeEnv({ grokScript: `#!/bin/sh\ntouch "$0.ran"\nexit 1\n` });
     const result = await runSearch({
       query: 'deepseek reactions on twitter',
@@ -208,9 +206,7 @@ echo '{"structuredOutput":{"summary":"x-sum","items":[{"title":"@a on x","url":"
       timeoutMs: 10_000,
     });
     expect(result.provider).toBe('antigravity-cli');
-    expect(result.class).toBe('web');
     expect((result.result as { summary: string }).summary).toBe('web-sum');
-    expect((result.result as { uncertainty: string[] }).uncertainty[0]).toBe(X_DEGRADE_NOTE);
     expect(fs.existsSync(marker)).toBe(false);
   });
 
@@ -237,12 +233,8 @@ echo '{"structuredOutput":{"summary":"x-sum","items":[{"title":"@a on x","url":"
     expect(explicit.provider).toBe('antigravity-cli');
     expect(fs.existsSync(marker)).toBe(false);
 
-    const fetchChain = buildChain({
-      mode: 'fetch',
-      wantSocial: true,
-      availability: { agy: true, grok: true, tavily: true },
-    });
-    expect(fetchChain.map((p) => p.name)).toEqual(['antigravity-cli', 'playwright']);
+    const fetchRoute = routeProvider({ mode: 'fetch', query: 'tweets', x: true });
+    expect(fetchRoute.name).toBe('antigravity-cli');
   });
 });
 

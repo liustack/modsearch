@@ -19,8 +19,6 @@ export default defineConfig({
             external: [
                 'commander',
                 '@tavily/core',
-                'playwright',
-                'playwright-core',
                 ...builtinModules,
                 ...builtinModules.map((name) => `node:${name}`),
             ],

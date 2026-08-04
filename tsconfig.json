@@ -4,9 +4,7 @@
         "module": "ESNext",
         "moduleResolution": "bundler",
         "lib": [
-            "ES2022",
-            "DOM",
-            "DOM.Iterable"
+            "ES2022"
         ],
         "types": ["node", "vitest/globals"],
         "strict": true,
