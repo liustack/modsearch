@@ -108,7 +108,7 @@ config
           `Created ${CONFIG_PATH}`,
           'Everything is optional. Two things you can set:',
           '  modsearch config set engine <antigravity-cli|tavily>   which engine searches',
-          '  modsearch config set <engine>.<apiKey|bin|model> <value>   engine credentials',
+          '  modsearch config set <engine>.<apiKey|bin|model|allowPrivateNetwork> <value>   engine settings',
           'Page fetch and X need no settings at all.',
           '',
         ].join('\n'),
