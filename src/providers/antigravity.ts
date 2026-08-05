@@ -16,6 +16,8 @@ interface AgyPrintEnvelope {
   conversation_id?: string;
   status?: string;
   response?: string;
+  /** Present on a non-success status, e.g. the quota message with its reset time. */
+  error?: string;
   structured_output?: unknown;
   duration_seconds?: number;
   usage?: unknown;
@@ -79,7 +81,13 @@ export function parseAntigravityOutput(stdout: string): EngineOutput {
   const envelope = parseEnvelope(stdout);
 
   if (envelope.status && envelope.status !== 'SUCCESS') {
-    throw new Error(`Antigravity CLI reported status ${envelope.status}.`);
+    // The envelope's own error carries the actionable part (the quota message
+    // names the reset time). Dropping it left the user with a bare status.
+    const detail =
+      typeof envelope.error === 'string' && envelope.error.trim()
+        ? ` ${envelope.error.trim()}`
+        : '';
+    throw new Error(`Antigravity CLI reported status ${envelope.status}.${detail}`);
   }
 
   const result =

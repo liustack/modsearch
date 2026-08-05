@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { agyQuotaEnvelope } from '../fixtures/index.ts';
 import { FETCH_RESULT_SCHEMA, SEARCH_RESULT_SCHEMA } from '../schema.ts';
 import {
   buildAntigravityInvocation,
@@ -107,6 +108,11 @@ describe('parseAntigravityOutput', () => {
     expect(() =>
       parseAntigravityOutput(JSON.stringify({ status: 'FAILED', response: '' })),
     ).toThrow('status FAILED');
+  });
+
+  it('surfaces the quota reset time from the envelope error', () => {
+    // Without the envelope's error, the user never sees when the quota resets.
+    expect(() => parseAntigravityOutput(agyQuotaEnvelope())).toThrow('Resets in 94h19m9s');
   });
 
   it('throws when no structured result is present', () => {
