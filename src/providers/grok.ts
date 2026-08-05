@@ -21,7 +21,10 @@ import type {
   SearchEngine,
 } from './index.ts';
 
-export const DEFAULT_MAX_POSTS = 5;
+// The CLI always passes --max-results (default 8), so this only applies to a
+// programmatic call that omits it. Kept in step with that default so both paths
+// behave the same, rather than quietly capping X at a different number.
+export const DEFAULT_MAX_POSTS = 8;
 
 /** Installed and signed in: binary reachable plus ~/.grok/auth.json present. */
 export function grokAvailable(bin = 'grok', env: NodeJS.ProcessEnv = process.env): boolean {
