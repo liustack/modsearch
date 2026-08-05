@@ -1,6 +1,6 @@
 ---
 name: modsearch
-description: "Plug-in web search and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also covers X (Twitter): when the user asks what people are saying on X/Twitter (推特/推文/tweets/x.com), the same search command returns real X posts too, provided a signed-in Grok Build CLI is on the machine."
+description: "Plug-in web search and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also use when the user asks how to install, configure, or switch modsearch engines (Tavily key, pinned provider, custom binaries). Also covers X (Twitter): when the user asks what people are saying on X/Twitter (推特/推文/tweets/x.com), the same search command returns real X posts too, provided a signed-in Grok Build CLI is on the machine."
 allowed-tools:
   - Bash
 ---
@@ -103,9 +103,24 @@ X is invisible to normal web search engines. modsearch handles this by routing: 
 - No Grok Build, not signed in, or grok failed mid-run: the query silently falls back to the default provider. If the user explicitly wanted X content and `provider` came back `antigravity-cli`, tell them X coverage needs Grok Build installed and signed in.
 - `--x` forces the grok route without X keywords. `--no-x` pins the default provider. Explicit `-p` always beats routing.
 
+## Configuration
+
+`~/.modsearch/config.json` holds defaults (written 0600, keys masked on show). Env vars override the file, flags override everything. When the user asks how to configure modsearch or wants an engine switched, run these for them:
+
+```bash
+modsearch config init                          # write a starter config
+modsearch config set tavily.apiKey <key>       # free tier: 1,000 credits/month, https://app.tavily.com
+modsearch config set provider tavily           # pin one engine, disables routing
+modsearch config set provider ""               # back to routing
+modsearch config set antigravity-cli.bin <path>  # custom agy/grok binary paths
+modsearch config show                          # effective config, keys masked
+```
+
+Leave `provider` empty unless the user wants one engine pinned: routing (X queries to grok-cli, everything else to antigravity-cli) only runs when nothing is pinned.
+
 ## Alternative Provider: Tavily
 
-When `TAVILY_API_KEY` is set (get one at https://app.tavily.com, 1,000 free credits/month), search can run on Tavily instead of agy:
+With a Tavily key in place (env var `TAVILY_API_KEY` or `modsearch config set tavily.apiKey <key>`), search can run on Tavily instead of agy. The free tier is 1,000 credits a month with no card, and a basic search costs one credit:
 
 ```bash
 modsearch -q "<query>" -p tavily

@@ -24,7 +24,9 @@ export async function executeTavilySearch(
 
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
-    throw new Error('TAVILY_API_KEY environment variable is required for the tavily provider.');
+    throw new Error(
+      'The tavily provider needs an API key. Set TAVILY_API_KEY, or run: modsearch config set tavily.apiKey <key> (free tier: 1,000 credits/month at https://app.tavily.com)',
+    );
   }
 
   const client = tavily({ apiKey });

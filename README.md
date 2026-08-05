@@ -155,8 +155,20 @@ Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract
 | Engine | Needs | Covers |
 | :-- | :-- | :-- |
 | `antigravity-cli` (default) | a signed-in `agy`, no key | search + page fetch, on Google's index |
-| `tavily` | `TAVILY_API_KEY` ([free tier](https://app.tavily.com): 1,000/month) | search only, pick it with `-p tavily` |
+| `tavily` | a Tavily key ([free tier](https://app.tavily.com): 1,000 credits/month, no card, one credit per basic search) | search only, pick it with `-p tavily` |
 | `grok-cli` | a signed-in Grok Build (SuperGrok or X Premium) | content on X, auto-routed by keyword |
+
+Config lives in `~/.modsearch/config.json`. Environment variables override the file (`TAVILY_API_KEY`), and CLI flags override everything:
+
+```bash
+modsearch config init                        # write a starter config
+modsearch config set tavily.apiKey <key>     # saved with 0600 perms
+modsearch config set provider tavily         # pin one engine, turns routing off
+modsearch config set provider ""             # clear it, routing is back
+modsearch config show                        # keys come out masked
+```
+
+You don't have to remember any of that. The skill carries these instructions, so once it's installed you can just ask your agent: "set my Tavily key in modsearch," "how do I configure modsearch."
 
 `agy` wins on needing no key and loses on quota. Its free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Once it's gone you wait out the cycle: we hit that wall ourselves and the message read "94 hours until reset." If you search a lot, keep a `TAVILY_API_KEY` around as backup. The X route spends no agy quota at all.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0 - 2026-08-05
+
+- Layered config at `~/.modsearch/config.json` via `modsearch config init/set/show` (0600 perms, keys masked on show), mirroring modlens. Store the Tavily key without exporting an env var, pin one engine to disable routing, or point at custom agy/grok binaries. Flags beat env vars, env vars beat the file.
+- The skill can do it for you: ask your agent to set a key or switch engines and it runs the commands.
+- The tavily provider's missing-key error now names both ways to supply one and links the free tier.
+
 ## 2.4.3 - 2026-08-05
 
 - Docs: README now documents all three engines including Tavily (previously missing entirely), states agy's weekly quota reality instead of promising a "completely free" solution, moves the X search story out from behind the CLI table, and corrects the DeepSeek built-in search facts (both official protocol endpoints carry `web_search`, `/chat/completions` does not, which is what shuts OpenCode and Pi out).

@@ -155,8 +155,20 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 | 引擎 | 需要什么 | 管什么 |
 | :-- | :-- | :-- |
 | `antigravity-cli`（默认） | `agy` 登录过，零 key | 搜索 + 抓网页，走 Google 索引 |
-| `tavily` | `TAVILY_API_KEY`（[免费档](https://app.tavily.com)每月 1000 次） | 只管搜索，`-p tavily` 显式选用 |
+| `tavily` | 一个 Tavily key（[免费档](https://app.tavily.com)每月 1000 credits，不要信用卡，基础搜索 1 次 1 credit） | 只管搜索，`-p tavily` 显式选用 |
 | `grok-cli` | Grok Build 登录过（SuperGrok 或 X Premium） | X 上的内容，命中关键词自动路由 |
+
+配置放在 `~/.modsearch/config.json`，环境变量能盖过它（`TAVILY_API_KEY`），命令行参数最大：
+
+```bash
+modsearch config init                        # 生成配置骨架
+modsearch config set tavily.apiKey <key>     # 落盘即 0600 权限
+modsearch config set provider tavily         # 钉死一个引擎，路由随之关闭
+modsearch config set provider ""             # 清空，恢复自动路由
+modsearch config show                        # key 打码显示
+```
+
+这些命令你一条都不用记。skill 里带着这份配置说明，装完直接问你的 agent：「帮我把 Tavily key 配进 modsearch」「modsearch 怎么配置」，它自己会跑完。
 
 `agy` 胜在零 key，短板是额度。它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，subagent 并行还加倍消耗，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。搜得多的人可以配上 `TAVILY_API_KEY` 备一手，X 那条路则完全不吃 agy 额度。
 

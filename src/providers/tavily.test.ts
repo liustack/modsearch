@@ -28,7 +28,7 @@ describe('tavily provider', () => {
     try {
       await expect(
         executeTavilySearch({ mode: 'search', query: 'anything', timeoutMs: 1000 }),
-      ).rejects.toThrow('TAVILY_API_KEY');
+      ).rejects.toThrow(/TAVILY_API_KEY|config set tavily.apiKey/);
     } finally {
       if (saved !== undefined) process.env.TAVILY_API_KEY = saved;
     }

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveMode, runCommand, validateUrl } from './search.ts';
+import { resolveMode, routeProvider, runCommand, runSearch, validateUrl } from './search.ts';
 
 describe('resolveMode', () => {
   it('is search when only a query is given', () => {
@@ -72,4 +72,75 @@ describe('provider subprocess handling', () => {
       runCommand('fake', { command: bin, args: [], cwd: os.tmpdir() }, 1_000),
     ).rejects.toThrow(/timed out after 1000 ms/);
   }, 20_000);
+});
+
+describe('config file wiring', () => {
+  it('lets a pinned provider in the config beat X routing', () => {
+    const routed = routeProvider({ mode: 'search', query: 'tweets about deepseek' });
+    const pinned = routeProvider({
+      mode: 'search',
+      query: 'tweets about deepseek',
+      pinnedProvider: 'tavily',
+    });
+    expect(pinned.name).toBe('tavily');
+    // -p still outranks the pinned value
+    expect(
+      routeProvider({
+        mode: 'search',
+        query: 'anything',
+        provider: 'antigravity-cli',
+        pinnedProvider: 'tavily',
+      }).name,
+    ).toBe('antigravity-cli');
+    expect(routed.name).not.toBe('tavily');
+  });
+
+  it('takes the agy binary and model from the config file', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-cfg-'));
+    const bin = path.join(dir, 'fake-agy');
+    // Echo the model we were invoked with so the assertion sees it.
+    fs.writeFileSync(
+      bin,
+      `#!/bin/sh\nmodel=""\nwhile [ $# -gt 0 ]; do [ "$1" = "--model" ] && model="$2"; shift; done\nprintf '{"status":"SUCCESS","structured_output":{"summary":"%s","items":[],"uncertainty":[]}}' "$model"\n`,
+      { mode: 0o755 },
+    );
+    try {
+      const result = await runSearch({
+        query: 'plain query',
+        timeoutMs: 20_000,
+        config: {
+          providers: { 'antigravity-cli': { bin, model: 'gemini-3.1-pro-high' } },
+        },
+      });
+      expect(result.provider).toBe('antigravity-cli');
+      expect((result.result as { summary: string }).summary).toBe('gemini-3.1-pro-high');
+      expect(result.meta.model).toBe('gemini-3.1-pro-high');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('bridges the tavily key from the config file into the env var', async () => {
+    const saved = process.env.TAVILY_API_KEY;
+    delete process.env.TAVILY_API_KEY;
+    try {
+      // tavily fails on fetch mode before touching the network, which is
+      // enough to prove the key made it through to the provider.
+      await expect(
+        runSearch({
+          url: 'https://example.com',
+          provider: 'tavily',
+          timeoutMs: 5_000,
+          config: { providers: { tavily: { apiKey: 'tvly-from-config' } } },
+        }),
+      ).rejects.toThrow(/only supports search mode/);
+      expect(process.env.TAVILY_API_KEY).toBe('tvly-from-config');
+    } finally {
+      if (saved === undefined) {
+        delete process.env.TAVILY_API_KEY;
+      } else {
+        process.env.TAVILY_API_KEY = saved;
+      }
+    }
+  });
 });
