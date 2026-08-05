@@ -9,71 +9,36 @@
   <p><a href="./README.md">English</a></p>
 </div>
 
-DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，但官方内联的联网搜索能力有点弱，第三方提供商甚至根本不支持联网搜索能力。在这个年代一个大模型它查不了资料，看不了网页可是大麻烦。
+DeepSeek-V4-Flash 碗大又好吃，速度快、便宜、能打，唯独查不了资料、读不了网页。换成第三方网关更惨，连内置搜索这个选项都没有。
 
-不止是「有没有」的问题。就算你的模型自带搜索，那条路也在悄悄吃你的钱：抓回来的网页整个塞进主模型的上下文，一次带搜索的问答我实测烧掉约三万 token。
-
-ModSearch 把搜索这一步挪到主模型外面。抓取和提炼发生在别处，主模型只读一份几百 token 的结构化证据：摘要、来源清单（标题、链接、日期）、还有一份老实的不确定列表。**两边差着两个数量级。**
-
-不动你的配置，不装本地代理，CLI 和 skill 两种用法，`-q` 搜索、`-u` 精读一个页面、装了 Grok 还能搜 X。原理如下：
+ModSearch 给它接上网线：一条命令搜网页、精读某个页面、翻 X，回来的不是一坨网页原文，是几百 token 的结构化证据（摘要、来源链接、日期，外加一份没查实的清单）。模型不用换，提示词不用改，本地不装代理。
 
 ![纯文本模型经 modsearch skill 拿到网页搜索、单页精读、X 三条来源，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
 
-- **搜索不占主模型上下文。** 抓取和提炼在外面完成，主模型只读几百 token 的证据，不是整页网页。
-- **答案带着来源。** 摘要、链接、日期，还有一份老实的不确定清单，模型引用而不是靠印象。
-- **能精读某一个页面。** `-q` 搜索，`-u` 把一个 URL 读成干净证据，还能按关注点提炼。
-- **能看 X。** 装了 Grok Build 就进得去，那是所有网页搜索都够不着的地方。
-- **零配置起步，永不失手。** 装了什么用什么，额度烧穿自动换引擎，读网页永远有本地兜底。
+## 三步用起来
 
-**环境要求**：Node 18+，macOS 或 Linux。搜索需要 agy 或一个 Tavily key，抓网页什么都不用装。 出问题看[故障排查](docs/troubleshooting.md)，里面按报错原文列了每一条的成因和解法。
-
-skill 装一次，你的 agent 以后自己搜索、自己读网页。模型不用换，提示词也不用改。
-
-## 为什么不直接用内置搜索
-
-内置搜索的工作方式是：模型发起搜索，服务端把抓回来的网页原文整个塞进上下文，模型再从里面找答案。你为每一个导航栏、每一段页脚、每一条 cookie 提示付费，而它们和你的问题毫无关系。实测一次带搜索的问答约三万 token，其中大半烧在这里。
-
-ModSearch 交给主模型的是证据，不是原料。
-
-| | 内置搜索 | 搜索类 MCP server | ModSearch |
-| :-- | :-- | :-- | :-- |
-| 主模型上下文开销 | 整页塞进去，实测约 3 万 token/次 | 多数也是整页 | 几百 token 的结构化证据 |
-| 谁付这笔 token | 你的 API 账单 | 你的 API 账单 | 搜索在外部完成，不进主模型账单 |
-| 渠道没有搜索工具时 | 用不了（第三方网关、chat completions 端点） | 能用 | 能用 |
-| 精读某一个 URL | 一般给不了 | 看实现 | `-u`，还能带关注点提炼 |
-| X（推特）上的内容 | 看不见 | 看不见 | 装了 Grok Build 就能看 |
-| 上手成本 | 零 | 装 server、改配置 | 一个 CLI 或 skill，零配置起步 |
-
-诚实说短板：agy 的免费额度是周配额，重度用会撞墙（备个 Tavily key 就自动接上）。X 那条路要 SuperGrok 或 X Premium 订阅。本地抓取器不跑 JavaScript，纯前端渲染的页面它抓得薄。
-
-## 快速开始
-
-**1. 装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
+**一、装 skill。** 跟你的 agent 说一句就行（Claude Code、Codex、OpenClaw、Cursor 都吃这套）：
 
 ```text
 安装这个 skill https://github.com/liustack/modsearch
 ```
 
-或者自己动手：
+自己动手也行：`npx -y skills add liustack/modsearch`
 
-```bash
-npx -y skills add liustack/modsearch
-```
-
-**2. 装 Antigravity CLI 并登录**（一次性，零 key）。它一个人就把搜索和抓网页都包了：
+**二、接一个搜索引擎。** 推荐 Antigravity CLI，零 key，搜索和读网页它一个人全包：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # 浏览器完成登录后退出
 ```
 
-**3. 用起来。** 问任何时效性问题，或者贴一个 URL 上去。模型需要联网时 skill 自动触发。
+**三、直接问。** 问任何需要查证的问题，或者甩一个 URL 上去，skill 自己会触发。
 
-没有配置文件这一步。modsearch 看你装了什么就用什么：抓网页本来就零依赖，永远能用，搜索则需要 agy 或者一个 Tavily key，两个都没有时它会把两条路都告诉你。想改默认行为再去碰配置，见下文。
+没有第四步。没有配置文件要填，也没有环境变量要 export。读网页零依赖，本来就能用；搜索要么走 agy，要么给个 Tavily key（免费档每月一千次），两个都没有时命令会把这两条路直接摆给你，而不是含糊报错。
+
+环境要求就一行：Node 18+，macOS 或 Linux。
 
 ## 看看效果
-
-搜索：
 
 ```bash
 npx @liustack/modsearch -q "DeepSeek V4 Flash release date and context window" --max-results 3
@@ -107,9 +72,9 @@ npx @liustack/modsearch -q "DeepSeek V4 Flash release date and context window" -
 }
 ```
 
-`results` 永远是数组。加上 `--source web,x` 就是两格，一格 web 一格 x，形状不变。
+`results` 永远是数组，一个语料一格，形状不随语料数量变。
 
-抓取网页，还可以带上关注点：
+读一个页面，还能指定关注点：
 
 ```bash
 npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skills does it ship"
@@ -136,21 +101,48 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 }
 ```
 
-抓取模式在 Codex 桌面 App 里跑起来是这样：丢一个博客链接，问一句「说的什么」，25 秒拿到结构化摘要，浏览器都不用开。
+Codex 桌面 App 里的样子：丢个博客链接问一句「说的什么」，25 秒拿到结构化摘要，浏览器都不用开。
 
 ![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
-开放问题也接得住：问一句「看看今天有啥有趣的 AI 新鲜事」，36 秒回来六条带来源的趣闻，末尾还主动交代哪些信息来自检索聚合、细节可能有出入。
+开放问题也接得住：「看看今天有啥有趣的 AI 新鲜事」，36 秒六条带来源的趣闻，末尾还主动交代哪些来自检索聚合、细节可能有出入。
 
 ![纯文本 DeepSeek 通过 ModSearch 跑开放式新闻搜索](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
-## 有 Grok Build，就送你 X（推特）搜索
+## 就算你已经有搜索
 
-X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
+内置搜索是这么干活的：模型发起搜索，服务端把整页网页塞进上下文，模型再在里面找答案。导航栏、页脚、cookie 提示，你为每一个字付费。我实测一次带搜索的问答约三万 token，大半烧在这儿。
 
-装了它就自动生效，两个条件同时成立才会走 X：查询词里带着 X 味（`twitter`、`tweet`、`x.com`、`on X`，中文的推特、推文、发推、在 X 上），并且本机装了 `grok` 且登录过。命中时**只走 X 不走网页**，一点 agy 额度都不花。
+ModSearch 给模型的是提炼后的证据，不是原料。同一个问题，主模型这边只读几百 token。
 
-返回的是真实帖子、作者 handle、原帖链接。没装 Grok 也不报错：问题由网页搜索接手，并在 `uncertainty` 里老实写明这是看不进 X 的二手信息。想自己决定就用 `--source x`、`--source web,x` 或 `--source web`。
+| | 内置搜索 | 搜索类 MCP server | ModSearch |
+| :-- | :-- | :-- | :-- |
+| 主模型要读多少 | 整页原文，约 3 万 token | 多数也是整页 | 几百 token 的证据 |
+| 能不能引用来源 | 靠模型自己整理 | 看实现 | 标题、链接、日期都在结果里 |
+| 精读指定 URL | 一般给不了 | 少数支持 | `-u`，还能带关注点 |
+| X（推特） | 看不见 | 看不见 | 装了 Grok Build 就能看 |
+| 渠道没搜索工具时 | 没辙 | 能用 | 能用 |
+| 要装什么 | 无 | 一个 server 加配置 | 一个 CLI 或 skill |
+
+短板也摆在这儿：agy 的免费额度是周配额，重度用会撞墙（配了 Tavily key 就自动接上）。X 那条路要 SuperGrok 或 X Premium 订阅。内置的本地抓取器不跑 JavaScript，纯前端渲染的页面它读得薄。
+
+## 它能干三件事
+
+| 干什么 | 需要什么 | 怎么用 |
+| :-- | :-- | :-- |
+| 搜公共网页 | agy 或一个 Tavily key | `-q "查询词"` |
+| 读一个 URL | 什么都不用装 | `-u <url>`，可加 `-q` 指定关注点 |
+| 搜 X（推特） | Grok Build（SuperGrok 或 X Premium 自带） | 自动触发，或 `--source x` |
+
+读网页永远能用是硬保证：配置写错、agy 没装、引擎半路跑挂，都会落到内置的本地抓取器。
+
+### X 这条路值得单说
+
+X 关上 API 大门之后，Google 的索引进不去，任何网页搜索都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)。
+
+装了它就自动生效，两个条件同时成立才走 X：查询词带 X 味（`twitter`、`tweet`、`x.com`、`on X`，中文的推特、推文、发推、在 X 上），并且本机 `grok` 已装已登录。命中时只走 X 不走网页，一点 agy 额度不花，返回真实帖子、作者 handle、原帖链接。
+
+没装 Grok 也不报错：问题交给网页搜索，并在 `uncertainty` 里写明这是看不进 X 的二手信息。想自己拿主意就用 `--source x`、`--source web,x` 或 `--source web`。
 
 ## CLI 参数
 
@@ -173,28 +165,7 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 | `--allow-private-network` | 放行保留网段，给把公网域名映射进内网段的 VPN 用 | 关 |
 | `--workdir <path>` | 需要起子进程的引擎的运行目录 | |
 
-输出永远是 `results` 数组，一个语料一格，单语料时长度就是 1，形状不会变。完整契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
-
-## 它能干什么，你要装什么
-
-| 你想干的事 | 需要什么 |
-| :-- | :-- |
-| 搜公共网页 | Antigravity CLI（免费、零 key），**或**一个 Tavily key（免费档每月 1000 次） |
-| 读一个 URL | 什么都不用装。有 Antigravity CLI 时它顺带帮你提炼得更好 |
-| 搜 X（推特） | Grok Build，SuperGrok 或 X Premium 订阅自带 |
-
-搜索是唯一需要你准备点什么的：agy 和 Tavily key 二选一。两个都没有时，命令会把两条路一起告诉你，而不是含糊报错。**读网页永远能用**，配置写错、agy 没装、引擎跑挂，都会落到内置的本地抓取器。
-
-```bash
-modsearch -q "..."                  # 搜网页
-modsearch -q "..." --source x       # 只搜 X
-modsearch -q "..." --source web,x   # 两个都要，结果各占一格
-modsearch -u <url>                  # 读一个页面
-```
-
-X 味的查询会自动只走 X，一点 agy 额度都不花。
-
-一句关于额度的实话：`agy` 免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。配上 Tavily key 就有了自动备胎，agy 挂了搜索会自己落过去。
+完整输出契约见 [output-schema.md](skills/modsearch/references/output-schema.md)。报错查不明白就看[故障排查](docs/troubleshooting.md)，那里按报错原文列了成因和解法。
 
 ## 配置（可选）
 
@@ -208,29 +179,27 @@ modsearch config set engine ""              # 清空，恢复自动挑选
 modsearch config show                       # key 打码显示
 ```
 
-**抓网页不需要配置**：你选的引擎能抓就用它抓，不能抓就用内置的本地抓取器，反正总有一个能干。搜 X 也不用配，因为只有 Grok 进得去。留空 `engine` 就是「本机有什么用什么」。老格式的配置会被自动读懂，不用手动迁移。
+读网页和搜 X 都不需要配置：前者你选的引擎能读就读、不能读就走本地抓取器，后者只有 Grok 进得去，没得选。
 
-这些命令你一条都不用记：skill 里带着完整的配置说明，直接问你的 agent「帮我把 Tavily key 配进 modsearch」就行。
+这些命令你一条都不用记，skill 里带着完整的配置说明，直接跟 agent 说「帮我把 Tavily key 配进 modsearch」就行。
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
-先说清楚一件事：DeepSeek 官方端点自带服务端 `web_search`，Codex 走的 Responses API 承接，Claude Code 走的 Anthropic 兼容端点也承接，配上 `web_search = "live"` 直连 `api.deepseek.com` 就有搜索能力了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。
+DeepSeek 官方端点自带服务端 `web_search`，Codex 走的 Responses API 承接，Claude Code 走的 Anthropic 兼容端点也承接，配上 `web_search = "live"` 直连 `api.deepseek.com` 就有搜索了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。所以在 Codex 里 ModSearch 换来的不是「从无到有」，而是前面那笔账。
 
-所以在 Codex 里，ModSearch 换来的不是「从无到有」，是前面那笔账：搜索不再往你的上下文里灌整页网页。想把这活交给它，在 `~/.codex/config.toml` 里关掉内置的那条：
+想把这活交给它，在 `~/.codex/config.toml` 里关掉内置的那条，否则模型伸手就用内置的，skill 插不上话：
 
 ```toml
 web_search = "disabled"
 ```
 
-内置搜索开着的时候模型会优先伸手用它，skill 很难插上话，关掉之后触发条件才生效。
+有几件事内置搜索给不了：官方的 `/chat/completions` 端点根本没提供这个工具（OpenCode、Pi 这些宿主就是这么被挡在门外的），DashScope 和多数第三方网关同理。精读某个页面、查 X，也都不在它能力范围。
 
-另外有几种情况是内置搜索给不了的：官方的 `/chat/completions` 端点没提供这个工具（OpenCode、Pi 这些宿主就是这么被挡在门外的），DashScope 和大多数第三方网关同理。精读某一个页面、查 X 上的内容，也都不在它的能力范围里。
+## 为什么外挂，而不是换更大的模型
 
-## 为什么外挂，而不是换更大的模型？
-
-- **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）图的是价格和推理能力，不是搜索能力。ModSearch 只帮它接上网线，不碰这个选择。
-- **证据强过感觉。** 答案带着 URL、日期，还有一份明明白白的 `uncertainty` 清单，你的 agent 引用来源，不是靠猜。
-- **引擎会死，桥不会死。** v1 跑在 Gemini CLI 免费档上，2026 年 6 月被 Google 一刀切停掉。v2 换到继任者 Antigravity CLI，还是同一个 provider 接口，下次再换引擎，改一个文件就行，不用重写。
+- **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）图的是价格和推理，不是搜索。ModSearch 只帮它接网线，不碰这个选择。
+- **证据强过感觉。** 答案带着 URL、日期和一份 `uncertainty` 清单，agent 引用来源而不是靠猜。
+- **引擎会死，桥不会死。** v1 跑在 Gemini CLI 免费档上，2026 年 6 月被 Google 一刀切停掉。v2 换到 Antigravity CLI，接口没动，下次再换引擎也只改一个文件。
 
 兄弟项目 ModLens 用同一招补上视觉：[liustack/modlens](https://github.com/liustack/modlens)。
 
