@@ -136,15 +136,15 @@ Codex 桌面 App 里的实拍：丢个博客链接问一句「说的什么」，
 | [更新日志](CHANGELOG.md) | 想知道某个版本改了什么 |
 | [AGENTS.md](AGENTS.md) | 要改这个项目的代码 |
 
-## 插入一条硬广告
+## 关注公众号
 
-本项目由 LIUSTACK Skills 驱动：动手前 `shaping` 捋清楚，编码时 `coding` 上纪律，出问题 `dig` 挖根因，交接时 `snapshot` 留快照。比 Superpowers 更轻，也更强。
+AI 工具、实践与想法，第一时间推送。微信扫码，或搜一搜「liustack」关注：
 
-```bash
-npx -y skills add liustack/liustack -g
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/liustack/modsearch/main/assets/wechat-qrcode.png" width="420" alt="微信公众号 liustack" />
+</p>
 
-⭐ 好用的话给 [ModSearch](https://github.com/liustack/modsearch) 和 [liustack](https://github.com/liustack/liustack) 各点一个 star。star 是下一个开发者找到它们的方式。
+⭐ 好用的话给 [ModSearch](https://github.com/liustack/modsearch) 点个 star，这是下一个开发者找到它的方式。
 
 ## 免责声明
 
