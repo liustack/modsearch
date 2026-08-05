@@ -1,11 +1,20 @@
 import { builtinModules } from 'module';
 import { resolve } from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['src/**/*.ts', 'scripts/changelog.mjs'],
+      // Test scaffolding and the CLI entry are not unit-tested targets.
+      exclude: ['**/*.test.*', 'src/testing/**', 'src/fixtures/**', 'src/main.ts'],
+    },
   },
   build: {
     lib: {
