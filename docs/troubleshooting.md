@@ -97,7 +97,7 @@ Invalid JSON. `modsearch config init --force` rewrites a clean one, losing whate
 ## Timeouts
 
 ```
-antigravity-cli provider timed out after 210000 ms.
+antigravity-cli engine timed out after 210000 ms.
 ```
 
 Retry once with `--timeout 300000`. If it still times out, the engine is stuck rather than slow: check `agy` interactively. Engines that ignore SIGTERM are escalated to SIGKILL, so a timeout always returns promptly even when the process does not cooperate.

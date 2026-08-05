@@ -1,5 +1,5 @@
-// Community-contributed provider (thanks @mani2001, PR #1), ported to the
-// v2 provider contract: schema-shaped result, no fabricated relevance score,
+// Community-contributed engine (thanks @mani2001, PR #1), ported to the
+// engine contract: schema-shaped result, no fabricated relevance score,
 // uncertainty as an array. Search mode only.
 import { tavily } from '@tavily/core';
 import type {

@@ -1,14 +1,14 @@
-// Grok Build (`grok`) provider: the routing target for X (Twitter) queries.
+// Grok Build (`grok`) engine: the routing target for X (Twitter) queries.
 //
 // X locked its API away from everyone else's crawlers, so agy/Google cannot
 // answer "what are people saying on X". When a query smells like X and a
 // signed-in Grok Build CLI exists locally (SuperGrok or X Premium login),
 // the router sends the WHOLE query here instead of antigravity-cli: no agy
 // quota is spent at all. If grok fails at runtime the router silently falls
-// back to the default provider.
+// back to the default web engine.
 //
 // The output contract is the shared SEARCH_RESULT_SCHEMA: one shape for every
-// engine, `provider` in the envelope says who answered.
+// engine, and `engine` in each result says who answered.
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
