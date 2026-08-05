@@ -2,6 +2,7 @@
 // HOME, a PATH holding fake engine binaries, and a temp config path. These were
 // copied into each test file, so a fix to one copy left the others behind.
 import * as fs from 'fs';
+import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
@@ -68,6 +69,31 @@ export function withTempHome(): { home: string; restore: () => void } {
       process.env.HOME = realHome;
     },
   };
+}
+
+/**
+ * A throwaway HTTP server on loopback that serves one page, so a fetch test can
+ * exercise the real http engine without going online. Bind is 127.0.0.1, so the
+ * caller must allow the private network on the fetch (allowPrivateNetwork).
+ */
+export function startLocalPage(
+  html: string,
+  contentType = 'text/html; charset=utf-8',
+): Promise<{ url: string; close: () => Promise<void> }> {
+  return new Promise((resolve) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': contentType });
+      res.end(html);
+    });
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = address && typeof address === 'object' ? address.port : 0;
+      resolve({
+        url: `http://127.0.0.1:${port}/`,
+        close: () => new Promise<void>((done) => server.close(() => done())),
+      });
+    });
+  });
 }
 
 /** A signed-in Grok Build: the binary on PATH plus its auth file under HOME. */

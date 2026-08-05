@@ -1,11 +1,17 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ModsearchConfig } from './config.ts';
 import { noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
+import { agySearchEnvelope } from './fixtures/index.ts';
+import { BARE_ENV, cleanupTempDirs, fakeEngine, startLocalPage } from './testing/helpers.ts';
 
-const BARE: NodeJS.ProcessEnv = { PATH: '/nonexistent' };
+/** A config whose agy engine is the given fake binary (full path, so PATH is irrelevant). */
+function agyConfig(fake: { stdout?: string; code?: number }, extra: ModsearchConfig = {}): ModsearchConfig {
+  const bin = fakeEngine({ name: 'agy', ...fake });
+  return {
+    ...extra,
+    engines: { ...extra.engines, 'antigravity-cli': { bin } },
+  };
+}
 
 describe('mode resolution', () => {
   it('is search for a query, fetch for a url', () => {
@@ -25,25 +31,12 @@ describe('mode resolution', () => {
 });
 
 describe('zero-config machine', () => {
-  const cleanups: Array<() => void> = [];
-  afterEach(() => {
-    while (cleanups.length > 0) {
-      cleanups.pop()?.();
-    }
-  });
-
-  function fakeAgy(body: string): { bin: string; config: ModsearchConfig } {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-run-'));
-    const bin = path.join(dir, 'fake-agy');
-    fs.writeFileSync(bin, body, { mode: 0o755 });
-    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
-    return { bin, config: { engines: { 'antigravity-cli': { bin } } } };
-  }
+  afterEach(() => cleanupTempDirs());
 
   it('tells the user how to enable search rather than crashing', async () => {
     // Nothing installed, no keys, no config file.
     await expect(
-      runSearch({ query: 'anything', config: {}, env: BARE, timeoutMs: 5_000 }),
+      runSearch({ query: 'anything', config: {}, env: BARE_ENV, timeoutMs: 5_000 }),
     ).rejects.toThrow(/No engine on this machine can search the web/);
 
     const message = noEngineMessage('search');
@@ -52,29 +45,27 @@ describe('zero-config machine', () => {
   });
 
   it('still fetches a page with nothing installed', async () => {
-    // The http engine needs no setup, so -u works out of the box. This one
-    // hits a real URL through the local engine.
-    const result = await runSearch({
-      url: 'https://example.com',
-      config: { engines: { http: { allowPrivateNetwork: 'true' } } },
-      env: BARE,
-      timeoutMs: 30_000,
-    });
-    expect(result.results).toHaveLength(1);
-    expect(result.results[0].engine).toBe('http');
-    expect(String(result.results[0].content)).toContain('Example Domain');
+    // The http engine needs no setup, so -u works out of the box. Point it at a
+    // local server rather than the internet: unit tests stay offline.
+    const page = await startLocalPage('<html><body><h1>Example Domain</h1></body></html>');
+    try {
+      const result = await runSearch({
+        url: page.url,
+        config: { engines: { http: { allowPrivateNetwork: 'true' } } },
+        env: BARE_ENV,
+        timeoutMs: 30_000,
+      });
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].engine).toBe('http');
+      expect(String(result.results[0].content)).toContain('Example Domain');
+    } finally {
+      await page.close();
+    }
   }, 40_000);
 
   it('always returns an array of results, one per source', async () => {
-    const { bin, config } = fakeAgy(
-      `#!/bin/sh\necho '{"status":"SUCCESS","structured_output":{"summary":"web-sum","items":[],"uncertainty":[]}}'\n`,
-    );
-    const result = await runSearch({
-      query: 'node lts',
-      config,
-      env: { PATH: path.dirname(bin) },
-      timeoutMs: 20_000,
-    });
+    const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
+    const result = await runSearch({ query: 'node lts', config, env: BARE_ENV, timeoutMs: 20_000 });
     expect(result.results).toHaveLength(1);
     expect(result.results[0]).toMatchObject({
       source: 'web',
@@ -85,50 +76,42 @@ describe('zero-config machine', () => {
   }, 30_000);
 
   it('falls through to the next engine and says so', async () => {
-    const { bin } = fakeAgy('#!/bin/sh\nexit 1\n');
-    const result = await runSearch({
-      url: 'https://example.com',
-      config: {
-        engines: { 'antigravity-cli': { bin }, http: { allowPrivateNetwork: 'true' } },
-      },
-      env: { PATH: path.dirname(bin) },
-      timeoutMs: 30_000,
-    });
-    expect(result.results[0].engine).toBe('http');
-    expect((result.results[0].uncertainty as string[]).join(' ')).toContain('Fell back to http');
+    const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
+    try {
+      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const result = await runSearch({
+        url: page.url,
+        config,
+        env: BARE_ENV,
+        timeoutMs: 30_000,
+      });
+      expect(result.results[0].engine).toBe('http');
+      expect((result.results[0].uncertainty as string[]).join(' ')).toContain('Fell back to http');
+    } finally {
+      await page.close();
+    }
   }, 40_000);
 });
 
 describe('routing facts cannot be faked by an engine', () => {
-  const cleanups: Array<() => void> = [];
-  afterEach(() => {
-    while (cleanups.length > 0) {
-      cleanups.pop()?.();
-    }
-  });
+  afterEach(() => cleanupTempDirs());
 
-  it('overwrites source, engine, and model even when the engine has no model', () => {
+  it('overwrites source, engine, and model even when the engine has no model', async () => {
     // A conditional spread left `model` writable whenever the engine's default
     // model was empty, so a result could claim to come from somewhere else.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-spoof-'));
-    const bin = path.join(dir, 'fake-agy');
-    fs.writeFileSync(
-      bin,
-      `#!/bin/sh\necho '{"status":"SUCCESS","structured_output":{"summary":"s","items":[],"uncertainty":[],"source":"x","engine":"spoofed","model":"spoof-model","durationSeconds":999}}'\n`,
-      { mode: 0o755 },
-    );
-    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
-
-    return runSearch({
-      query: 'plain query',
-      config: { engines: { 'antigravity-cli': { bin } } },
-      env: { PATH: dir },
-      timeoutMs: 20_000,
-    }).then((result) => {
-      expect(result.results[0].source).toBe('web');
-      expect(result.results[0].engine).toBe('antigravity-cli');
-      expect(result.results[0].model).toBe('gemini-3.6-flash-low');
-      expect(result.results[0].durationSeconds).toBeLessThan(100);
+    const config = agyConfig({
+      stdout:
+        '{"status":"SUCCESS","structured_output":{"summary":"s","items":[],"uncertainty":[],"source":"x","engine":"spoofed","model":"spoof-model","durationSeconds":999}}',
     });
+    const result = await runSearch({
+      query: 'plain query',
+      config,
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+    });
+    expect(result.results[0].source).toBe('web');
+    expect(result.results[0].engine).toBe('antigravity-cli');
+    expect(result.results[0].model).toBe('gemini-3.6-flash-low');
+    expect(result.results[0].durationSeconds).toBeLessThan(100);
   }, 30_000);
 });
