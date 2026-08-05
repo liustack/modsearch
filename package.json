@@ -11,6 +11,8 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "biome lint",
+    "format": "biome format --write",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm build",
     "docs:list": "node scripts/docs-list.js"
@@ -48,6 +50,7 @@
     "commander": "^13.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.7",
     "@types/node": "^22.19.7",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
