@@ -216,17 +216,16 @@ export function setConfigValue(
   }
 }
 
+/**
+ * The starter file holds nothing but the shape. Pre-filling every engine and
+ * every default looked helpful and was not: it buried the one real decision in
+ * placeholders, and writing today's defaults into the file freezes them, so a
+ * later change to a default model would be silently overridden by this copy.
+ */
 export const CONFIG_TEMPLATE: ModsearchConfig = {
-  // Empty means: use the best engine available on this machine. Page fetch
-  // follows this choice when the engine can fetch, and falls to the built-in
-  // local fetcher when it cannot. X always uses Grok Build.
+  // Empty means: use the best engine available on this machine.
   engine: '',
-  engines: {
-    'antigravity-cli': { bin: 'agy', model: 'gemini-3.6-flash-low' },
-    tavily: { apiKey: '' },
-    'grok-cli': { bin: 'grok' },
-    http: { allowPrivateNetwork: 'false' },
-  },
+  engines: {},
 };
 
 /** Write a starter config. Refuses to overwrite unless force is set. */

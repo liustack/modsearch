@@ -104,7 +104,14 @@ config
     try {
       initConfigFile(CONFIG_PATH, Boolean(options.force));
       process.stdout.write(
-        `Created ${CONFIG_PATH}\nEvery field is optional: leave one empty and modsearch picks what works here.\n`,
+        [
+          `Created ${CONFIG_PATH}`,
+          'Everything is optional. Two things you can set:',
+          '  modsearch config set engine <antigravity-cli|tavily>   which engine searches',
+          '  modsearch config set <engine>.<apiKey|bin|model> <value>   engine credentials',
+          'Page fetch and X need no settings at all.',
+          '',
+        ].join('\n'),
       );
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);

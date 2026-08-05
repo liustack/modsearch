@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.1 - 2026-08-05
+
+- `config init` now writes only the shape (`{"engine": "", "engines": {}}`) instead of every engine with its fields pre-filled. The old skeleton buried the single real decision under placeholders, and worse, it wrote today's defaults (`bin: agy`, a model name) into the file, where they would silently outrank any future change to those defaults. The command prints what can be set instead of putting it on disk.
+
 ## 3.2.0 - 2026-08-05
 
 **Configuration collapsed to one decision.** Choosing an engine per role turned out to be three questions where users only have one. `~/.modsearch/config.json` now holds a single `engine`, the one that searches. Page fetch uses that engine when it can fetch and the built-in local fetcher when it cannot, and X only ever uses Grok Build, so neither is configurable any more. Older shapes (v2's `provider`, and the per-role grouping that existed for a few hours) are read and mapped automatically.
