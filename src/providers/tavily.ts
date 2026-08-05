@@ -2,21 +2,13 @@
 // engine contract: schema-shaped result, no fabricated relevance score,
 // uncertainty as an array. Search mode only.
 import { tavily } from '@tavily/core';
-import type {
-  EngineRequest,
-  EngineOutput,
-  SearchEngine,
-} from './index.ts';
+import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 
 const DEFAULT_MAX_RESULTS = 8;
 
-export async function executeTavilySearch(
-  options: EngineRequest,
-): Promise<EngineOutput> {
+export async function executeTavilySearch(options: EngineRequest): Promise<EngineOutput> {
   if (options.mode === 'fetch') {
-    throw new Error(
-      'The tavily engine does not support page fetch (-u). It searches only.',
-    );
+    throw new Error('The tavily engine does not support page fetch (-u). It searches only.');
   }
   if (!options.query) {
     throw new Error('Search mode requires a query.');
@@ -43,13 +35,14 @@ export async function executeTavilySearch(
   const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
   const startedAt = Date.now();
 
-  const response = await Promise.race([client.search(options.query, {
-    maxResults,
-    searchDepth: 'basic',
-    includeAnswer: true,
-  }), deadline]).finally(
-    () => clearTimeout(deadlineTimer),
-  );
+  const response = await Promise.race([
+    client.search(options.query, {
+      maxResults,
+      searchDepth: 'basic',
+      includeAnswer: true,
+    }),
+    deadline,
+  ]).finally(() => clearTimeout(deadlineTimer));
 
   const items = (response.results ?? []).map((r) => ({
     title: r.title ?? '',
@@ -60,7 +53,11 @@ export async function executeTavilySearch(
 
   const result = {
     summary:
-      response.answer ?? items.map((item) => item.snippet).filter(Boolean).join(' '),
+      response.answer ??
+      items
+        .map((item) => item.snippet)
+        .filter(Boolean)
+        .join(' '),
     items,
     uncertainty: items.length === 0 ? ['No results found for this query.'] : [],
   };

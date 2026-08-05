@@ -163,7 +163,9 @@ export function engineSettings(
   const bindings = ENV_BINDINGS[engineName] ?? {};
 
   const settings: EngineSettings = { ...fromFile };
-  for (const [field, envName] of Object.entries(bindings) as Array<[keyof EngineSettings, string]>) {
+  for (const [field, envName] of Object.entries(bindings) as Array<
+    [keyof EngineSettings, string]
+  >) {
     const value = env[envName]?.trim();
     if (value) {
       settings[field] = value;
@@ -193,14 +195,17 @@ export function setConfigValue(
   } else if (parts.length === 2 && parts[0] === 'search' && parts[1] === 'engine') {
     config.engine = value;
   } else {
-    const [engineName, field] = parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
+    const [engineName, field] =
+      parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
     if (!engineName || !field) {
       throw new Error(
         `Invalid config key: ${dottedKey}. Use "engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
       );
     }
     if (!SETTABLE_ENGINE_FIELDS.includes(field as keyof EngineSettings)) {
-      throw new Error(`Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`);
+      throw new Error(
+        `Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`,
+      );
     }
     config.engines ??= {};
     config.engines[engineName] ??= {};

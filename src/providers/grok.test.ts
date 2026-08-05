@@ -30,7 +30,12 @@ describe('grok engine', () => {
   });
 
   it('falls back to the shared default post count when none is given', () => {
-    const invocation = buildGrokInvocation({ mode: 'search', query: 'x', timeoutMs: 1000, settings: {} });
+    const invocation = buildGrokInvocation({
+      mode: 'search',
+      query: 'x',
+      timeoutMs: 1000,
+      settings: {},
+    });
     const prompt = invocation.args[invocation.args.indexOf('-p') + 1];
     expect(prompt).toContain('up to 8 items');
   });

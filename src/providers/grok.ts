@@ -14,12 +14,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { searchResultSchemaJson } from '../schema.ts';
 import { commandOnPath } from '../system.ts';
-import type {
-  EngineRequest,
-  ProviderInvocation,
-  EngineOutput,
-  SearchEngine,
-} from './index.ts';
+import type { EngineRequest, ProviderInvocation, EngineOutput, SearchEngine } from './index.ts';
 
 // The CLI always passes --max-results (default 8), so this only applies to a
 // programmatic call that omits it. Kept in step with that default so both paths

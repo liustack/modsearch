@@ -98,9 +98,7 @@ export const FETCH_FLOOR = 'http';
 export function resolveEngine(engineName: string): SearchEngine {
   const engine = ENGINES[engineName.trim().toLowerCase()];
   if (!engine) {
-    throw new Error(
-      `Unknown engine: ${engineName}. Known engines: ${listEngines().join(', ')}.`,
-    );
+    throw new Error(`Unknown engine: ${engineName}. Known engines: ${listEngines().join(', ')}.`);
   }
   return engine;
 }

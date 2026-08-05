@@ -8,20 +8,13 @@
 // (with every redirect hop re-validated), reads the body under caps, and maps
 // the result onto the shared engine contract. The SSRF guards live in
 // ./http/network.ts and the markup handling in ./http/htmlExtract.ts.
-import {
-  assertSafeRemoteTarget,
-  normalizeFetchUrl,
-} from './http/network.ts';
+import { assertSafeRemoteTarget, normalizeFetchUrl } from './http/network.ts';
 import {
   extractLinks,
   extractVisibleTextFromHtml,
   normalizeWhitespace,
 } from './http/htmlExtract.ts';
-import type {
-  EngineRequest,
-  EngineOutput,
-  SearchEngine,
-} from './index.ts';
+import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 
 export interface FetchOptions {
   url: string;
@@ -355,9 +348,7 @@ function formatErrorWithCause(error: unknown): string {
 
 // ---------- modsearch engine surface ----------
 
-export async function executeHttpFetch(
-  options: EngineRequest,
-): Promise<EngineOutput> {
+export async function executeHttpFetch(options: EngineRequest): Promise<EngineOutput> {
   if (options.mode !== 'fetch' || !options.url) {
     throw new Error('The http engine does not support search (-q). It fetches one page at a time.');
   }
@@ -377,7 +368,9 @@ export async function executeHttpFetch(
     uncertainty.push(`Content truncated at ${result.meta.maxChars} characters.`);
   }
   if (result.meta.redirectChain.length > 0) {
-    uncertainty.push(`Followed ${result.meta.redirectChain.length} redirect(s) to ${result.finalUrl}.`);
+    uncertainty.push(
+      `Followed ${result.meta.redirectChain.length} redirect(s) to ${result.finalUrl}.`,
+    );
   }
   if (options.extraPrompt || options.query) {
     uncertainty.push(

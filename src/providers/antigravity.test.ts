@@ -37,11 +37,9 @@ describe('buildAntigravityInvocation (search mode)', () => {
   });
 
   it('requires a query', () => {
-    expect(() => buildAntigravityInvocation({ mode: 'search', timeoutMs: 1000,
-      settings: {},
-    })).toThrow(
-      'Search mode requires a query.',
-    );
+    expect(() =>
+      buildAntigravityInvocation({ mode: 'search', timeoutMs: 1000, settings: {} }),
+    ).toThrow('Search mode requires a query.');
   });
 });
 
@@ -68,11 +66,9 @@ describe('buildAntigravityInvocation (fetch mode)', () => {
   });
 
   it('requires a url', () => {
-    expect(() => buildAntigravityInvocation({ mode: 'fetch', timeoutMs: 1000,
-      settings: {},
-    })).toThrow(
-      'Fetch mode requires a URL.',
-    );
+    expect(() =>
+      buildAntigravityInvocation({ mode: 'fetch', timeoutMs: 1000, settings: {} }),
+    ).toThrow('Fetch mode requires a URL.');
   });
 });
 

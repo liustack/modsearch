@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { isBlockedHostname, isPrivateIpAddress, normalizeFetchUrl } from './network.ts';
 
 describe('http network guards', () => {
-  it.each([
-    'localhost',
-    'app.localhost',
-    'metadata.google.internal',
-    'metadata.amazonaws.com',
-  ])('blocks hostname %s', (hostname) => {
-    expect(isBlockedHostname(hostname)).toBe(true);
-  });
+  it.each(['localhost', 'app.localhost', 'metadata.google.internal', 'metadata.amazonaws.com'])(
+    'blocks hostname %s',
+    (hostname) => {
+      expect(isBlockedHostname(hostname)).toBe(true);
+    },
+  );
 
   it.each(['127.0.0.1', '10.0.0.5', '192.168.1.1', '169.254.169.254', '::1', 'fc00::1'])(
     'treats %s as private',

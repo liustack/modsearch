@@ -37,7 +37,7 @@ function extractFrontMatter(content) {
         ...rwInline[1]
           .split(',')
           .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
-          .filter(Boolean)
+          .filter(Boolean),
       );
     }
   }
@@ -64,7 +64,7 @@ function walkDocs(dir) {
         results.push({
           path: relative(process.cwd(), fullPath),
           summary,
-          readWhen
+          readWhen,
         });
       }
     }
@@ -89,5 +89,5 @@ for (const doc of docs) {
 }
 
 console.log(
-  '\nReminder: Before coding, check the "Read when" hints above and read relevant docs as needed.'
+  '\nReminder: Before coding, check the "Read when" hints above and read relevant docs as needed.',
 );

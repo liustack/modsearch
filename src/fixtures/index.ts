@@ -18,7 +18,8 @@ export function agyQuotaEnvelope(): string {
     conversation_id: 'c-2',
     status: 'ERROR',
     response: '',
-    error: 'Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 94h19m9s.',
+    error:
+      'Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 94h19m9s.',
     duration_seconds: 5.1,
     usage: { total_tokens: 0 },
   });

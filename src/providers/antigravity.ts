@@ -2,12 +2,7 @@ import * as path from 'path';
 import { buildFetchPrompt, buildSearchPrompt } from '../prompt.ts';
 import { fetchResultSchemaJson, searchResultSchemaJson } from '../schema.ts';
 import { commandOnPath } from '../system.ts';
-import type {
-  EngineRequest,
-  ProviderInvocation,
-  EngineOutput,
-  SearchEngine,
-} from './index.ts';
+import type { EngineRequest, ProviderInvocation, EngineOutput, SearchEngine } from './index.ts';
 
 export const DEFAULT_MODEL = 'gemini-3.6-flash-low';
 export const DEFAULT_MAX_RESULTS = 8;
@@ -24,9 +19,7 @@ interface AgyPrintEnvelope {
   [key: string]: unknown;
 }
 
-export function buildAntigravityInvocation(
-  options: EngineRequest,
-): ProviderInvocation {
+export function buildAntigravityInvocation(options: EngineRequest): ProviderInvocation {
   let prompt: string;
   let schemaJson: string;
 
