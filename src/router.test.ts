@@ -28,6 +28,22 @@ afterAll(() => {
 });
 
 const WITH_AGY = envWith('agy');
+
+/** agy plus a signed-in grok, since grok availability also checks ~/.grok. */
+function envWithGrok(): { env: NodeJS.ProcessEnv; restoreHome: () => void } {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-home-'));
+  fs.mkdirSync(path.join(home, '.grok'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.grok', 'auth.json'), '{}');
+  tempDirs.push(home);
+  const realHome = process.env.HOME;
+  process.env.HOME = home;
+  return {
+    env: envWith('agy', 'grok'),
+    restoreHome: () => {
+      process.env.HOME = realHome;
+    },
+  };
+}
 const names = (engines: Array<{ name: string }>) => engines.map((engine) => engine.name);
 
 function config(overrides: ModsearchConfig = {}): ModsearchConfig {
@@ -108,16 +124,49 @@ describe('engine chains per role', () => {
 });
 
 describe('run plans', () => {
-  it('keeps web and x separate when both are asked for', () => {
+  it('keeps web and x separate when both are asked for and X is reachable', () => {
+    const { env, restoreHome } = envWithGrok();
+    try {
+      const plans = planRun({
+        mode: 'search',
+        query: 'anything',
+        config: config(),
+        requestedSources: ['web', 'x'],
+        env,
+      });
+      expect(plans.map((plan) => plan.source)).toEqual(['web', 'x']);
+      expect(plans[0].engine.name).toBe('antigravity-cli');
+      expect(plans[1].engine.name).toBe('grok-cli');
+    } finally {
+      restoreHome();
+    }
+  });
+
+  it('does not search the web twice when x degrades into it', () => {
+    // Both sources asked for, no grok: the web entry already covers the ground,
+    // so a second identical query would just bill the same quota again.
     const plans = planRun({
       mode: 'search',
       query: 'anything',
-      config: config({ engines: { tavily: { apiKey: 'k' } } }),
+      config: config(),
       requestedSources: ['web', 'x'],
       env: WITH_AGY,
     });
-    expect(plans.map((plan) => plan.source)).toEqual(['web', 'x']);
-    expect(plans[0].engine.name).toBe('antigravity-cli');
+    expect(plans).toHaveLength(1);
+    expect(plans[0].source).toBe('web');
+    expect(plans[0].notes).toContain(X_DEGRADE_NOTE);
+  });
+
+  it('carries the degrade note on the plan so a mid-run grok failure is flagged', () => {
+    const { env, restoreHome } = envWithGrok();
+    try {
+      const [plan] = planRun({ mode: 'search', query: '推特上怎么说', config: config(), env });
+      expect(plan.engine.name).toBe('grok-cli');
+      expect(plan.degradeNote).toBe(X_DEGRADE_NOTE);
+      expect(plan.fallbacks.length).toBeGreaterThan(0);
+    } finally {
+      restoreHome();
+    }
   });
 
   it('degrades an X request to the web with an honest note when grok is missing', () => {

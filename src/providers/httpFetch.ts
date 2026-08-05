@@ -131,15 +131,64 @@ export function isPrivateIpAddress(ipAddress: string): boolean {
   return true;
 }
 
+/**
+ * Drop `<tag>...</tag>` spans by scanning, not by regex. The nested-quantifier
+ * patterns this replaces took 14 seconds on a 200 KB page of malformed markup,
+ * and bodies here can reach 2 MB, so a remote page could hang the CLI.
+ */
+export function stripElement(html: string, tag: string): string {
+  const open = `<${tag}`;
+  const close = `</${tag}>`;
+  const haystack = html.toLowerCase();
+  let out = '';
+  let cursor = 0;
+
+  for (;;) {
+    const start = haystack.indexOf(open, cursor);
+    if (start === -1) {
+      return out + html.slice(cursor);
+    }
+    const boundary = haystack[start + open.length];
+    if (boundary !== undefined && !/[\s/>]/.test(boundary)) {
+      // Something like <scripting>: not the tag we are looking for.
+      out += html.slice(cursor, start + open.length);
+      cursor = start + open.length;
+      continue;
+    }
+    out += `${html.slice(cursor, start)} `;
+    const end = haystack.indexOf(close, start);
+    if (end === -1) {
+      // Unclosed: the rest of the document belongs to this element.
+      return out;
+    }
+    cursor = end + close.length;
+  }
+}
+
+function stripComments(html: string): string {
+  let out = '';
+  let cursor = 0;
+  for (;;) {
+    const start = html.indexOf('<!--', cursor);
+    if (start === -1) {
+      return out + html.slice(cursor);
+    }
+    out += `${html.slice(cursor, start)} `;
+    const end = html.indexOf('-->', start + 4);
+    if (end === -1) {
+      return out;
+    }
+    cursor = end + 3;
+  }
+}
+
 export function extractVisibleTextFromHtml(html: string): HtmlExtractionResult {
   const title = extractTitle(html);
-  const withoutHidden = html
-    .replace(/<head\b[^<]*(?:(?!<\/head>)<[^<]*)*<\/head>/gi, ' ')
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
-    .replace(/<template\b[^<]*(?:(?!<\/template>)<[^<]*)*<\/template>/gi, ' ')
-    .replace(/<!--([\s\S]*?)-->/g, ' ');
+  let withoutHidden = html;
+  for (const tag of ['head', 'script', 'style', 'noscript', 'template']) {
+    withoutHidden = stripElement(withoutHidden, tag);
+  }
+  withoutHidden = stripComments(withoutHidden);
 
   const withBreaks = withoutHidden
     .replace(/<br\s*\/?>/gi, '\n')
@@ -185,11 +234,13 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
 
   let currentUrl = requestUrl;
   const redirectChain: string[] = [];
+  // One deadline for the whole run: DNS, every redirect hop, and the body.
+  const deadline = AbortSignal.timeout(timeoutMs);
 
   for (let i = 0; i <= maxRedirects; i += 1) {
     await assertSafeRemoteTarget(currentUrl, allowPrivateNetwork);
 
-    const { response } = await fetchOnce(currentUrl, timeoutMs, userAgent);
+    const { response } = await fetchOnce(currentUrl, deadline, timeoutMs, userAgent);
     if (isRedirectStatus(response.status)) {
       const location = response.headers.get('location');
       if (!location) {
@@ -213,7 +264,7 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
       );
     }
 
-    const readBody = await readBodyWithLimit(response, maxBytes);
+    const readBody = await readBodyWithLimit(response, maxBytes, timeoutMs);
     const decoded = decodeBody(readBody.body, contentTypeHeader);
 
     const normalizedContentType = contentTypeHeader.split(';')[0]?.trim().toLowerCase() || '';
@@ -300,18 +351,24 @@ function stripIpv6Brackets(hostname: string): string {
   return hostname;
 }
 
-async function fetchOnce(url: URL, timeoutMs: number, userAgent: string): Promise<FetchStepResult> {
-  const controller = new AbortController();
+/**
+ * One request against an already validated target. The caller owns the signal
+ * so it stays armed while the body streams: aborting only on response headers
+ * left a slow body able to hang forever.
+ */
+async function fetchOnce(
+  url: URL,
+  signal: AbortSignal,
+  timeoutMs: number,
+  userAgent: string,
+): Promise<FetchStepResult> {
   const started = Date.now();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
 
   try {
     const response = await fetch(url, {
       method: 'GET',
       redirect: 'manual',
-      signal: controller.signal,
+      signal,
       headers: {
         'user-agent': userAgent,
         accept:
@@ -327,15 +384,15 @@ async function fetchOnce(url: URL, timeoutMs: number, userAgent: string): Promis
     if (isAbortError(error)) {
       throw new Error(`Request timed out after ${timeoutMs} ms.`);
     }
-    throw new Error(
-      `Request failed for ${url.toString()}: ${formatErrorWithCause(error)}`,
-    );
-  } finally {
-    clearTimeout(timer);
+    throw new Error(`Request failed for ${url.toString()}: ${formatErrorWithCause(error)}`);
   }
 }
 
-async function readBodyWithLimit(response: Response, maxBytes: number): Promise<ReadBodyResult> {
+async function readBodyWithLimit(
+  response: Response,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<ReadBodyResult> {
   const body = response.body;
   if (!body) {
     return {
@@ -353,11 +410,19 @@ async function readBodyWithLimit(response: Response, maxBytes: number): Promise<
   }
 
   const reader = body.getReader();
+  // The shared deadline aborts this stream too: report it as a timeout rather
+  // than as an opaque stream error.
+  const asTimeout = (error: unknown) => {
+    if (isAbortError(error)) {
+      throw new Error(`Request timed out after ${timeoutMs} ms while reading the body.`);
+    }
+    throw error;
+  };
   const chunks: Uint8Array[] = [];
   let total = 0;
 
   while (true) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read().catch(asTimeout);
     if (done) {
       break;
     }
@@ -449,6 +514,17 @@ function extractTitle(html: string): string | null {
   return normalized || null;
 }
 
+/** Code points a remote page can name but JavaScript cannot build. */
+function safeFromCodePoint(codePoint: number): string | null {
+  if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return null;
+  }
+  if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+    return null;
+  }
+  return String.fromCodePoint(codePoint);
+}
+
 function decodeHtmlEntities(text: string): string {
   const namedEntities: Record<string, string> = {
     amp: '&',
@@ -464,12 +540,12 @@ function decodeHtmlEntities(text: string): string {
 
     if (lower.startsWith('#x')) {
       const code = Number.parseInt(lower.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : full;
+      return safeFromCodePoint(code) ?? full;
     }
 
     if (lower.startsWith('#')) {
       const code = Number.parseInt(lower.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : full;
+      return safeFromCodePoint(code) ?? full;
     }
 
     return namedEntities[lower] ?? full;
@@ -550,6 +626,23 @@ function ipv4ToNumber(ipAddress: string): number {
 }
 
 function isPrivateIPv6(ipAddress: string): boolean {
+  // ::ffff:127.0.0.1 normalizes to ::ffff:7f00:1, whose last two groups are
+  // the IPv4 address in hex. Judging it as IPv6 would wave through loopback.
+  const groups = expandIpv6(ipAddress);
+  if (
+    groups &&
+    groups.slice(0, 5).every((group) => group === 0) &&
+    groups[5] === 0xffff
+  ) {
+    const mapped = [
+      groups[6] >> 8,
+      groups[6] & 0xff,
+      groups[7] >> 8,
+      groups[7] & 0xff,
+    ].join('.');
+    return isPrivateIPv4(mapped);
+  }
+
   const normalized = ipAddress.split('%')[0];
   const mapped = extractMappedIpv4(normalized);
   if (mapped && isPrivateIPv4(mapped)) {
@@ -640,18 +733,29 @@ const MAX_LINKS = 20;
 /** Absolute outbound links, deduped, in document order. */
 export function extractLinks(html: string, baseUrl: string): Array<{ text: string; url: string }> {
   const links: Array<{ text: string; url: string }> = [];
+  // A document's own <base href> decides what relative links mean, not the URL
+  // we happened to land on.
+  const baseTag = /<base\b[^>]*href=["']([^"']+)["']/i.exec(html);
+  let resolvedBase = baseUrl;
+  if (baseTag) {
+    try {
+      resolvedBase = new URL(decodeHtmlEntities(baseTag[1]), baseUrl).toString();
+    } catch {
+      // keep the response URL
+    }
+  }
   const seen = new Set<string>();
   const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
   let match: RegExpExecArray | null;
   while ((match = anchor.exec(html)) !== null && links.length < MAX_LINKS) {
-    const href = match[1];
+    const href = decodeHtmlEntities(match[1]);
     if (/^(#|javascript:|mailto:|tel:)/i.test(href)) {
       continue;
     }
     let absolute: string;
     try {
-      absolute = new URL(href, baseUrl).toString();
+      absolute = new URL(href, resolvedBase).toString();
     } catch {
       continue;
     }

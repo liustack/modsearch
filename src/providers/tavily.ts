@@ -30,14 +30,22 @@ export async function executeTavilySearch(
   }
 
   const client = tavily({ apiKey });
+  // The SDK falls back to its own 60s ceiling, so a shorter --timeout has to be
+  // enforced out here or it means nothing.
+  const deadline = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`tavily timed out after ${options.timeoutMs} ms.`)),
+      options.timeoutMs,
+    ).unref(),
+  );
   const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
   const startedAt = Date.now();
 
-  const response = await client.search(options.query, {
+  const response = await Promise.race([client.search(options.query, {
     maxResults,
     searchDepth: 'basic',
     includeAnswer: true,
-  });
+  }), deadline]);
 
   const items = (response.results ?? []).map((r) => ({
     title: r.title ?? '',

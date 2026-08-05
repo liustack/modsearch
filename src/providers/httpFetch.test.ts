@@ -109,3 +109,41 @@ describe('private network escape hatch', () => {
     );
   });
 });
+
+describe('hardening against hostile pages', () => {
+  it('treats IPv4-mapped IPv6 as private in hex form too', () => {
+    // http://[::ffff:127.0.0.1] normalizes to ::ffff:7f00:1, which used to read
+    // as a public IPv6 address and reached services bound to loopback.
+    expect(isPrivateIpAddress('::ffff:7f00:1')).toBe(true);
+    expect(isPrivateIpAddress('::ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateIpAddress('::ffff:a00:1')).toBe(true);
+    expect(isPrivateIpAddress('2606:4700:4700::1111')).toBe(false);
+  });
+
+  it('strips elements in linear time on malformed markup', () => {
+    // The nested-quantifier regexes this replaced took 14 seconds here.
+    const hostile = `<html><script>${'x<div '.repeat(40_000)}</html>`;
+    const startedAt = Date.now();
+    const extracted = extractVisibleTextFromHtml(hostile);
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(extracted.text).not.toContain('<div');
+  });
+
+  it('drops an unclosed element instead of keeping its contents', () => {
+    expect(extractVisibleTextFromHtml('<p>keep</p><script>secret').text).toBe('keep');
+  });
+
+  it('survives a numeric entity outside Unicode', () => {
+    // One malformed entity used to throw RangeError and kill the whole fetch.
+    const extracted = extractVisibleTextFromHtml('<p>before &#1114112; after &#xD800;</p>');
+    expect(extracted.text).toContain('before');
+    expect(extracted.text).toContain('after');
+  });
+
+  it('resolves links against the document base, not the response URL', () => {
+    const html = `<base href="https://docs.example.com/v2/"><a href="guide?a=1&amp;b=2">Guide</a>`;
+    expect(extractLinks(html, 'https://cdn.example.net/page')).toEqual([
+      { text: 'Guide', url: 'https://docs.example.com/v2/guide?a=1&b=2' },
+    ]);
+  });
+});
