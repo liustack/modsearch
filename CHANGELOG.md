@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.1 - 2026-08-05
+
+- Docs: the README output examples still showed the v2 single-object shape. Both languages now show the v3 `results` array, and both blocks parse as valid JSON.
+
 ## 3.0.0 - 2026-08-05
 
 Breaking. modsearch used to treat every engine as one flat list with a single `-p` flag and a routing chain between them, which put a web search engine, an X client, and a page fetcher on the same axis. They are three different jobs, so they are now three roles.
