@@ -68,22 +68,30 @@ npx @liustack/modsearch -q "DeepSeek V4 Flash release date and context window" -
 ```json
 {
   "mode": "search",
-  "provider": "antigravity-cli",
-  "result": {
-    "summary": "DeepSeek V4 Flash was initially released as a preview on April 24, 2026, followed by its official production API release (DeepSeek-V4-Flash-0731) on July 31, 2026. Across both releases it features a 1 million (1M) token context window.",
-    "items": [
-      {
-        "title": "DeepSeek-V4-Flash Official Release & API Specs",
-        "url": "https://deepseek.com",
-        "snippet": "...284B total parameters and 13B active parameters with enhanced post-training.",
-        "published_at": "2026-07-31"
-      }
-    ],
-    "uncertainty": []
-  },
-  "meta": { "model": "gemini-3.6-flash-low", "durationSeconds": 5.5 }
+  "query": "DeepSeek V4 Flash release date and context window",
+  "results": [
+    {
+      "source": "web",
+      "engine": "antigravity-cli",
+      "model": "gemini-3.6-flash-low",
+      "summary": "DeepSeek V4 Flash was initially released as a preview on April 24, 2026, followed by its official production API release (DeepSeek-V4-Flash-0731) on July 31, 2026. Across both releases it features a 1 million (1M) token context window.",
+      "items": [
+        {
+          "title": "DeepSeek-V4-Flash Official Release & API Specs",
+          "url": "https://deepseek.com",
+          "snippet": "...284B total parameters and 13B active parameters with enhanced post-training.",
+          "published_at": "2026-07-31"
+        }
+      ],
+      "uncertainty": [],
+      "durationSeconds": 5.5
+    }
+  ],
+  "meta": { "generatedAt": "2026-08-05T...", "durationSeconds": 5.6 }
 }
 ```
+
+`results` 永远是数组。加上 `--source web,x` 就是两格，一格 web 一格 x，形状不变。
 
 抓取网页，还可以带上关注点：
 
@@ -94,17 +102,21 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 ```json
 {
   "mode": "fetch",
-  "result": {
-    "summary": "Extracted structured evidence from liustack/liustack GitHub README focused on the skills shipped by the package.",
-    "content": "#### Shipped Skills\n1. **`shaping`** (Before you start) ...\n2. **`coding`** (While coding) ...\n3. **`dig`** (When there's a bug) ...\n4. **`snapshot`** (When handing off) ...",
-    "links": [
-      {
-        "text": "shaping SKILL.md",
-        "url": "https://github.com/liustack/liustack/blob/main/skills/shaping/SKILL.md"
-      }
-    ],
-    "uncertainty": []
-  }
+  "results": [
+    {
+      "source": "web",
+      "engine": "antigravity-cli",
+      "summary": "Extracted structured evidence from liustack/liustack GitHub README focused on the skills shipped by the package.",
+      "content": "#### Shipped Skills\n1. **`shaping`** (Before you start) ...\n2. **`coding`** (While coding) ...\n3. **`dig`** (When there's a bug) ...\n4. **`snapshot`** (When handing off) ...",
+      "links": [
+        {
+          "text": "shaping SKILL.md",
+          "url": "https://github.com/liustack/liustack/blob/main/skills/shaping/SKILL.md"
+        }
+      ],
+      "uncertainty": []
+    }
+  ]
 }
 ```
 
