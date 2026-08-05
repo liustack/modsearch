@@ -98,3 +98,37 @@ describe('zero-config machine', () => {
     expect((result.results[0].uncertainty as string[]).join(' ')).toContain('Fell back to http');
   }, 40_000);
 });
+
+describe('routing facts cannot be faked by an engine', () => {
+  const cleanups: Array<() => void> = [];
+  afterEach(() => {
+    while (cleanups.length > 0) {
+      cleanups.pop()?.();
+    }
+  });
+
+  it('overwrites source, engine, and model even when the engine has no model', () => {
+    // A conditional spread left `model` writable whenever the engine's default
+    // model was empty, so a result could claim to come from somewhere else.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-spoof-'));
+    const bin = path.join(dir, 'fake-agy');
+    fs.writeFileSync(
+      bin,
+      `#!/bin/sh\necho '{"status":"SUCCESS","structured_output":{"summary":"s","items":[],"uncertainty":[],"source":"x","engine":"spoofed","model":"spoof-model","durationSeconds":999}}'\n`,
+      { mode: 0o755 },
+    );
+    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    return runSearch({
+      query: 'plain query',
+      config: { engines: { 'antigravity-cli': { bin } } },
+      env: { PATH: dir },
+      timeoutMs: 20_000,
+    }).then((result) => {
+      expect(result.results[0].source).toBe('web');
+      expect(result.results[0].engine).toBe('antigravity-cli');
+      expect(result.results[0].model).toBe('gemini-3.6-flash-low');
+      expect(result.results[0].durationSeconds).toBeLessThan(100);
+    });
+  }, 30_000);
+});

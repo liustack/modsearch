@@ -110,11 +110,8 @@ describe('engine chains per role', () => {
     expect(planRole('fetch', config(), undefined, BARE).notes).toEqual([]);
   });
 
-  it('honors a role engine pinned in the config file', () => {
-    const pinned = config({
-      search: { engine: 'tavily' },
-      engines: { tavily: { apiKey: 'k' } },
-    });
+  it('honors the engine chosen in the config file', () => {
+    const pinned = config({ engine: 'tavily', engines: { tavily: { apiKey: 'k' } } });
     expect(names(planRole('search', pinned, undefined, WITH_AGY).chain)[0]).toBe('tavily');
     // --engine still wins over the file
     expect(names(planRole('search', pinned, 'antigravity-cli', WITH_AGY).chain)[0]).toBe(
@@ -191,5 +188,32 @@ describe('run plans', () => {
     const [plan] = planRun({ mode: 'fetch', config: config(), env: BARE });
     expect(plan.engine.name).toBe('http');
     expect(plan.source).toBe('web');
+  });
+});
+
+describe('fetch follows the chosen engine without being configured', () => {
+  it('uses the search engine for fetching when that engine can fetch', () => {
+    const chain = planRole('fetch', config({ engine: 'antigravity-cli' }), undefined, WITH_AGY);
+    expect(names(chain.chain)).toEqual(['antigravity-cli', 'http']);
+    expect(chain.notes).toEqual([]);
+  });
+
+  it('falls to the local fetcher when the search engine cannot fetch', () => {
+    // Choosing Tavily is a normal setup, not a mistake, so it earns no warning.
+    const chain = planRole('fetch', config({ engine: 'tavily' }), undefined, WITH_AGY);
+    expect(names(chain.chain)).toEqual(['antigravity-cli', 'http']);
+    expect(chain.notes).toEqual([]);
+  });
+
+  it('still fetches with nothing installed at all', () => {
+    expect(names(planRole('fetch', config({ engine: 'tavily' }), undefined, BARE).chain)).toEqual([
+      'http',
+    ]);
+  });
+
+  it('complains only when --engine explicitly names something that cannot fetch', () => {
+    const chain = planRole('fetch', config(), 'tavily', BARE);
+    expect(names(chain.chain)).toEqual(['http']);
+    expect(chain.notes[0]).toContain('cannot do fetch');
   });
 });

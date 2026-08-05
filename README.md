@@ -187,17 +187,17 @@ An X-flavored query (twitter, tweet, 推特, 推文, x.com) goes to X on its own
 
 ## Configuration (optional)
 
-`~/.modsearch/config.json`, organised by role. Environment variables override the file, CLI flags override everything:
+`~/.modsearch/config.json` holds the one decision worth making: which engine searches.
 
 ```bash
 modsearch config init                       # starter file, every field optional
 modsearch config set tavily.apiKey <key>    # engine credentials, saved 0600
-modsearch config set search.engine tavily   # pin the engine for one role
-modsearch config set search.engine ""       # clear it, back to automatic
+modsearch config set engine tavily          # choose the search engine
+modsearch config set engine ""              # clear it, back to automatic
 modsearch config show                       # keys come out masked
 ```
 
-An empty engine means "use whatever works here". Pinning one role never disturbs the other two. Configs in the old shape (one global `provider` plus a `providers` map) are read and mapped automatically, with nothing to migrate by hand.
+**Page fetch needs no configuration**: the engine you chose does it when it can, and the built-in local fetcher does it when it cannot, so something always can. X needs none either, since only Grok gets in. An empty `engine` means "use whatever works here". Older shapes (v2's global `provider`, and the per-role grouping that existed briefly) are read automatically.
 
 You don't have to remember any of it: the skill carries the full setup guide, so you can just ask your agent "set my Tavily key in modsearch."
 

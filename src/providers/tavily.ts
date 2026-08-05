@@ -32,12 +32,14 @@ export async function executeTavilySearch(
   const client = tavily({ apiKey });
   // The SDK falls back to its own 60s ceiling, so a shorter --timeout has to be
   // enforced out here or it means nothing.
-  const deadline = new Promise<never>((_, reject) =>
-    setTimeout(
+  let deadlineTimer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
       () => reject(new Error(`tavily timed out after ${options.timeoutMs} ms.`)),
       options.timeoutMs,
-    ).unref(),
-  );
+    );
+    deadlineTimer.unref();
+  });
   const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
   const startedAt = Date.now();
 
@@ -45,7 +47,9 @@ export async function executeTavilySearch(
     maxResults,
     searchDepth: 'basic',
     includeAnswer: true,
-  }), deadline]);
+  }), deadline]).finally(
+    () => clearTimeout(deadlineTimer),
+  );
 
   const items = (response.results ?? []).map((r) => ({
     title: r.title ?? '',

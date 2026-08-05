@@ -6,11 +6,11 @@ Read this when the user asks how to set up modsearch, wants a key added, wants a
 
 Three jobs, called roles. Each role has engines that can do it:
 
-| Role | What it does | Engines |
+| Job | Engines | Configurable? |
 | :-- | :-- | :-- |
-| `search` | search the public web | `antigravity-cli`, `tavily` |
-| `fetch` | read one URL | `antigravity-cli`, `http` |
-| `social` | search X (Twitter) | `grok-cli` |
+| search the public web | `antigravity-cli`, `tavily` | yes, this is the one `engine` setting |
+| read one URL | the chosen engine if it can fetch, else `http` | no, it follows the choice above |
+| search X (Twitter) | `grok-cli` | no, nothing else can see inside X |
 
 Two facts follow from this table, and they answer most questions:
 
@@ -45,9 +45,7 @@ Shape:
 
 ```json
 {
-  "search": { "engine": "" },
-  "fetch":  { "engine": "" },
-  "social": { "engine": "" },
+  "engine": "",
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "" },
@@ -57,13 +55,15 @@ Shape:
 }
 ```
 
-An empty `engine` means "use the best available one". Setting it pins that role only, and never disturbs the others.
+An empty `engine` means "use the best available one".
 
 ```bash
-modsearch config set search.engine tavily     # pin web search to Tavily
-modsearch config set search.engine ""         # back to automatic
+modsearch config set engine tavily            # choose the search engine
+modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
 ```
+
+Nothing configures page fetch or X, on purpose. Fetching uses the chosen engine when that engine can fetch, and the built-in local fetcher otherwise. X has exactly one possible engine, so there is no choice to store.
 
 A config written before roles existed (one global `provider` plus a `providers` map) is read and mapped automatically. Nothing to migrate by hand.
 
