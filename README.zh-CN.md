@@ -148,7 +148,7 @@ npx -y skills add liustack/liustack -g
 
 ## 免责声明
 
-仅供个人学习与实验，不用于商业用途。Antigravity CLI 的使用受你自己的 Google 账号条款和额度约束。
+ModSearch 以 MIT 许可发布，使用不受限制。作者不对任何用途（含商业使用）提供保证与背书。它驱动的上游引擎（Antigravity CLI、Tavily、Grok Build）各有各的条款与额度，遵守这些约束由使用者自负。
 
 ## License
 
