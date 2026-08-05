@@ -164,7 +164,7 @@ modsearch -u <url> [-q "<focus>"]    # fetch mode
 | `-q, --query <text>` | Query, or the extraction focus when paired with `-u` | |
 | `-u, --url <url>` | Fetch this page instead of searching | |
 | `-s, --source <list>` | Corpora: `web`, `x`, or `web,x` | from the query, else `web` |
-| `-e, --engine <name>` | Force one engine for this run | picked per role |
+| `-e, --engine <name>` | Force one engine for this run | picked from what works here |
 | `-o, --output <path>` | Also write JSON to a file | |
 | `-m, --model <name>` | Engine model, where the engine has one | `gemini-3.6-flash-low` |
 | `--max-results <n>` | Maximum search results | `8` |
@@ -175,33 +175,26 @@ modsearch -u <url> [-q "<focus>"]    # fetch mode
 
 Output is always a `results` array, one entry per corpus, length 1 in the common case, so the shape never changes. Full contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
-## Three roles, four engines
+## What it does, and what you need for it
 
-modsearch does three jobs, and each has its own engines. They are three separate dimensions, not competitors on one list:
+| What you want | What it takes |
+| :-- | :-- |
+| Search the public web | Antigravity CLI (free, no key), **or** a Tavily key (1,000 free credits a month) |
+| Read one URL | Nothing at all. With Antigravity CLI around it also distills the page for you |
+| Search X (Twitter) | Grok Build, included with SuperGrok or X Premium |
 
-| Role | What it does | Engines |
-| :-- | :-- | :-- |
-| `search` | search the public web | `antigravity-cli` (free, no key), `tavily` (needs a key, has a free tier) |
-| `fetch` | read one URL | `antigravity-cli` (LLM extraction), `http` (plain HTTP, no dependencies) |
-| `social` | search X (Twitter) | `grok-cli` (Grok Build, included with SuperGrok or X Premium) |
-
-Two guarantees follow, and they answer most questions:
-
-- **Page fetch always works.** The `http` engine needs nothing installed and is the floor for that role. A wrong config, a missing agy, an engine that dies mid-run: all of them land there rather than leaving a URL unreadable.
-- **Search needs one engine.** Either agy or a Tavily key. With neither, the command names both options instead of failing vaguely.
-
-X is a separate corpus, not a rival to Google, so it never replaces web search. `--source` picks corpora, `--engine` picks tools, and the two stay apart.
+Searching is the only thing that asks anything of you, and agy or a Tavily key both answer it. With neither, the command names both options instead of failing vaguely. **Reading a page always works**: a wrong setting, a missing agy, an engine that dies mid-run, all of them land on the built-in local fetcher.
 
 ```bash
 modsearch -q "..."                  # search the web
 modsearch -q "..." --source x       # search X only
 modsearch -q "..." --source web,x   # both, one entry each in the output
-modsearch -u <url>                  # fetch a page
+modsearch -u <url>                  # read one page
 ```
 
-An X-flavored query (twitter, tweet, 推特, 推文, x.com) goes to X on its own and spends no agy quota.
+An X-flavored query goes to X on its own and spends no agy quota.
 
-`agy` wins on needing no key and loses on quota: its free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK. Once it is gone you wait out the cycle (we hit that wall ourselves and the message read "94 hours until reset"). Adding a Tavily key gives you an automatic backup: when agy fails, search falls through on its own.
+One honest note about quota: agy's free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK. Once it is gone you wait out the cycle (we hit that wall ourselves and the message read "94 hours until reset"). A Tavily key gives you an automatic backup: when agy fails, search falls through on its own.
 
 ## Configuration (optional)
 
@@ -215,7 +208,7 @@ modsearch config set engine ""              # clear it, back to automatic
 modsearch config show                       # keys come out masked
 ```
 
-**Page fetch needs no configuration**: the engine you chose does it when it can, and the built-in local fetcher does it when it cannot, so something always can. X needs none either, since only Grok gets in. An empty `engine` means "use whatever works here". Older shapes (v2's global `provider`, and the per-role grouping that existed briefly) are read automatically.
+**Page fetch needs no configuration**: the engine you chose does it when it can, and the built-in local fetcher does it when it cannot, so something always can. X needs none either, since only Grok gets in. An empty `engine` means "use whatever works here". Older config shapes are read automatically.
 
 You don't have to remember any of it: the skill carries the full setup guide, so you can just ask your agent "set my Tavily key in modsearch."
 

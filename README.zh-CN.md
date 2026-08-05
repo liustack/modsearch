@@ -164,7 +164,7 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 | `-q, --query <text>` | 查询词，配合 `-u` 时是提取关注点 | |
 | `-u, --url <url>` | 抓这一页，不做搜索 | |
 | `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 看查询词，默认 `web` |
-| `-e, --engine <name>` | 本次强制用某个引擎 | 按角色自动挑 |
+| `-e, --engine <name>` | 本次强制用某个引擎 | 自动挑本机能用的 |
 | `-o, --output <path>` | 同时把 JSON 写入文件 | |
 | `-m, --model <name>` | 引擎模型（有模型概念的引擎才有用） | `gemini-3.6-flash-low` |
 | `--max-results <n>` | 搜索结果上限 | `8` |
@@ -175,33 +175,26 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 输出永远是 `results` 数组，一个语料一格，单语料时长度就是 1，形状不会变。完整契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
-## 三个角色，四个引擎
+## 它能干什么，你要装什么
 
-modsearch 干三件事，每件事有自己的引擎。它们是三个维度，不是一条链上的竞品：
+| 你想干的事 | 需要什么 |
+| :-- | :-- |
+| 搜公共网页 | Antigravity CLI（免费、零 key），**或**一个 Tavily key（免费档每月 1000 次） |
+| 读一个 URL | 什么都不用装。有 Antigravity CLI 时它顺带帮你提炼得更好 |
+| 搜 X（推特） | Grok Build，SuperGrok 或 X Premium 订阅自带 |
 
-| 角色 | 干什么 | 可用引擎 |
-| :-- | :-- | :-- |
-| `search` | 搜公共网页 | `antigravity-cli`（免费零 key）、`tavily`（要 key，有免费档） |
-| `fetch` | 读一个 URL | `antigravity-cli`（带 LLM 提炼）、`http`（纯 HTTP，零依赖） |
-| `social` | 搜 X（推特） | `grok-cli`（要 Grok Build，SuperGrok 或 X Premium 订阅自带） |
-
-两条由此而来的保证，回答了大部分问题：
-
-- **抓网页永远能用。** `http` 引擎什么都不用装，是 fetch 这一角色的兜底。配置写错、agy 没装、引擎跑挂，都会落到它，不会让你读不了网页。
-- **搜索需要一个引擎。** agy 或 Tavily key，二选一即可。都没有时命令会把两条路一起告诉你，而不是含糊报错。
-
-X 是另一个语料库，不是跟 Google 竞争的搜索引擎，所以它从不顶替网页搜索。`--source` 选语料，`--engine` 选工具，两件事分开。
+搜索是唯一需要你准备点什么的：agy 和 Tavily key 二选一。两个都没有时，命令会把两条路一起告诉你，而不是含糊报错。**读网页永远能用**，配置写错、agy 没装、引擎跑挂，都会落到内置的本地抓取器。
 
 ```bash
 modsearch -q "..."                  # 搜网页
 modsearch -q "..." --source x       # 只搜 X
 modsearch -q "..." --source web,x   # 两个都要，结果各占一格
-modsearch -u <url>                  # 抓网页
+modsearch -u <url>                  # 读一个页面
 ```
 
-查询词里带 X 味（twitter、推特、推文、x.com 这些）会自动只走 X，一点 agy 额度都不花。
+X 味的查询会自动只走 X，一点 agy 额度都不花。
 
-`agy` 胜在零 key，短板是额度：它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。配上 Tavily key 就有了自动备胎，agy 挂了搜索会自己落过去。
+一句关于额度的实话：`agy` 免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。配上 Tavily key 就有了自动备胎，agy 挂了搜索会自己落过去。
 
 ## 配置（可选）
 
@@ -215,7 +208,7 @@ modsearch config set engine ""              # 清空，恢复自动挑选
 modsearch config show                       # key 打码显示
 ```
 
-**抓网页不需要配置**：你选的引擎能抓就用它抓，不能抓就用内置的本地抓取器，反正总有一个能干。搜 X 也不用配，因为只有 Grok 进得去。留空 `engine` 就是「本机有什么用什么」。老格式的配置（v2 的全局 `provider`，或者短暂存在过的按角色分组）都会被自动读懂，不用手动迁移。
+**抓网页不需要配置**：你选的引擎能抓就用它抓，不能抓就用内置的本地抓取器，反正总有一个能干。搜 X 也不用配，因为只有 Grok 进得去。留空 `engine` 就是「本机有什么用什么」。老格式的配置会被自动读懂，不用手动迁移。
 
 这些命令你一条都不用记：skill 里带着完整的配置说明，直接问你的 agent「帮我把 Tavily key 配进 modsearch」就行。
 
