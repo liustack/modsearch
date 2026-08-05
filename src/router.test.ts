@@ -7,7 +7,14 @@ import {
   withSignedInGrok,
 } from './testing/helpers.ts';
 import type { ModsearchConfig } from './config.ts';
-import { defaultSources, isXQuery, parseSources, planRole, planRun, X_DEGRADE_NOTE } from './router.ts';
+import {
+  defaultSources,
+  isXQuery,
+  parseSources,
+  planRole,
+  planRun,
+  X_DEGRADE_NOTE,
+} from './router.ts';
 
 const WITH_AGY = envWithBinaries('agy');
 

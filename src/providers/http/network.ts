@@ -76,7 +76,10 @@ export function isPrivateIpAddress(ipAddress: string): boolean {
   return true;
 }
 
-export async function assertSafeRemoteTarget(url: URL, allowPrivateNetwork: boolean): Promise<void> {
+export async function assertSafeRemoteTarget(
+  url: URL,
+  allowPrivateNetwork: boolean,
+): Promise<void> {
   if (isBlockedHostname(url.hostname)) {
     throw new Error(`Blocked hostname: ${url.hostname}`);
   }
@@ -126,12 +129,14 @@ function stripIpv6Brackets(hostname: string): string {
 
 function isPrivateIPv4(ipAddress: string): boolean {
   const octets = ipAddress.split('.').map((part) => Number.parseInt(part, 10));
-  if (octets.length !== 4 || octets.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((value) => !Number.isFinite(value) || value < 0 || value > 255)
+  ) {
     return true;
   }
 
-  const value =
-    octets[0] * 256 ** 3 + octets[1] * 256 ** 2 + octets[2] * 256 + octets[3];
+  const value = octets[0] * 256 ** 3 + octets[1] * 256 ** 2 + octets[2] * 256 + octets[3];
 
   return (
     inRange(value, '0.0.0.0', '0.255.255.255') ||
@@ -160,17 +165,8 @@ function isPrivateIPv6(ipAddress: string): boolean {
   // ::ffff:127.0.0.1 normalizes to ::ffff:7f00:1, whose last two groups are
   // the IPv4 address in hex. Judging it as IPv6 would wave through loopback.
   const groups = expandIpv6(ipAddress);
-  if (
-    groups &&
-    groups.slice(0, 5).every((group) => group === 0) &&
-    groups[5] === 0xffff
-  ) {
-    const mapped = [
-      groups[6] >> 8,
-      groups[6] & 0xff,
-      groups[7] >> 8,
-      groups[7] & 0xff,
-    ].join('.');
+  if (groups && groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    const mapped = [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.');
     return isPrivateIPv4(mapped);
   }
 
@@ -212,7 +208,8 @@ function inIpv6Range(value: bigint, start: string, prefixLength: number): boolea
     return false;
   }
 
-  const mask = prefixLength === 0 ? 0n : ((1n << BigInt(prefixLength)) - 1n) << BigInt(128 - prefixLength);
+  const mask =
+    prefixLength === 0 ? 0n : ((1n << BigInt(prefixLength)) - 1n) << BigInt(128 - prefixLength);
   return (value & mask) === (startValue & mask);
 }
 

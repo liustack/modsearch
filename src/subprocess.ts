@@ -25,7 +25,11 @@ export function runCommand(
   engineName: string,
   invocation: ProviderInvocation,
   timeoutMs: number,
-  describeFailure?: (context: { stdout: string; stderr: string; code: number | null }) => string | null,
+  describeFailure?: (context: {
+    stdout: string;
+    stderr: string;
+    code: number | null;
+  }) => string | null,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(invocation.command, invocation.args, {

@@ -5,7 +5,10 @@ import { agySearchEnvelope } from './fixtures/index.ts';
 import { BARE_ENV, cleanupTempDirs, fakeEngine, startLocalPage } from './testing/helpers.ts';
 
 /** A config whose agy engine is the given fake binary (full path, so PATH is irrelevant). */
-function agyConfig(fake: { stdout?: string; code?: number }, extra: ModsearchConfig = {}): ModsearchConfig {
+function agyConfig(
+  fake: { stdout?: string; code?: number },
+  extra: ModsearchConfig = {},
+): ModsearchConfig {
   const bin = fakeEngine({ name: 'agy', ...fake });
   return {
     ...extra,

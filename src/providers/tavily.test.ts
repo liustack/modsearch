@@ -19,7 +19,12 @@ describe('tavily provider', () => {
 
   it('rejects fetch mode', async () => {
     await expect(
-      executeTavilySearch({ mode: 'fetch', url: 'https://example.com', timeoutMs: 1000, settings: {} }),
+      executeTavilySearch({
+        mode: 'fetch',
+        url: 'https://example.com',
+        timeoutMs: 1000,
+        settings: {},
+      }),
     ).rejects.toThrow(/does not support page fetch/);
   });
 
@@ -63,7 +68,12 @@ describe('tavily provider', () => {
       };
       expect(result.summary).toBe('synthesized answer');
       expect(result.items).toEqual([
-        { title: 'A', url: 'https://a.example.com/page', snippet: 'snippet a', source: 'a.example.com' },
+        {
+          title: 'A',
+          url: 'https://a.example.com/page',
+          snippet: 'snippet a',
+          source: 'a.example.com',
+        },
         { title: 'B', url: 'not a url', snippet: 'snippet b', source: undefined },
       ]);
       expect(result.uncertainty).toEqual([]);

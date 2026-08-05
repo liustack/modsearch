@@ -239,7 +239,6 @@ export function noEngineMessage(role: 'search' | 'fetch' | 'social'): string {
   const options = enginesForRole(role)
     .map((engine) => `  - ${engine.name}: ${engine.requirement}`)
     .join('\n');
-  const job =
-    role === 'fetch' ? 'fetch a page' : role === 'social' ? 'search X' : 'search the web';
+  const job = role === 'fetch' ? 'fetch a page' : role === 'social' ? 'search X' : 'search the web';
   return `No engine on this machine can ${job}. Any one of these enables it:\n${options}`;
 }
