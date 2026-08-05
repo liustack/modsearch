@@ -19,7 +19,7 @@ describe('tavily provider', () => {
   it('rejects fetch mode', async () => {
     await expect(
       executeTavilySearch({ mode: 'fetch', url: 'https://example.com', timeoutMs: 1000 }),
-    ).rejects.toThrow('only supports search mode');
+    ).rejects.toThrow(/does not support page fetch/);
   });
 
   it('requires TAVILY_API_KEY', async () => {

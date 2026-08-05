@@ -2,7 +2,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveMode, routeProvider, runCommand, runSearch, validateUrl } from './search.ts';
+import {
+  describeMissingCapability,
+  resolveMode,
+  routeProvider,
+  runCommand,
+  runSearch,
+  validateUrl,
+} from './search.ts';
 
 describe('resolveMode', () => {
   it('is search when only a query is given', () => {
@@ -133,7 +140,7 @@ describe('config file wiring', () => {
           timeoutMs: 5_000,
           config: { providers: { tavily: { apiKey: 'tvly-from-config' } } },
         }),
-      ).rejects.toThrow(/only supports search mode/);
+      ).rejects.toThrow(/does not support page fetch/);
       expect(process.env.TAVILY_API_KEY).toBe('tvly-from-config');
     } finally {
       if (saved === undefined) {
@@ -142,5 +149,33 @@ describe('config file wiring', () => {
         process.env.TAVILY_API_KEY = saved;
       }
     }
+  });
+});
+
+describe('capability reporting', () => {
+  it('points at another installed engine when one exists', () => {
+    const message = describeMissingCapability('tavily', 'fetch', 'agy', () => true);
+    expect(message).toContain('tavily engine does not support page fetch');
+    expect(message).toContain('antigravity-cli');
+    expect(message).not.toContain('install');
+  });
+
+  it('never demands agy when the user has not set it up', () => {
+    // A user with only a Tavily key should be told what is possible, not
+    // ordered to adopt an engine they skipped on purpose.
+    const message = describeMissingCapability('tavily', 'fetch', 'agy', () => false);
+    expect(message).toContain('does not support page fetch');
+    expect(message).toContain('Search with -q instead');
+    expect(message).not.toMatch(/use the default|you must|required/i);
+  });
+
+  it('rejects fetch on a pinned search-only engine before spending anything', async () => {
+    await expect(
+      runSearch({
+        url: 'https://example.com',
+        timeoutMs: 5_000,
+        config: { provider: 'tavily', providers: { tavily: { apiKey: 'tvly-x' } } },
+      }),
+    ).rejects.toThrow(/does not support page fetch/);
   });
 });

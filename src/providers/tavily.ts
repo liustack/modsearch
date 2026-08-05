@@ -15,7 +15,7 @@ export async function executeTavilySearch(
 ): Promise<ProviderParsedOutput> {
   if (options.mode === 'fetch') {
     throw new Error(
-      'The tavily provider only supports search mode (-q). Use the default antigravity-cli provider for page fetch (-u).',
+      'The tavily engine does not support page fetch (-u). It searches only.',
     );
   }
   if (!options.query) {
@@ -73,6 +73,7 @@ function safeHostname(url: string): string | undefined {
 
 export const tavilyProvider: SearchProvider = {
   name: 'tavily',
+  modes: ['search'],
   defaultModel: 'tavily-basic',
   execute: executeTavilySearch,
 };

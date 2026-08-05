@@ -61,7 +61,7 @@ describe('buildGrokInvocation', () => {
   it('rejects fetch mode', () => {
     expect(() =>
       buildGrokInvocation({ mode: 'fetch', url: 'https://example.com', timeoutMs: 1000 }),
-    ).toThrow('only supports search mode');
+    ).toThrow(/does not support page fetch/);
   });
 });
 
