@@ -1,4 +1,4 @@
-// JSON schemas enforced on the provider via structured output.
+// JSON schemas enforced on the engine via structured output.
 // Numeric relevance scores were dropped: models fabricate them, and item
 // order already carries ranking.
 

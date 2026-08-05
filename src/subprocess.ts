@@ -6,7 +6,7 @@ export interface CommandResult {
   stderr: string;
 }
 
-// After the provider exits, how long to keep draining stdout before giving up
+// After the engine exits, how long to keep draining stdout before giving up
 // on the pipe closing. Reset whenever more output arrives.
 const DRAIN_GRACE_MS = 500;
 // How long a killed child gets before SIGKILL.
@@ -22,7 +22,7 @@ const SIGKILL_GRACE_MS = 2_000;
  * keep this process alive either.
  */
 export function runCommand(
-  providerName: string,
+  engineName: string,
   invocation: ProviderInvocation,
   timeoutMs: number,
   describeFailure?: (context: { stdout: string; stderr: string; code: number | null }) => string | null,
@@ -71,7 +71,7 @@ export function runCommand(
       child.unref();
 
       if (timedOut) {
-        reject(new Error(`${providerName} provider timed out after ${timeoutMs} ms.`));
+        reject(new Error(`${engineName} engine timed out after ${timeoutMs} ms.`));
         return;
       }
       if (code !== 0) {
@@ -79,7 +79,7 @@ export function runCommand(
         reject(
           new Error(
             explained ??
-              `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+              `${engineName} engine failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
           ),
         );
         return;
@@ -116,7 +116,7 @@ export function runCommand(
       clearTimeout(drainTimer);
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         reject(
-          new Error(`Provider CLI not found: ${invocation.command}. Install it and sign in first.`),
+          new Error(`Engine CLI not found: ${invocation.command}. Install it and sign in first.`),
         );
         return;
       }
@@ -129,7 +129,7 @@ export function runCommand(
       restartDrain();
     });
 
-    // Normal providers close their pipes right after exiting: settle at once.
+    // Normal engines close their pipes right after exiting: settle at once.
     child.on('close', (code) => settle(code));
   });
 }
