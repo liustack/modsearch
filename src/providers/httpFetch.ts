@@ -4,18 +4,19 @@
 // focus extraction, and JS-rendered pages come back thin), but it is the only
 // fetch engine that works with nothing installed.
 //
-// The SSRF guards are the load-bearing part: an agent will happily fetch a URL
-// that appeared inside a web page, so blocked hostnames, private address
-// ranges, and every redirect hop are checked before a request goes out.
-//
-// Known gap, stated rather than hidden: the guard resolves the hostname and
-// then hands the same hostname to fetch, which resolves it again. A DNS answer
-// that changes between those two moments (rebinding) can point the connection
-// at an address the check never saw. Closing it needs the connection pinned to
-// the validated IP, which Node's global fetch does not expose, so it would mean
-// rewriting this transport on node:https. Until then the window is real.
-import * as dns from 'dns/promises';
-import { isIP } from 'net';
+// This module is the transport and the engine adapter: it drives one fetch
+// (with every redirect hop re-validated), reads the body under caps, and maps
+// the result onto the shared engine contract. The SSRF guards live in
+// ./http/network.ts and the markup handling in ./http/htmlExtract.ts.
+import {
+  assertSafeRemoteTarget,
+  normalizeFetchUrl,
+} from './http/network.ts';
+import {
+  extractLinks,
+  extractVisibleTextFromHtml,
+  normalizeWhitespace,
+} from './http/htmlExtract.ts';
 import type {
   EngineRequest,
   EngineOutput,
@@ -30,11 +31,6 @@ export interface FetchOptions {
   maxRedirects?: number;
   userAgent?: string;
   allowPrivateNetwork?: boolean;
-}
-
-export interface HtmlExtractionResult {
-  title: string | null;
-  text: string;
 }
 
 export interface FetchResult {
@@ -73,188 +69,6 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_BYTES = 2_000_000;
 const DEFAULT_MAX_CHARS = 50_000;
 const DEFAULT_MAX_REDIRECTS = 4;
-
-const BLOCKED_HOSTNAMES = new Set([
-  'localhost',
-  'localhost.localdomain',
-  'metadata.google.internal',
-  'metadata.amazonaws.com',
-  'metadata.azure.internal',
-]);
-
-export function normalizeFetchUrl(input: string): URL {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    throw new Error('Fetch URL is required.');
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    throw new Error(`Invalid URL: ${trimmed}`);
-  }
-
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Only http/https URLs are supported.');
-  }
-
-  if (parsed.username || parsed.password) {
-    throw new Error('URL with embedded credentials is not allowed.');
-  }
-
-  return parsed;
-}
-
-export function isBlockedHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
-
-  if (BLOCKED_HOSTNAMES.has(normalized)) {
-    return true;
-  }
-
-  if (normalized.endsWith('.localhost')) {
-    return true;
-  }
-
-  return false;
-}
-
-export function isPrivateIpAddress(ipAddress: string): boolean {
-  const normalized = ipAddress.trim().toLowerCase();
-  const family = isIP(normalized);
-
-  if (family === 4) {
-    return isPrivateIPv4(normalized);
-  }
-
-  if (family === 6) {
-    return isPrivateIPv6(normalized);
-  }
-
-  return true;
-}
-
-/**
- * Drop `<tag>...</tag>` spans by scanning, not by regex. The nested-quantifier
- * patterns this replaces took 14 seconds on a 200 KB page of malformed markup,
- * and bodies here can reach 2 MB, so a remote page could hang the CLI.
- */
-/**
- * ASCII-only lowercasing. Unicode toLowerCase can change a string's length
- * (a single İ becomes two characters), and these indices are used to slice the
- * original, so drift there leaked hidden script content into the visible text.
- */
-function asciiLower(value: string): string {
-  return value.replace(/[A-Z]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 32));
-}
-
-/** Index of the next `<tag` that is really a tag, not text inside an attribute. */
-function findTagStart(haystack: string, tag: string, from: number): number {
-  const open = `<${tag}`;
-  let index = from;
-  let inTag = false;
-  let quote = '';
-
-  while (index < haystack.length) {
-    const char = haystack[index];
-    if (quote) {
-      if (char === quote) {
-        quote = '';
-      }
-      index++;
-      continue;
-    }
-    if (inTag) {
-      if (char === '"' || char === "'") {
-        quote = char;
-      } else if (char === '>') {
-        inTag = false;
-      }
-      index++;
-      continue;
-    }
-    if (char === '<') {
-      if (haystack.startsWith(open, index)) {
-        const boundary = haystack[index + open.length];
-        if (boundary === undefined || /[\s/>]/.test(boundary)) {
-          return index;
-        }
-      }
-      inTag = true;
-      index++;
-      continue;
-    }
-    index++;
-  }
-  return -1;
-}
-
-export function stripElement(html: string, tag: string): string {
-  const close = `</${tag}>`;
-  const haystack = asciiLower(html);
-  let out = '';
-  let cursor = 0;
-
-  for (;;) {
-    const start = findTagStart(haystack, tag, cursor);
-    if (start === -1) {
-      return out + html.slice(cursor);
-    }
-    out += `${html.slice(cursor, start)} `;
-    const end = haystack.indexOf(close, start);
-    if (end === -1) {
-      // Unclosed: the rest of the document belongs to this element.
-      return out;
-    }
-    cursor = end + close.length;
-  }
-}
-
-function stripComments(html: string): string {
-  let out = '';
-  let cursor = 0;
-  for (;;) {
-    const start = html.indexOf('<!--', cursor);
-    if (start === -1) {
-      return out + html.slice(cursor);
-    }
-    out += `${html.slice(cursor, start)} `;
-    const end = html.indexOf('-->', start + 4);
-    if (end === -1) {
-      return out;
-    }
-    cursor = end + 3;
-  }
-}
-
-export function extractVisibleTextFromHtml(html: string): HtmlExtractionResult {
-  const title = extractTitle(html);
-  let withoutHidden = html;
-  for (const tag of ['head', 'script', 'style', 'noscript', 'template']) {
-    withoutHidden = stripElement(withoutHidden, tag);
-  }
-  withoutHidden = stripComments(withoutHidden);
-
-  const withBreaks = withoutHidden
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(
-      /<\/(address|article|aside|blockquote|div|dl|dt|dd|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tr|td|th|ul)>/gi,
-      '\n',
-    );
-
-  const withoutTags = withBreaks.replace(/<[^>]+>/g, ' ');
-  const decoded = decodeHtmlEntities(withoutTags);
-  const text = normalizeWhitespace(decoded);
-
-  return {
-    title,
-    text,
-  };
-}
 
 export async function runFetch(options: FetchOptions): Promise<FetchResult> {
   const requestUrl = normalizeFetchUrl(options.url);
@@ -350,54 +164,6 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
   }
 
   throw new Error('Failed to fetch target URL.');
-}
-
-async function assertSafeRemoteTarget(url: URL, allowPrivateNetwork: boolean): Promise<void> {
-  if (isBlockedHostname(url.hostname)) {
-    throw new Error(`Blocked hostname: ${url.hostname}`);
-  }
-
-  if (allowPrivateNetwork) {
-    return;
-  }
-
-  const hostname = stripIpv6Brackets(url.hostname);
-  const ipFamily = isIP(hostname);
-  if (ipFamily > 0) {
-    if (isPrivateIpAddress(hostname)) {
-      throw new Error(`Blocked private network target: ${hostname}`);
-    }
-    return;
-  }
-
-  let resolved: Array<{ address: string; family: number }>;
-  try {
-    resolved = await dns.lookup(hostname, { all: true, verbatim: true });
-  } catch (error) {
-    throw new Error(
-      `DNS lookup failed for host ${hostname}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  if (resolved.length === 0) {
-    throw new Error(`Host ${hostname} did not resolve to any IP address.`);
-  }
-
-  const blocked = resolved.find((record) => isPrivateIpAddress(record.address));
-  if (blocked) {
-    // VPN and proxy clients routinely map public hosts into reserved ranges
-    // (198.18/15 especially), so a real site can look private from here.
-    throw new Error(
-      `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set http.allowPrivateNetwork true`,
-    );
-  }
-}
-
-function stripIpv6Brackets(hostname: string): string {
-  if (hostname.startsWith('[') && hostname.endsWith(']')) {
-    return hostname.slice(1, -1);
-  }
-  return hostname;
 }
 
 /**
@@ -552,66 +318,6 @@ function trimToMaxChars(text: string, maxChars: number): { text: string; truncat
   };
 }
 
-function extractTitle(html: string): string | null {
-  const matched = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-  if (!matched) {
-    return null;
-  }
-
-  const decoded = decodeHtmlEntities(matched[1]);
-  const normalized = normalizeWhitespace(decoded);
-  return normalized || null;
-}
-
-/** Code points a remote page can name but JavaScript cannot build. */
-function safeFromCodePoint(codePoint: number): string | null {
-  if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
-    return null;
-  }
-  if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-    return null;
-  }
-  return String.fromCodePoint(codePoint);
-}
-
-function decodeHtmlEntities(text: string): string {
-  const namedEntities: Record<string, string> = {
-    amp: '&',
-    lt: '<',
-    gt: '>',
-    quot: '"',
-    apos: "'",
-    nbsp: ' ',
-  };
-
-  return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (full, entity: string) => {
-    const lower = entity.toLowerCase();
-
-    if (lower.startsWith('#x')) {
-      const code = Number.parseInt(lower.slice(2), 16);
-      return safeFromCodePoint(code) ?? full;
-    }
-
-    if (lower.startsWith('#')) {
-      const code = Number.parseInt(lower.slice(1), 10);
-      return safeFromCodePoint(code) ?? full;
-    }
-
-    return namedEntities[lower] ?? full;
-  });
-}
-
-function normalizeWhitespace(text: string): string {
-  return text
-    .replace(/\r/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t\f\v]+/g, ' ')
-    .replace(/\s+([,.;!?])/g, '$1')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
 function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
@@ -647,188 +353,7 @@ function formatErrorWithCause(error: unknown): string {
   return String(error);
 }
 
-function isPrivateIPv4(ipAddress: string): boolean {
-  const octets = ipAddress.split('.').map((part) => Number.parseInt(part, 10));
-  if (octets.length !== 4 || octets.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) {
-    return true;
-  }
-
-  const value =
-    octets[0] * 256 ** 3 + octets[1] * 256 ** 2 + octets[2] * 256 + octets[3];
-
-  return (
-    inRange(value, '0.0.0.0', '0.255.255.255') ||
-    inRange(value, '10.0.0.0', '10.255.255.255') ||
-    inRange(value, '100.64.0.0', '100.127.255.255') ||
-    inRange(value, '127.0.0.0', '127.255.255.255') ||
-    inRange(value, '169.254.0.0', '169.254.255.255') ||
-    inRange(value, '172.16.0.0', '172.31.255.255') ||
-    inRange(value, '192.0.0.0', '192.0.0.255') ||
-    inRange(value, '192.168.0.0', '192.168.255.255') ||
-    inRange(value, '198.18.0.0', '198.19.255.255') ||
-    inRange(value, '224.0.0.0', '255.255.255.255')
-  );
-}
-
-function inRange(value: number, start: string, end: string): boolean {
-  return value >= ipv4ToNumber(start) && value <= ipv4ToNumber(end);
-}
-
-function ipv4ToNumber(ipAddress: string): number {
-  const octets = ipAddress.split('.').map((part) => Number.parseInt(part, 10));
-  return octets[0] * 256 ** 3 + octets[1] * 256 ** 2 + octets[2] * 256 + octets[3];
-}
-
-function isPrivateIPv6(ipAddress: string): boolean {
-  // ::ffff:127.0.0.1 normalizes to ::ffff:7f00:1, whose last two groups are
-  // the IPv4 address in hex. Judging it as IPv6 would wave through loopback.
-  const groups = expandIpv6(ipAddress);
-  if (
-    groups &&
-    groups.slice(0, 5).every((group) => group === 0) &&
-    groups[5] === 0xffff
-  ) {
-    const mapped = [
-      groups[6] >> 8,
-      groups[6] & 0xff,
-      groups[7] >> 8,
-      groups[7] & 0xff,
-    ].join('.');
-    return isPrivateIPv4(mapped);
-  }
-
-  const normalized = ipAddress.split('%')[0];
-  const mapped = extractMappedIpv4(normalized);
-  if (mapped && isPrivateIPv4(mapped)) {
-    return true;
-  }
-
-  const value = ipv6ToBigInt(normalized);
-  if (value === null) {
-    return true;
-  }
-
-  return (
-    inIpv6Range(value, '::', 128) ||
-    inIpv6Range(value, '::1', 128) ||
-    inIpv6Range(value, 'fc00::', 7) ||
-    inIpv6Range(value, 'fe80::', 10) ||
-    inIpv6Range(value, 'ff00::', 8) ||
-    inIpv6Range(value, '2001:db8::', 32)
-  );
-}
-
-function extractMappedIpv4(ipAddress: string): string | null {
-  const lower = ipAddress.toLowerCase();
-  const marker = '::ffff:';
-  if (!lower.startsWith(marker)) {
-    return null;
-  }
-
-  const candidate = lower.slice(marker.length);
-  return isIP(candidate) === 4 ? candidate : null;
-}
-
-function inIpv6Range(value: bigint, start: string, prefixLength: number): boolean {
-  const startValue = ipv6ToBigInt(start);
-  if (startValue === null) {
-    return false;
-  }
-
-  const mask = prefixLength === 0 ? 0n : ((1n << BigInt(prefixLength)) - 1n) << BigInt(128 - prefixLength);
-  return (value & mask) === (startValue & mask);
-}
-
-function ipv6ToBigInt(ipAddress: string): bigint | null {
-  const expanded = expandIpv6(ipAddress);
-  if (!expanded) {
-    return null;
-  }
-
-  return expanded.reduce((acc, group) => (acc << 16n) + BigInt(group), 0n);
-}
-
-function expandIpv6(ipAddress: string): number[] | null {
-  const value = ipAddress.toLowerCase();
-  if (value.includes('::')) {
-    const [left, right] = value.split('::');
-    const leftGroups = left ? left.split(':').filter(Boolean) : [];
-    const rightGroups = right ? right.split(':').filter(Boolean) : [];
-
-    if (leftGroups.length + rightGroups.length > 8) {
-      return null;
-    }
-
-    const middle = new Array(8 - leftGroups.length - rightGroups.length).fill('0');
-    const allGroups = [...leftGroups, ...middle, ...rightGroups];
-    return parseIpv6Groups(allGroups);
-  }
-
-  return parseIpv6Groups(value.split(':'));
-}
-
-function parseIpv6Groups(groups: string[]): number[] | null {
-  if (groups.length !== 8) {
-    return null;
-  }
-
-  const parsed = groups.map((group) => Number.parseInt(group || '0', 16));
-  if (parsed.some((value) => !Number.isFinite(value) || value < 0 || value > 0xffff)) {
-    return null;
-  }
-
-  return parsed;
-}
-
-// ---------- modsearch provider surface ----------
-
-const MAX_LINKS = 20;
-
-/** Absolute outbound links, deduped, in document order. */
-export function extractLinks(html: string, baseUrl: string): Array<{ text: string; url: string }> {
-  const links: Array<{ text: string; url: string }> = [];
-  // A document's own <base href> decides what relative links mean, not the URL
-  // we happened to land on.
-  const baseTag = /<base\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(html);
-  let resolvedBase = baseUrl;
-  if (baseTag) {
-    try {
-      const href = baseTag[1] ?? baseTag[2] ?? baseTag[3] ?? '';
-      resolvedBase = new URL(decodeHtmlEntities(href), baseUrl).toString();
-    } catch {
-      // keep the response URL
-    }
-  }
-  const seen = new Set<string>();
-  const anchor =
-    /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>([\s\S]*?)<\/a>/gi;
-
-  let match: RegExpExecArray | null;
-  while ((match = anchor.exec(html)) !== null && links.length < MAX_LINKS) {
-    const href = decodeHtmlEntities(match[1] ?? match[2] ?? match[3] ?? '');
-    if (/^(#|javascript:|mailto:|tel:)/i.test(href)) {
-      continue;
-    }
-    let absolute: string;
-    try {
-      absolute = new URL(href, resolvedBase).toString();
-    } catch {
-      continue;
-    }
-    if (!/^https?:/i.test(absolute) || seen.has(absolute)) {
-      continue;
-    }
-    const text = normalizeWhitespace(decodeHtmlEntities((match[4] ?? '').replace(/<[^>]+>/g, ' ')))
-      .trim()
-      .slice(0, 100);
-    if (!text) {
-      continue;
-    }
-    seen.add(absolute);
-    links.push({ text, url: absolute });
-  }
-  return links;
-}
+// ---------- modsearch engine surface ----------
 
 export async function executeHttpFetch(
   options: EngineRequest,
