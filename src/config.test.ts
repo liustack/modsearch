@@ -8,7 +8,7 @@ import {
   loadConfigFile,
   migrateLegacyConfig,
   renderConfig,
-  roleEngine,
+  chosenEngine,
   setConfigValue,
 } from './config.ts';
 
@@ -30,13 +30,12 @@ describe('config file', () => {
 
   it('sets role engines and engine settings, 0600, either key shape', () => {
     const p = tempConfigPath();
-    setConfigValue('search.engine', 'tavily', p);
+    setConfigValue('engine', 'tavily', p);
     setConfigValue('tavily.apiKey', 'tvly-secret-123456', p);
     setConfigValue('engines.grok-cli.bin', '/opt/grok', p);
 
     const config = loadConfigFile(p);
-    expect(roleEngine(config, 'search')).toBe('tavily');
-    expect(roleEngine(config, 'fetch')).toBeUndefined();
+    expect(chosenEngine(config)).toBe('tavily');
     expect(config.engines?.tavily?.apiKey).toBe('tvly-secret-123456');
     expect(config.engines?.['grok-cli']?.bin).toBe('/opt/grok');
     expect(fs.statSync(p).mode & 0o777).toBe(0o600);
@@ -54,16 +53,32 @@ describe('config file', () => {
       provider: 'tavily',
       providers: { tavily: { apiKey: 'k' }, 'antigravity-cli': { bin: 'agy' } },
     });
-    expect(roleEngine(migrated, 'search')).toBe('tavily');
+    expect(chosenEngine(migrated)).toBe('tavily');
     expect(migrated.engines?.tavily?.apiKey).toBe('k');
     expect(migrated.engines?.['antigravity-cli']?.bin).toBe('agy');
     expect((migrated as Record<string, unknown>).providers).toBeUndefined();
   });
 
-  it('maps a legacy grok pin onto the social role, not search', () => {
+  it('ignores a legacy pin that was not a search engine', () => {
+    // grok was pinnable per role before; now X has no choice to make.
     const migrated = migrateLegacyConfig({ provider: 'grok-cli', providers: {} });
-    expect(roleEngine(migrated, 'social')).toBe('grok-cli');
-    expect(roleEngine(migrated, 'search')).toBeUndefined();
+    expect(chosenEngine(migrated)).toBeUndefined();
+  });
+
+  it('reads the short-lived per-role shape', () => {
+    const migrated = migrateLegacyConfig({
+      search: { engine: 'tavily' },
+      fetch: { engine: 'http' },
+      engines: { tavily: { apiKey: 'k' } },
+    });
+    expect(chosenEngine(migrated)).toBe('tavily');
+    expect((migrated as Record<string, unknown>).fetch).toBeUndefined();
+  });
+
+  it('accepts search.engine as a spelling of engine', () => {
+    const p = tempConfigPath();
+    setConfigValue('search.engine', 'tavily', p);
+    expect(chosenEngine(loadConfigFile(p))).toBe('tavily');
   });
 
   it('lets env vars override the file', () => {

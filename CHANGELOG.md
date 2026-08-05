@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.2.0 - 2026-08-05
+
+**Configuration collapsed to one decision.** Choosing an engine per role turned out to be three questions where users only have one. `~/.modsearch/config.json` now holds a single `engine`, the one that searches. Page fetch uses that engine when it can fetch and the built-in local fetcher when it cannot, and X only ever uses Grok Build, so neither is configurable any more. Older shapes (v2's `provider`, and the per-role grouping that existed for a few hours) are read and mapped automatically.
+
+**Fixes a verification pass caught in the 3.1.0 fixes.** The reviewer proved each one.
+
+- The subprocess timeout fix never applied: only its constant landed, so a child ignoring SIGTERM still hung the caller. Verified now: a run with a 200ms timeout returns in 216ms instead of waiting out the process.
+- `stripElement` lowercased the whole document with Unicode rules, which can change a string's length, then used those indices to slice the original. Twenty `İ` characters shifted the indices enough to leak hidden script content into the visible text.
+- A tag name inside an attribute value (`<div data-note="<script>">`) was read as an unclosed element, dropping the rest of the page.
+- `--engine grok --source web,x` with Grok absent still ran the web search twice, because an explicitly named engine entered the chain without an availability check.
+- An engine's result could still overwrite `model` whenever that engine had no model of its own.
+- Link extraction only recognised quoted `href="..."`, missing `href=https://...` and `href = "..."`.
+- Tavily's timeout left its deadline timer armed after a fast success.
+- The streaming decoders were never flushed, so trailing bytes of a split character were dropped instead of surfacing.
+- `AbortSignal.timeout` rejects with `TimeoutError`, which the abort check did not recognise, so real timeouts were reported as generic request failures.
+
 ## 3.1.0 - 2026-08-05
 
 Security and correctness pass after an external review (gpt-5.6-sol) that proved every finding with a probe.

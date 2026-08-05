@@ -166,11 +166,20 @@ async function runOneSource(
 
     // Routing facts go last: an engine returning its own `source` or `engine`
     // key must not be able to rewrite who answered.
+    // Strip routing-shaped keys the engine returned before stamping the real
+    // ones: a conditional spread left `model` overridable whenever the engine
+    // had no model of its own.
+    const body = withNotes(output.result, notes);
+    delete body.source;
+    delete body.engine;
+    delete body.model;
+    delete body.durationSeconds;
+
     return {
-      ...withNotes(output.result, notes),
+      ...body,
       source: plan.source,
       engine: engine.name,
-      ...(model ? { model } : {}),
+      model,
       durationSeconds: (Date.now() - startedAt) / 1000,
     };
   }

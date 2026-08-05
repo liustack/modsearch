@@ -143,24 +143,66 @@ export function isPrivateIpAddress(ipAddress: string): boolean {
  * patterns this replaces took 14 seconds on a 200 KB page of malformed markup,
  * and bodies here can reach 2 MB, so a remote page could hang the CLI.
  */
-export function stripElement(html: string, tag: string): string {
+/**
+ * ASCII-only lowercasing. Unicode toLowerCase can change a string's length
+ * (a single İ becomes two characters), and these indices are used to slice the
+ * original, so drift there leaked hidden script content into the visible text.
+ */
+function asciiLower(value: string): string {
+  return value.replace(/[A-Z]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 32));
+}
+
+/** Index of the next `<tag` that is really a tag, not text inside an attribute. */
+function findTagStart(haystack: string, tag: string, from: number): number {
   const open = `<${tag}`;
+  let index = from;
+  let inTag = false;
+  let quote = '';
+
+  while (index < haystack.length) {
+    const char = haystack[index];
+    if (quote) {
+      if (char === quote) {
+        quote = '';
+      }
+      index++;
+      continue;
+    }
+    if (inTag) {
+      if (char === '"' || char === "'") {
+        quote = char;
+      } else if (char === '>') {
+        inTag = false;
+      }
+      index++;
+      continue;
+    }
+    if (char === '<') {
+      if (haystack.startsWith(open, index)) {
+        const boundary = haystack[index + open.length];
+        if (boundary === undefined || /[\s/>]/.test(boundary)) {
+          return index;
+        }
+      }
+      inTag = true;
+      index++;
+      continue;
+    }
+    index++;
+  }
+  return -1;
+}
+
+export function stripElement(html: string, tag: string): string {
   const close = `</${tag}>`;
-  const haystack = html.toLowerCase();
+  const haystack = asciiLower(html);
   let out = '';
   let cursor = 0;
 
   for (;;) {
-    const start = haystack.indexOf(open, cursor);
+    const start = findTagStart(haystack, tag, cursor);
     if (start === -1) {
       return out + html.slice(cursor);
-    }
-    const boundary = haystack[start + open.length];
-    if (boundary !== undefined && !/[\s/>]/.test(boundary)) {
-      // Something like <scripting>: not the tag we are looking for.
-      out += html.slice(cursor, start + open.length);
-      cursor = start + open.length;
-      continue;
     }
     out += `${html.slice(cursor, start)} `;
     const end = haystack.indexOf(close, start);
@@ -575,6 +617,11 @@ function isRedirectStatus(status: number): boolean {
 }
 
 function isAbortError(error: unknown): boolean {
+  // AbortSignal.timeout rejects with TimeoutError, not AbortError, so a plain
+  // name check reported real timeouts as generic request failures.
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return true;
+  }
   if (!error || typeof error !== 'object') {
     return false;
   }
@@ -742,21 +789,23 @@ export function extractLinks(html: string, baseUrl: string): Array<{ text: strin
   const links: Array<{ text: string; url: string }> = [];
   // A document's own <base href> decides what relative links mean, not the URL
   // we happened to land on.
-  const baseTag = /<base\b[^>]*href=["']([^"']+)["']/i.exec(html);
+  const baseTag = /<base\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(html);
   let resolvedBase = baseUrl;
   if (baseTag) {
     try {
-      resolvedBase = new URL(decodeHtmlEntities(baseTag[1]), baseUrl).toString();
+      const href = baseTag[1] ?? baseTag[2] ?? baseTag[3] ?? '';
+      resolvedBase = new URL(decodeHtmlEntities(href), baseUrl).toString();
     } catch {
       // keep the response URL
     }
   }
   const seen = new Set<string>();
-  const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const anchor =
+    /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>([\s\S]*?)<\/a>/gi;
 
   let match: RegExpExecArray | null;
   while ((match = anchor.exec(html)) !== null && links.length < MAX_LINKS) {
-    const href = decodeHtmlEntities(match[1]);
+    const href = decodeHtmlEntities(match[1] ?? match[2] ?? match[3] ?? '');
     if (/^(#|javascript:|mailto:|tel:)/i.test(href)) {
       continue;
     }
@@ -769,7 +818,7 @@ export function extractLinks(html: string, baseUrl: string): Array<{ text: strin
     if (!/^https?:/i.test(absolute) || seen.has(absolute)) {
       continue;
     }
-    const text = normalizeWhitespace(decodeHtmlEntities(match[2].replace(/<[^>]+>/g, ' ')))
+    const text = normalizeWhitespace(decodeHtmlEntities((match[4] ?? '').replace(/<[^>]+>/g, ' ')))
       .trim()
       .slice(0, 100);
     if (!text) {

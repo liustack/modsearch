@@ -1,5 +1,6 @@
-import { engineSettings, roleEngine, type ModsearchConfig, type Role } from './config.ts';
+import { chosenEngine, engineSettings, type ModsearchConfig, type Role } from './config.ts';
 import {
+  enginesForRole,
   FETCH_FLOOR,
   findEngine,
   resolveEngine,
@@ -68,11 +69,15 @@ export function defaultSources(query: string | undefined): Source[] {
 }
 
 /**
- * Pick the engine chain for one role: the configured engine first (or the
- * preference order when unset), then everything else that is usable.
+ * Pick the engine chain for one role.
  *
- * Page fetch always ends at the local HTTP engine. A wrong engine name, a
- * missing binary, or a runtime failure should never leave a URL unreadable.
+ * Only searching takes a configured engine. Fetching follows that same choice
+ * when the engine can fetch and lands on the built-in local fetcher when it
+ * cannot, so nobody has to configure page fetch separately. Searching X has
+ * one possible engine, so there is nothing to choose there either.
+ *
+ * Page fetch always ends at the local HTTP engine: a wrong engine name, a
+ * missing binary, or a runtime failure must never leave a URL unreadable.
  */
 export function planRole(
   role: Role,
@@ -91,18 +96,23 @@ export function planRole(
     }
   };
 
-  const namedBy = requestedEngine ? '--engine' : `${role}.engine in the config file`;
-  const named = requestedEngine?.trim() || roleEngine(config, role);
+  const explicit = requestedEngine?.trim();
+  const configured = chosenEngine(config);
+  const named = explicit || configured;
+
   if (named) {
     const engine = findEngine(named);
+    const namedBy = explicit ? '--engine' : 'engine in the config file';
     if (!engine) {
       notes.push(`Unknown engine "${named}" (${namedBy}), so modsearch chose one that works.`);
-    } else if (!engine.roles.includes(role)) {
+    } else if (engine.roles.includes(role)) {
+      add(engine);
+    } else if (explicit) {
+      // Only an explicit --engine deserves a complaint. A search engine that
+      // cannot fetch is the normal case, not a misconfiguration.
       notes.push(
         `The ${engine.name} engine cannot do ${role} (${namedBy}), so modsearch chose one that can. ${engine.name} handles: ${engine.roles.join(', ')}.`,
       );
-    } else {
-      add(engine);
     }
   }
 
@@ -122,8 +132,11 @@ export function planRole(
 
 /** Is an engine for X usable right now? */
 function socialAvailable(input: PlanInput, env: NodeJS.ProcessEnv): boolean {
-  return planRole('social', input.config, undefined, env).chain.some((engine) =>
-    engine.roles.includes('social'),
+  // Ask the engines directly. Reading the planned chain counted an explicitly
+  // named engine as present even when it was not installed, which then ran the
+  // same web search twice.
+  return enginesForRole('social').some((engine) =>
+    engine.isAvailable(engineSettings(engine.name, input.config, env), env),
   );
 }
 

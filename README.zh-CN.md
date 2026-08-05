@@ -187,17 +187,17 @@ modsearch -u <url>                  # 抓网页
 
 ## 配置（可选）
 
-`~/.modsearch/config.json`，按角色组织，环境变量能盖过它，命令行参数最大：
+`~/.modsearch/config.json` 只有一个需要你做的决定：搜索用哪个引擎。
 
 ```bash
 modsearch config init                       # 生成骨架，每个字段都可留空
 modsearch config set tavily.apiKey <key>    # 引擎凭据，落盘即 0600
-modsearch config set search.engine tavily   # 钉死某个角色的引擎
-modsearch config set search.engine ""       # 清空，恢复自动挑选
+modsearch config set engine tavily          # 指定搜索引擎
+modsearch config set engine ""              # 清空，恢复自动挑选
 modsearch config show                       # key 打码显示
 ```
 
-引擎留空就是「本机有什么用什么」。钉死只影响那一个角色，不会波及另外两个。老格式的配置文件（一个全局 `provider` 加一个 `providers` 表）会被自动读懂并映射过来，不用手动迁移。
+**抓网页不需要配置**：你选的引擎能抓就用它抓，不能抓就用内置的本地抓取器，反正总有一个能干。搜 X 也不用配，因为只有 Grok 进得去。留空 `engine` 就是「本机有什么用什么」。老格式的配置（v2 的全局 `provider`，或者短暂存在过的按角色分组）都会被自动读懂，不用手动迁移。
 
 这些命令你一条都不用记：skill 里带着完整的配置说明，直接问你的 agent「帮我把 Tavily key 配进 modsearch」就行。
 

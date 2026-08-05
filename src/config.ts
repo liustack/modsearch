@@ -4,14 +4,18 @@ import * as path from 'path';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
-// The file is organised by role, not by engine. A role is a job modsearch can
-// do (search the public web, fetch one page, search X), and each role names the
-// engine that should do it. Engine credentials and binaries live once, under
-// `engines`, so changing one role never disturbs another.
+// There is one decision to make, so the file has one knob: `engine`, the
+// engine you want searching with. Everything else follows from what an engine
+// can do. Reading a page uses that same engine when it can fetch, and the
+// built-in local fetcher when it cannot. Searching X uses Grok Build, because
+// nothing else can see inside X. Credentials and binaries live under `engines`.
 
 export type Role = 'search' | 'fetch' | 'social';
 
 export const ROLES: Role[] = ['search', 'fetch', 'social'];
+
+/** The one role a user picks an engine for. The rest follow from capability. */
+export const CONFIGURED_ROLE: Role = 'search';
 
 export interface EngineSettings {
   apiKey?: string;
@@ -21,16 +25,15 @@ export interface EngineSettings {
   allowPrivateNetwork?: string;
 }
 
-export interface RoleConfig {
-  /** Engine for this role. Empty means: use the best one available here. */
+export interface ModsearchConfig {
+  /** Engine for searching. Empty means: use the best one available here. */
   engine?: string;
+  engines?: Record<string, EngineSettings>;
 }
 
-export interface ModsearchConfig {
-  search?: RoleConfig;
-  fetch?: RoleConfig;
-  social?: RoleConfig;
-  engines?: Record<string, EngineSettings>;
+/** Shapes older configs used before this collapsed to one knob. */
+interface LegacyRoleConfig {
+  engine?: string;
 }
 
 export const CONFIG_DIR = path.join(os.homedir(), '.modsearch');
@@ -73,8 +76,13 @@ const CANONICAL_ENGINE: Record<string, string> = {
 };
 
 interface LegacyConfig {
+  /** v2: one global provider name. */
   provider?: string;
   providers?: Record<string, EngineSettings>;
+  /** v3.0-3.1: one engine per role. */
+  search?: LegacyRoleConfig;
+  fetch?: LegacyRoleConfig;
+  social?: LegacyRoleConfig;
 }
 
 /**
@@ -82,7 +90,8 @@ interface LegacyConfig {
  * `providers` map. Read those rather than making the user start over.
  */
 export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): ModsearchConfig {
-  if (!raw.providers && !raw.provider) {
+  const hasLegacy = Boolean(raw.providers || raw.provider || raw.search || raw.fetch || raw.social);
+  if (!hasLegacy) {
     return raw;
   }
   // Merge per engine, not per map: a new `engines.tavily.model` next to an old
@@ -97,20 +106,17 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
     engines[canonical] = { ...engines[canonical], ...settings };
   }
 
-  const migrated: ModsearchConfig = {
-    ...(raw.search ? { search: raw.search } : {}),
-    ...(raw.fetch ? { fetch: raw.fetch } : {}),
-    ...(raw.social ? { social: raw.social } : {}),
-    engines,
-  };
+  // Any older shape collapses to the one knob: a per-role search engine, or a
+  // v2 global provider that happened to be a search engine.
+  const legacySearch = raw.search?.engine?.trim();
   const pinned = raw.provider?.trim();
-  if (pinned) {
-    const role = LEGACY_ENGINE_ROLES[pinned];
-    if (role && !migrated[role]?.engine) {
-      migrated[role] = { engine: CANONICAL_ENGINE[pinned] ?? pinned };
-    }
-  }
-  return migrated;
+  const fromPin =
+    pinned && LEGACY_ENGINE_ROLES[pinned] === 'search'
+      ? (CANONICAL_ENGINE[pinned] ?? pinned)
+      : undefined;
+  const engine = raw.engine?.trim() || legacySearch || fromPin;
+
+  return { ...(engine ? { engine } : {}), engines };
 }
 
 export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfig {
@@ -142,9 +148,9 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
   }
 }
 
-/** Engine chosen for this role, if the user set one. */
-export function roleEngine(config: ModsearchConfig, role: Role): string | undefined {
-  return config[role]?.engine?.trim() || undefined;
+/** The engine the user asked for, if any. */
+export function chosenEngine(config: ModsearchConfig): string | undefined {
+  return config.engine?.trim() || undefined;
 }
 
 /** Settings for one engine, with env vars overriding the file. */
@@ -180,13 +186,17 @@ export function setConfigValue(
   const config = loadConfigFile(configPath);
   const parts = dottedKey.split('.').filter(Boolean);
 
-  if (parts.length === 2 && ROLES.includes(parts[0] as Role) && parts[1] === 'engine') {
-    config[parts[0] as Role] = { engine: value };
+  // `engine <name>` is the whole role surface. `search.engine` still works so
+  // muscle memory from the previous shape does not hit an error.
+  if (parts.length === 1 && parts[0] === 'engine') {
+    config.engine = value;
+  } else if (parts.length === 2 && parts[0] === 'search' && parts[1] === 'engine') {
+    config.engine = value;
   } else {
     const [engineName, field] = parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
     if (!engineName || !field) {
       throw new Error(
-        `Invalid config key: ${dottedKey}. Use "<${ROLES.join('|')}>.engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
+        `Invalid config key: ${dottedKey}. Use "engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
       );
     }
     if (!SETTABLE_ENGINE_FIELDS.includes(field as keyof EngineSettings)) {
@@ -207,10 +217,10 @@ export function setConfigValue(
 }
 
 export const CONFIG_TEMPLATE: ModsearchConfig = {
-  // An empty engine means: use the best one available on this machine.
-  search: { engine: '' },
-  fetch: { engine: '' },
-  social: { engine: '' },
+  // Empty means: use the best engine available on this machine. Page fetch
+  // follows this choice when the engine can fetch, and falls to the built-in
+  // local fetcher when it cannot. X always uses Grok Build.
+  engine: '',
   engines: {
     'antigravity-cli': { bin: 'agy', model: 'gemini-3.6-flash-low' },
     tavily: { apiKey: '' },
