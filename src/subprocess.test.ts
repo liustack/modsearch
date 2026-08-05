@@ -39,23 +39,27 @@ describe('runCommand timeout handling', () => {
       mode: 0o755,
     });
 
-    const promise = runCommand('stubborn', { command: bin, args: [], cwd: dir }, 800);
+    // A comfortably long timeout so the child is certain to spawn and write its
+    // PID before SIGKILL lands (timeout + 2s grace). Under the full parallel
+    // suite a busy machine can be slow to schedule the new process, and a tight
+    // timeout would SIGKILL it before it ever ran.
+    const promise = runCommand('stubborn', { command: bin, args: [], cwd: dir }, 3_000);
     await expect(promise).rejects.toThrow(/timed out/);
 
-    // The child wrote its PID at startup; give it a generous beat to flush to
-    // disk, since a busy machine running the full suite starves timers.
+    // The child wrote its PID at startup (before the SIGTERM-ignoring trap even
+    // matters). Wait for it to land on disk.
     await waitFor(() => {
       try {
         return fs.readFileSync(pidFile, 'utf-8').trim().length > 0;
       } catch {
         return false;
       }
-    }, 5_000);
+    }, 15_000);
     const pid = Number.parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10);
     expect(Number.isFinite(pid)).toBe(true);
 
-    // SIGKILL follows SIGTERM after the 2s grace window: the PID must vanish.
-    // The window is wide so scheduling jitter under load cannot flake it.
-    expect(await waitFor(() => processGone(pid), 12_000)).toBe(true);
-  }, 25_000);
+    // SIGKILL follows the ignored SIGTERM after the 2s grace: the PID must
+    // vanish. The window is wide so scheduling jitter under load cannot flake it.
+    expect(await waitFor(() => processGone(pid), 20_000)).toBe(true);
+  }, 45_000);
 });
