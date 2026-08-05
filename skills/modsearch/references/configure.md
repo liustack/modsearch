@@ -100,7 +100,9 @@ Nothing else to turn on. An X-flavored query goes to X automatically once `grok`
 
 ### http (fetch, nothing to install)
 
-No setup. It carries SSRF guards, so a VPN that maps public hosts into reserved ranges will trip them:
+No setup. It carries SSRF guards (private ranges, cloud metadata, per-hop redirect checks, size caps) with one documented gap: DNS answers are resolved twice, so rebinding can slip past. Do not present this engine as safe for arbitrary untrusted URLs.
+
+A VPN that maps public hosts into reserved ranges will trip those guards:
 
 ```bash
 modsearch -u <url> --allow-private-network

@@ -227,6 +227,8 @@ npx -y skills add liustack/liustack -g
 
 ## 安全说明
 
+- `http` 引擎自带 SSRF 防护：拦内网地址（IPv4 和 IPv6，含 `::ffff:` 这类映射写法）、云元数据端点、带凭据的 URL，重定向逐跳重新校验，并限制体积和字符数。**有一个已知缺口如实写在这里**：校验时解析一次域名，`fetch` 时又解析一次，两次之间被掉包（DNS rebinding）就能绕过。堵住它需要把连接钉死在校验过的 IP 上，而 Node 的全局 `fetch` 不给这个能力。抓不受信任的链接时请留意。
+
 - ModSearch 调用 `agy` 时带上 `--dangerously-skip-permissions`，因为 prompt/print 模式不带这个参数在某些场景会失败。提示词已经把 agent 限定在只做搜索和抓取，并要求把网页内容当数据看，绝不当指令执行。即便如此，抓回来的页面终归是不可信输入，尽量在沙箱化的工作目录里跑。
 - 搜索输出是证据，引擎没法核实的部分会进 `uncertainty`。v1 里那个看着挺精确、实则编出来的数值 `relevance` 分数，v2 已经删掉，排序本身就代表相关度。
 
