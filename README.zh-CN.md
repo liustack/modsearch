@@ -17,7 +17,7 @@ ModSearch 把搜索这一步挪到主模型外面。抓取和提炼发生在别�
 
 不动你的配置，不装本地代理，CLI 和 skill 两种用法，`-q` 搜索、`-u` 精读一个页面、装了 Grok 还能搜 X。原理如下：
 
-![一个查询分岔到三个来源：网页、单个页面、X，证据回到终端](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.jpg)
+![纯文本模型经 modsearch skill 拿到网页搜索、单页精读、X 三条来源，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
 
 - **搜索不占主模型上下文。** 抓取和提炼在外面完成，主模型只读几百 token 的证据，不是整页网页。
 - **答案带着来源。** 摘要、链接、日期，还有一份老实的不确定清单，模型引用而不是靠印象。
