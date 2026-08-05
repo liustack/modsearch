@@ -70,7 +70,7 @@ The default provider requires Antigravity CLI installed and signed in (`agy`). S
 1. Operational docs use front-matter metadata (`summary`, `read_when`).
 2. Before creating a new doc, run `pnpm docs:list` to review the existing index.
 3. Before coding, check the `read_when` hints and read relevant docs as needed.
-4. Existing docs: `commit`, `testing`, `research-gemini-claude-skills` (historical, Gemini CLI era).
+4. Existing docs: `troubleshooting` (every error this CLI prints, with causes and fixes), `testing`, `commit`, `research-gemini-claude-skills` (historical, Gemini CLI era).
 
 ## .gitignore must include
 
