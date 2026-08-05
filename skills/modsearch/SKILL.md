@@ -124,8 +124,11 @@ modsearch config show                       # effective config, keys masked
 | `antigravity-cli` (default) | yes | yes | `agy` signed in, no key |
 | `tavily` | yes | no | a Tavily key |
 | `grok-cli` | X posts only | no | Grok Build signed in |
+| `http` | no | yes, direct HTTP | nothing |
 
-Page fetch runs on `antigravity-cli` alone right now. If the user has no agy set up and asks you to read a URL, tell them fetching is not available with their current setup and offer to search instead. Do not tell them to install agy unless they ask how to get fetching. Never treat a missing engine as the user's mistake.
+Page fetch prefers `antigravity-cli` for its synthesis and focus extraction, and falls back to `http` when agy is not installed, so `-u` works on any machine. Say which one answered when it matters: `http` returns the page as served, with no summary and no focus narrowing, so pick the relevant parts out yourself. If `http` returns very little text, the page is JavaScript-rendered and you should say so rather than claiming the page is empty.
+
+If a fetch is blocked as a private network target and the user is behind a VPN, retry once with `--allow-private-network`. Never treat a missing engine as the user's mistake.
 
 ## Alternative Provider: Tavily
 

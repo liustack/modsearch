@@ -20,8 +20,9 @@ modsearch config show     # effective config, keys masked
 | `antigravity-cli` (default) | yes | yes | `agy` installed and signed in, no key |
 | `tavily` | yes | no | a Tavily key |
 | `grok-cli` | X posts only | no | Grok Build installed and signed in |
+| `http` | no | yes | nothing at all |
 
-Page fetch only exists on `antigravity-cli` today. If the user has no agy and asks you to read a URL, say that plainly: fetching is not available with their current setup, and offer to search instead. Do not tell them they must install agy unless they ask how to enable fetching.
+Page fetch prefers `antigravity-cli` and falls back to `http` when agy is missing, so `-u` always works. `http` is a plain HTTP request plus text extraction: fast and free, but no synthesis, no focus narrowing, and nothing for JavaScript-rendered pages.
 
 ## Engine setup
 
@@ -60,6 +61,15 @@ modsearch config set grok-cli.bin /custom/path/to/grok
 ```
 
 No modsearch setting turns this on: X-flavored queries route here automatically once `grok` is installed and signed in. `--x` forces the route, `--no-x` keeps it off.
+
+### http (page fetch, nothing to install)
+
+Nothing to set up. It carries SSRF guards, so a VPN that maps public hosts into reserved ranges will trip them:
+
+```bash
+modsearch -u <url> --allow-private-network
+modsearch config set http.allowPrivateNetwork true   # make it permanent
+```
 
 ## Pinning an engine
 

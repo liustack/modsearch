@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.6.0 - 2026-08-05
+
+- New `http` engine for page fetch, ported from the retired modfetch project: a plain HTTP request plus text and link extraction, with no dependencies, no key, and no quota. Page fetch now prefers `antigravity-cli` and falls back to `http` when agy is missing, so `-u` works on a machine with nothing installed. Honest trade: no LLM synthesis, no focus narrowing, and JavaScript-rendered pages come back thin.
+- The port keeps modfetch's SSRF guards (blocked hostnames, private IPv4 and IPv6 ranges, cloud metadata endpoints, every redirect hop re-checked, size and character limits). VPNs that map public hosts into reserved ranges trip those guards, so the block message names that case and `--allow-private-network` (or `http.allowPrivateNetwork` in config) opens it.
+
 ## 2.5.1 - 2026-08-05
 
 - Engines now declare which modes they can serve, and asking one for something it cannot do says exactly that. The message adapts to the machine: it names other engines that are actually set up, and when none can fetch a page it says so once and moves on instead of insisting the user adopt Antigravity CLI. A user running Tavily alone is never told they did something wrong.

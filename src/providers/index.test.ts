@@ -13,6 +13,6 @@ describe('resolveProvider', () => {
   });
 
   it('lists unique provider names', () => {
-    expect(listProviders()).toEqual(['antigravity-cli', 'tavily', 'grok-cli']);
+    expect(listProviders()).toEqual(['antigravity-cli', 'tavily', 'grok-cli', 'http']);
   });
 });

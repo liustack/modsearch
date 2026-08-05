@@ -43,6 +43,10 @@ program
   .option('--x', 'Force the grok-cli X route even without X keywords in the query')
   .option('--no-x', 'Never route to grok-cli; use the default provider')
   .option('--grok-bin <path>', 'Grok Build binary path for the X route (default: grok)')
+  .option(
+    '--allow-private-network',
+    'Let the http engine reach reserved address ranges, for VPNs that map public hosts into them',
+  )
   .action(async (options) => {
     try {
       const timeoutMs = Number.parseInt(options.timeout, 10);
@@ -67,6 +71,7 @@ program
         workdir: options.workdir,
         x: options.x,
         grokBin: options.grokBin,
+        allowPrivateNetwork: options.allowPrivateNetwork,
       });
 
       const output = JSON.stringify(result, null, 2);

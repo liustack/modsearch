@@ -8,6 +8,8 @@ export interface ProviderSettings {
   apiKey?: string;
   model?: string;
   bin?: string;
+  /** 'true' | 'false' as a string so `config set` stays uniform. */
+  allowPrivateNetwork?: string;
 }
 
 export interface ModsearchConfig {
@@ -28,7 +30,7 @@ const ENV_BINDINGS: Record<string, Partial<Record<keyof ProviderSettings, string
   tavily: { apiKey: 'TAVILY_API_KEY' },
 };
 
-const SETTABLE_FIELDS: Array<keyof ProviderSettings> = ['apiKey', 'model', 'bin'];
+const SETTABLE_FIELDS: Array<keyof ProviderSettings> = ['apiKey', 'model', 'bin', 'allowPrivateNetwork'];
 
 export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfig {
   let raw: string;
@@ -112,6 +114,7 @@ export const CONFIG_TEMPLATE: ModsearchConfig = {
     'antigravity-cli': { bin: 'agy', model: 'gemini-3.6-flash-low' },
     tavily: { apiKey: '' },
     'grok-cli': { bin: 'grok' },
+    http: { allowPrivateNetwork: 'false' },
   },
 };
 

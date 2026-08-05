@@ -1,5 +1,6 @@
 import { antigravityCliProvider } from './antigravity.ts';
 import { grokCliProvider } from './grok.ts';
+import { httpFetchProvider } from './httpFetch.ts';
 import { tavilyProvider } from './tavily.ts';
 
 export type RunMode = 'search' | 'fetch';
@@ -20,6 +21,8 @@ export interface BuildProviderInvocationOptions {
   providerBin?: string;
   grokBin?: string;
   workdir?: string;
+  /** Let the http engine reach reserved address ranges (VPN split tunnels). */
+  allowPrivateNetwork?: boolean;
   timeoutMs: number;
 }
 
@@ -51,6 +54,8 @@ const PROVIDERS: Record<string, SearchProvider> = {
   tavily: tavilyProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
+  http: httpFetchProvider,
+  direct: httpFetchProvider,
 };
 
 export function resolveProvider(providerName = 'antigravity-cli'): SearchProvider {

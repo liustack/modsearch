@@ -157,8 +157,11 @@ Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract
 | `antigravity-cli` (default) | yes, on Google's index | yes | a signed-in `agy`, no key |
 | `tavily` | yes | no | a Tavily key ([free tier](https://app.tavily.com): 1,000 credits/month, no card, one credit per basic search) |
 | `grok-cli` | yes, X content only | no | a signed-in Grok Build (SuperGrok or X Premium) |
+| `http` | no | yes, direct HTTP | nothing at all |
 
-Page fetch runs on `antigravity-cli` alone today. If you only set up Tavily, `-u` tells you straight out that this engine cannot fetch and names what else is set up here. It will not insist you install agy.
+`http` is the floor: with no agy installed, page fetch lands here automatically. A plain HTTP request plus text extraction, no dependencies, no key, about a second. The trade is no LLM synthesis and no focus extraction, so you get the whole page as served, and JavaScript-rendered pages come back thin. With agy around, agy wins on quality.
+
+It carries SSRF guards (blocked hostnames, private address ranges, every redirect hop re-checked). If a VPN on your machine maps public hosts into reserved ranges, ordinary sites get blocked too: allow them with `--allow-private-network`, or `modsearch config set http.allowPrivateNetwork true`.
 
 Config lives in `~/.modsearch/config.json`. Environment variables override the file (`TAVILY_API_KEY`), and CLI flags override everything:
 
