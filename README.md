@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>Put a text-only model online without flooding its context with whole web pages.</b></p>
+<p align="center"><b>Give a text-only model the web: search, X, and any page, returned as citable evidence.</b></p>
 
 <p align="center">
   <a href="./README.zh-CN.md">简体中文</a> ·
@@ -27,16 +27,16 @@ npx -y skills add liustack/modsearch              # install the skill
 npx @liustack/modsearch -q "current Node.js LTS"  # or just use the CLI
 ```
 
-Models like DeepSeek-V4-Flash are cheap, fast, capable, and unable to look anything up. ModSearch searches the web, reads a specific page, or goes into X, and hands back a few hundred tokens of structured evidence instead of a wall of page text. No model swap, no prompt surgery.
+Models like DeepSeek-V4-Flash are cheap, fast, capable, and frozen at their training cutoff. Ask one for the current Node.js LTS and it answers from memory: confidently, and possibly wrong. ModSearch gives it a live line out. It searches the web, reads a specific page, or goes inside X, and hands back a few hundred tokens of structured, citable evidence instead of a wall of page text. No model swap, no prompt surgery, no key to start.
 
 ## Highlights
 
-- **Cheap on context.** Built-in search pushes whole pages into your model (~30k tokens for one measured answer). Here your model reads a few hundred tokens of evidence.
-- **Citable answers.** Titles, links, and dates come back in the result, plus an `uncertainty` list naming what could not be pinned down.
-- **Reaches X (Twitter).** With Grok Build installed, the one place web search cannot see.
-- **Reading a page never fails.** A dependency-free local fetcher is the floor when an engine is missing or dies mid-run.
-- **Zero config to start.** Nothing to fill in. It uses what is installed and switches engines when a quota runs dry.
-- **Install once, works everywhere.** Claude Code, Codex, Pi, and OpenCode all take it.
+- **A few hundred tokens, not thirty thousand.** Built-in server-side search pushes whole pages into your model's context (~30k tokens for one measured answer). ModSearch keeps the reading on the engine side and returns evidence.
+- **Answers you can check.** Every result carries titles, links, and dates, plus an `uncertainty` list that names exactly what could not be pinned down.
+- **Reaches inside X (Twitter).** With Grok Build installed, ModSearch searches the one corpus no web index can see.
+- **Reading a page never fails.** A dependency-free local fetcher is the guaranteed floor, even with nothing installed and every quota spent.
+- **Engines fail over by themselves.** It uses whatever is on your machine and switches mid-run when an engine dies or runs dry. The output names who answered.
+- **Install once, works everywhere.** Claude Code, Codex, Pi, and OpenCode all take the same skill.
 
 <sub>The ~30,000-token figure is one 2026-08 measurement, not a benchmark: a single search-backed question answered by DeepSeek-V4-Flash through Codex's Responses API endpoint. It stands for the cost of pushing whole pages into context, not a fixed number.</sub>
 
@@ -88,13 +88,28 @@ Output is always a `results` array, one entry per corpus:
 }
 ```
 
-Inside the Codex desktop app: drop in a blog link, ask what it says, and 25 seconds later there is a structured summary, no browser opened.
+## See it work
+
+Both screenshots are unedited runs from the Codex desktop app, driving a text-only DeepSeek-V4-Flash.
+
+Drop in a blog link and ask what it says. Twenty-five seconds later: a structured summary of the whole post, and the browser never opened.
 
 ![Text-only DeepSeek summarising a blog link through ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
+Give it no target at all, just "anything interesting in AI today?". Thirty-six seconds later: six sourced stories, and a closing caveat flagging which details came from aggregation and deserve a second look. That honesty is carried straight out of the `uncertainty` field.
+
+![An open-ended question comes back as six sourced stories with a stated confidence caveat](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
 ## How it works
 
 ![A text-only model reaches web search, one-page reading, and X through the modsearch skill, and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.en.png)
+
+No magic, four steps:
+
+1. The skill triggers when your model needs the outside world: a time-sensitive question, a pasted URL, an X-flavored query.
+2. It runs the `modsearch` CLI, which picks an engine for the job from whatever is installed on your machine.
+3. If that engine fails or runs out of quota mid-run, the next one takes over on its own, and the output records who answered and why it fell through.
+4. Your model reads the JSON evidence and answers with sources, instead of from memory.
 
 Three jobs, each with its own engines, and only searching asks anything of you:
 
@@ -135,6 +150,13 @@ Configuration is optional. `~/.modsearch/config.json` holds one decision: which 
 | [Security](docs/security.md) | SSRF guards, the known gap, untrusted input |
 | [CHANGELOG](CHANGELOG.md) | Finding what changed in a version |
 | [AGENTS.md](AGENTS.md) | Working on this codebase |
+
+## Contributing
+
+ModSearch does not accept pull requests. It is a small tool with one pair of hands on it, and every line stays author-owned: that tight loop is what keeps it dependable. Two ways to contribute that genuinely help:
+
+- **[Open an issue](https://github.com/liustack/modsearch/issues).** Bugs, ideas, a confusing error, docs that read wrong. Issues get read and drive what gets built.
+- **Fork it.** MIT means your copy is fully yours: rename it, rewire it, ship it.
 
 ## Shameless plug
 

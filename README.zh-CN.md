@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>给纯文本模型接上网线，而不用整页网页糊住它的上下文。</b></p>
+<p align="center"><b>给纯文本模型接上网线：搜网页、搜 X、读页面，回来的是能引用的证据，不是整页原文。</b></p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
@@ -27,16 +27,16 @@ npx -y skills add liustack/modsearch          # 装 skill
 npx @liustack/modsearch -q "Node.js LTS 版本"  # 或者直接当 CLI 用
 ```
 
-DeepSeek-V4-Flash 这类模型便宜、快、能打，唯独查不了资料读不了网页。ModSearch 一条命令搜网页、精读某个页面、翻 X，回来的是几百 token 的结构化证据，而不是一坨网页原文。模型不用换，提示词不用改。
+DeepSeek-V4-Flash 这类模型便宜、快、能打，唯独活在训练截止那天。问它 Node.js 现在的 LTS 是多少，它凭记忆给你一个数，语气笃定，还可能是错的。ModSearch 给它接一条通往外界的线：搜网页、精读某个页面、进 X 翻帖子，回来的是几百 token 的结构化证据，条条带来源。模型不用换，提示词不用改，起步不要 key。
 
 ## 亮点
 
-- **省上下文。** 内置搜索把整页塞进主模型（实测一次问答约三万 token），这里主模型只读几百 token 的证据。
-- **答案能引用。** 标题、链接、日期都在结果里，外加一份写明哪些没查实的 `uncertainty`。
-- **能进 X（推特）。** 装了 Grok Build 就进得去，那是网页搜索够不着的地方。
-- **读网页永不失手。** 零依赖的本地抓取器兜底，引擎没装或跑挂都落到它。
-- **零配置起步。** 没有配置文件要填，装了什么就用什么，额度烧穿自动换引擎。
-- **一次装好，处处能用。** Claude Code、Codex、Pi、OpenCode 都吃这套。
+- **几百 token，不是三万。** 服务端内置搜索把整页网页塞进主模型上下文（实测一次问答约三万 token）。ModSearch 把读页面的活留在引擎侧，只交回证据。
+- **答案经得起查。** 每条结果带标题、链接、日期，外加一份 `uncertainty` 清单，写明哪些没查实。
+- **能进 X（推特）。** 装了 Grok Build 就进得去，那是任何网页索引都够不着的语料。
+- **读网页永不失手。** 零依赖的本地抓取器兜底，就算什么都没装、额度全烧光，这条路也通。
+- **引擎挂了自动换。** 装了什么用什么，跑一半引擎挂掉或额度烧干，下一个自动顶上，结果里写明是谁答的。
+- **一次装好，处处能用。** Claude Code、Codex、Pi、OpenCode 都吃同一份 skill。
 
 <sub>「约三万 token」是 2026-08 的一次实测，不是基准跑分：DeepSeek-V4-Flash 经 Codex 的 Responses API 端点回答一次带搜索的问答。它说明的是「整页塞进上下文」的量级，不是某个固定数字。</sub>
 
@@ -88,15 +88,30 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 }
 ```
 
-Codex 桌面 App 里的实拍：丢个博客链接问一句「说的什么」，25 秒拿到结构化摘要，浏览器都不用开。
+## 实测
+
+两张截图都是 Codex 桌面 App 里的原样实录，驱动的是纯文本的 DeepSeek-V4-Flash。
+
+丢个博客链接问一句「说的什么」。25 秒后拿到全文的结构化摘要，浏览器从头到尾没打开过。
 
 ![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
+连目标都不给，只说「看看今天有啥有趣的 AI 新鲜事」。36 秒后回来六条带来源的趣闻，末尾还主动交代：哪些信息来自检索聚合，细节可能有出入。这份诚实不是临场发挥，是从 `uncertainty` 字段一路带出来的。
+
+![开放问题回来六条带来源的新鲜事，还主动交代可信度](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
 ## 它是怎么干活的
 
 ![纯文本模型经 modsearch skill 拿到网页搜索、单页精读、X 三条来源，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
 
-三件事，各有各的引擎，只有搜索需要你准备一样东西：
+没有魔法，四步：
+
+1. 模型需要外部世界时 skill 触发：时效性问题、贴进来的 URL、带 X 味的查询。
+2. skill 跑 `modsearch` 命令，命令按活儿从你本机装了的引擎里挑一个。
+3. 引擎跑挂了或额度烧干，下一个自动顶上，结果里记着是谁答的、为什么换人。
+4. 模型读回 JSON 证据，带着来源回答，而不是凭记忆。
+
+三件活，各有各的引擎，只有搜索需要你准备一样东西：
 
 | 干什么 | 需要什么 | 怎么用 |
 | :-- | :-- | :-- |
@@ -135,6 +150,13 @@ Codex 桌面 App 里的实拍：丢个博客链接问一句「说的什么」，
 | [安全说明](docs/security.md) | SSRF 防护、已知缺口、不可信输入的处理 |
 | [更新日志](CHANGELOG.md) | 想知道某个版本改了什么 |
 | [AGENTS.md](AGENTS.md) | 要改这个项目的代码 |
+
+## 参与方式
+
+本仓不收 PR。工具小，一双手维护，每一行代码都要作者自己背，这个闭环收紧了它才可靠。真正帮得上忙的两条路：
+
+- **[提 issue](https://github.com/liustack/modsearch/issues)。** bug、想法、看不懂的报错、读着别扭的文档都算。issue 一定会被读，也真的会影响接下来做什么。
+- **Fork。** MIT 协议下你的副本完全归你：改名、魔改、发布都随意。
 
 ## 关注公众号
 
