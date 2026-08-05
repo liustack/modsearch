@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.5 - 2026-08-06
+
+- README: drops the roles vocabulary. Telling a reader there is one setting and then handing them a table of three roles and four engines contradicts itself, and roles are an internal idea anyway. The section now answers what a reader actually asks: what do you want to do, and what does it take.
+
 ## 3.2.4 - 2026-08-06
 
 - Releases are now one command: `pnpm release <version|patch|minor|major>` refuses a dirty tree, a non-main branch, a duplicate tag, or a version with no CHANGELOG entry, then runs typecheck, tests, and build before anything irreversible happens, and finishes with tag, push, npm publish, and a GitHub release. Publishing by hand is how a version once reached npm with no changelog and no tag behind it.
