@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.3 - 2026-08-05
+
+- Docs: README now documents all three engines including Tavily (previously missing entirely), states agy's weekly quota reality instead of promising a "completely free" solution, moves the X search story out from behind the CLI table, and corrects the DeepSeek built-in search facts (both official protocol endpoints carry `web_search`, `/chat/completions` does not, which is what shuts OpenCode and Pi out).
+
 ## 2.4.2 - 2026-08-05
 
 - Fix: runs with the `antigravity-cli` provider could hang until the timeout killed them, the same defect reported against modlens ([modlens#1](https://github.com/liustack/modlens/issues/1)). agy exits cleanly but leaves a language server holding the inherited stdout pipe, so the child's `close` event never fires. Provider runs now settle on `exit` plus a short drain window and release the pipes afterwards.

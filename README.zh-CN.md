@@ -11,7 +11,7 @@
 
 DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，但官方内联的联网搜索能力有点弱，第三方提供商甚至根本不支持联网搜索能力。在这个年代一个大模型它查不了资料，看不了网页可是大麻烦。
 
-ModSearch 用完全免费的方案彻底解决这个问题。ModSearch 不会入侵你的配置，也不会给你添加本地代理，ModSearch 只是一个搜索引擎外挂，有 cli 或 skill 两种模式。ModSearch 能产出结构化的联网搜索结果，并且支持网页解析能力。ModSearch 由 Antigravity [Antigravity CLI](https://antigravity.google)（`agy`）驱动，而 Antigravity 的搜索能力由免费额度的 Google Search 驱动。众所周知，Google Search 搜索能力，当之无愧的世界第一。原理如下：
+ModSearch 用最轻的方式解决它：不动你的配置，不装本地代理，就是一个搜索外挂，CLI 和 skill 两种用法。它产出的不是一段网页摘抄，是结构化的搜索证据：摘要、来源列表（标题、链接、日期）、还有一份老实的不确定清单。搜索和抓网页归它一起管，`-q` 搜，`-u` 抓。默认引擎是 [Antigravity CLI](https://antigravity.google)（`agy`），走 Google 自家的索引，零 key 就能开跑。原理如下：
 
 ```text
 纯文本模型 ──▶ modsearch skill（需要时效信息时自动触发）
@@ -32,12 +32,14 @@ skill 装一次，你的 agent 以后自己搜索、自己读网页。模型不�
 
 ## 快速开始
 
-**1. 安装 Antigravity CLI 并登录**（一次性）：
+**1. 安装 Antigravity CLI 并登录**（一次性，零 key）：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # 浏览器完成登录后退出
 ```
+
+免费额度够日常用，但不是无限（见下文「三个引擎」）。
 
 **2. 安装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
 
@@ -114,6 +116,18 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 ![纯文本 DeepSeek 通过 ModSearch 跑开放式新闻搜索](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
+## 有 Grok Build，就送你 X（推特）搜索
+
+X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
+
+ModSearch 的做法是路由，不是堆引擎。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，这条查询就整条改走 Grok：真实帖子、作者 handle、原帖链接，JSON 结构跟普通搜索一模一样，而且一点 agy 额度都不花（那点额度本来就紧张，留给 Google 真正擅长的活）。没装 Grok Build，或者 grok 半路失手，查询就安静回落到默认引擎。零配置。
+
+```bash
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # 自动改走 grok-cli
+modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制路由
+modsearch -q "..." --no-x                          # 锁定默认引擎
+```
+
 ## CLI 参数
 
 ```bash
@@ -136,27 +150,25 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 调研问题难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
-## 有 Grok Build，就送你 X（推特）搜索
+## 三个引擎
 
-X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
+| 引擎 | 需要什么 | 管什么 |
+| :-- | :-- | :-- |
+| `antigravity-cli`（默认） | `agy` 登录过，零 key | 搜索 + 抓网页，走 Google 索引 |
+| `tavily` | `TAVILY_API_KEY`（[免费档](https://app.tavily.com)每月 1000 次） | 只管搜索，`-p tavily` 显式选用 |
+| `grok-cli` | Grok Build 登录过（SuperGrok 或 X Premium） | X 上的内容，命中关键词自动路由 |
 
-ModSearch 的做法是路由，不是堆引擎。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，这条查询就整条改走 Grok：真实帖子、作者 handle、原帖链接，JSON 结构跟普通搜索一模一样，而且一点 agy 额度都不花（那点额度本来就紧张，留给 Google 真正擅长的活）。没装 Grok Build，或者 grok 半路失手，查询就安静回落到默认引擎。零配置。
-
-```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # 自动改走 grok-cli
-modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制路由
-modsearch -q "..." --no-x                          # 锁定默认引擎
-```
+`agy` 胜在零 key，短板是额度。它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，subagent 并行还加倍消耗，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。搜得多的人可以配上 `TAVILY_API_KEY` 备一手，X 那条路则完全不吃 agy 额度。
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
-DeepSeek 官方 Responses 端点自带服务端 `web_search` 工具，Codex 配上 `web_search = "live"` 直连 `api.deepseek.com` 时，普通搜索已经被顺手覆盖了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 真正派上用场是这三种情况：你的渠道没内置搜索（DashScope 和大多数第三方网关都是这样）、你要精读某一个具体页面（`-u` 抓取，内置搜索干不了这个）、或者你用的宿主压根没有原生搜索工具。
+DeepSeek 官方端点自带服务端 `web_search` 工具，Codex 走的 Responses API 承接，Claude Code 走的 Anthropic 兼容端点也承接，配上 `web_search = "live"` 直连 `api.deepseek.com`，普通搜索就被顺手覆盖了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 真正派上用场是这几种情况：你的渠道没内置搜索（DashScope 和大多数第三方网关都是这样，官方的 `/chat/completions` 端点也没提供这个工具，OpenCode、Pi 这些宿主就是这么被挡在门外的）、你要精读某一个具体页面（`-u` 抓取，内置搜索干不了）、你要查 X 上的内容（Google 索引进不去）、或者你用的宿主压根没有原生搜索工具。
 
 ## 为什么外挂，而不是换更大的模型？
 
 - **模型不用换。** 你选 DeepSeek-V4-Flash（或 gpt-oss，或别的什么）图的是价格和推理能力，不是搜索能力。ModSearch 只帮它接上网线，不碰这个选择。
 - **证据强过感觉。** 答案带着 URL、日期，还有一份明明白白的 `uncertainty` 清单，你的 agent 引用来源，不是靠猜。
-- **引擎会死，桥不会死。** v1 跑在 Gemini CLI 免费档上，2026 年 6 月被 Google 一刀切停掉。v2 换到继任者 Antigravity CLI，还是同一个 provider 接口，下次再换引擎，改一个文件就行，不用重写。v2 还顺手吞并了网页抓取，它原本是个独立项目（modfetch，已经退役）。
+- **引擎会死，桥不会死。** v1 跑在 Gemini CLI 免费档上，2026 年 6 月被 Google 一刀切停掉。v2 换到继任者 Antigravity CLI，还是同一个 provider 接口，下次再换引擎，改一个文件就行，不用重写。
 
 兄弟项目 ModLens 用同一招补上视觉：[liustack/modlens](https://github.com/liustack/modlens)。
 
