@@ -47,7 +47,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@tavily/core": "^0.6.0",
+    "@tavily/core": "^0.7.6",
     "commander": "^13.1.0"
   },
   "devDependencies": {
