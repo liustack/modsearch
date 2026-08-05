@@ -21,6 +21,7 @@ pnpm install
 ```
 src/
 ├── main.ts       # CLI entry
+├── config.ts     # layered config: flags > env > ~/.modsearch/config.json
 ├── search.ts     # orchestration: mode resolution, routing, provider run, envelope
 ├── prompt.ts     # search + fetch prompt templates
 ├── schema.ts     # JSON schemas enforced on the provider

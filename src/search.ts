@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { loadConfigFile, resolveProviderSettings, type ModsearchConfig } from './config.ts';
 import { grokAvailable, isXQuery } from './providers/grok.ts';
 import {
   resolveProvider,
@@ -21,6 +22,8 @@ export interface RunSearchOptions {
   /** X routing: true forces the grok route, false disables it, undefined = auto. */
   x?: boolean;
   grokBin?: string;
+  /** Injected config, for tests. Loaded from ~/.modsearch/config.json otherwise. */
+  config?: ModsearchConfig;
 }
 
 export interface RunSearchResult {
@@ -70,19 +73,20 @@ export function validateUrl(url: string): string {
 }
 
 /**
- * Pick the provider for this run. Explicit `-p` always wins. Otherwise
- * X-flavored search queries route entirely to Grok Build when it is installed
- * and signed in, so they spend no agy quota at all; everything else goes to
- * the default provider.
+ * Pick the provider for this run. An explicit `-p`, or a provider pinned in
+ * the config file, always wins. Otherwise X-flavored search queries route
+ * entirely to Grok Build when it is installed and signed in, so they spend no
+ * agy quota at all; everything else goes to the default provider.
  */
 export function routeProvider(options: {
   mode: RunMode;
   query?: string;
   provider?: string;
+  pinnedProvider?: string;
   x?: boolean;
   grokBin?: string;
 }): SearchProvider {
-  const requested = options.provider?.trim();
+  const requested = options.provider?.trim() || options.pinnedProvider?.trim();
   if (requested) {
     return resolveProvider(requested);
   }
@@ -104,12 +108,25 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
   const mode = resolveMode(query, url);
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  // Layered config: flags > env vars > ~/.modsearch/config.json > built-ins.
+  const config: ModsearchConfig = options.config ?? loadConfigFile();
+  const settings = (name: string) => resolveProviderSettings(name, config);
+  const agyBin = options.providerBin || settings('antigravity-cli').bin || undefined;
+  const grokBin = options.grokBin || settings('grok-cli').bin || undefined;
+  const tavilyKey = settings('tavily').apiKey;
+  if (tavilyKey && !process.env.TAVILY_API_KEY) {
+    // The Tavily SDK reads the env var, so bridge the config file into it.
+    process.env.TAVILY_API_KEY = tavilyKey;
+  }
+
   let provider = routeProvider({
     mode,
     query,
     provider: options.provider,
+    pinnedProvider: config.provider,
     x: options.x,
-    grokBin: options.grokBin,
+    grokBin,
   });
 
   const providerOptions = {
@@ -118,13 +135,13 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     url,
     maxResults: options.maxResults,
     extraPrompt: options.prompt,
-    providerBin: options.providerBin,
-    grokBin: options.grokBin,
+    providerBin: agyBin,
+    grokBin,
     workdir: options.workdir,
     timeoutMs,
   };
 
-  let model = options.model || provider.defaultModel;
+  let model = options.model || settings(provider.name).model || provider.defaultModel;
   let parsed: ProviderParsedOutput;
   try {
     parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
@@ -132,9 +149,9 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     // The grok route is best-effort: when it was chosen by routing (not by an
     // explicit -p) and fails at runtime, fall back to the default provider
     // silently instead of surfacing a broken bonus path.
-    if (provider.name === 'grok-cli' && !options.provider?.trim()) {
+    if (provider.name === 'grok-cli' && !options.provider?.trim() && !config.provider?.trim()) {
       provider = resolveProvider();
-      model = options.model || provider.defaultModel;
+      model = options.model || settings(provider.name).model || provider.defaultModel;
       parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
     } else {
       throw error;
