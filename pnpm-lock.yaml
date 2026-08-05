@@ -31,7 +31,7 @@ importers:
         specifier: ^6.4.1
         version: 6.4.1(@types/node@22.19.11)
       vitest:
-        specifier: ^3.2.4
+        specifier: 3.2.4
         version: 3.2.4(@types/node@22.19.11)
 
 packages:

@@ -20,8 +20,11 @@
   },
   "files": [
     "dist",
+    "docs",
     "skills/modsearch/SKILL.md",
-    "skills/modsearch/references"
+    "skills/modsearch/references",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "keywords": [
     "search",
@@ -56,6 +59,6 @@
     "@vitest/coverage-v8": "3.2.4",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
-    "vitest": "^3.2.4"
+    "vitest": "3.2.4"
   }
 }
