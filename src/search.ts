@@ -1,5 +1,12 @@
 import { engineSettings, loadConfigFile, type ModsearchConfig } from './config.ts';
-import { enginesForRole, type EngineOutput, type RunMode, type SearchEngine, type Source } from './providers/index.ts';
+import {
+  enginesForRole,
+  type EngineOutput,
+  type EngineRequest,
+  type RunMode,
+  type SearchEngine,
+  type Source,
+} from './providers/index.ts';
 import { parseSources, planRun, SOURCE_ROLE, type SourcePlan } from './router.ts';
 import { runCommand } from './subprocess.ts';
 
@@ -191,7 +198,7 @@ async function runOneSource(
 
 async function callEngine(
   engine: SearchEngine,
-  request: Parameters<NonNullable<SearchEngine['execute']>>[0],
+  request: EngineRequest,
   timeoutMs: number,
 ): Promise<EngineOutput> {
   if (engine.execute) {
