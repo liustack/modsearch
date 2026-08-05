@@ -11,7 +11,7 @@
 
 DeepSeek-V4-Flash gives you a lot of model for very little money: fast and strong, but its built-in web search is weak, and most third-party gateways ship no search at all. A model that cannot look things up or read a web page is a real handicap these days.
 
-ModSearch fixes this with a completely free setup. It never touches your config and never adds a local proxy. It's just a search-engine plug-in, usable as a CLI or as an Agent Skill, that returns structured web search results and can parse pages too. Under the hood it runs on [Antigravity CLI](https://antigravity.google) (`agy`), whose search comes from free-quota Google Search. And Google Search is, without much argument, the best search engine on earth. How it works:
+ModSearch fixes this the lightest way possible: it never touches your config, never adds a local proxy, and is just a search plug-in you can run as a CLI or install as an Agent Skill. What it hands back is not a scraped blob of page text but structured search evidence: a summary, a source list with titles, links and dates, and an honest list of what it could not pin down. Searching and page fetching live in one tool, `-q` searches, `-u` fetches. The default engine is [Antigravity CLI](https://antigravity.google) (`agy`), running on Google's own index, with no key required. How it works:
 
 ```text
 your text-only model ──▶ modsearch skill (auto-triggers on fresh-info needs)
@@ -32,12 +32,14 @@ Install the skill once and your agent starts searching and reading the web on it
 
 ## Quick start
 
-**1. Install Antigravity CLI and sign in** (one-time):
+**1. Install Antigravity CLI and sign in** (one-time, no key):
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # opens browser sign-in, then exit
 ```
+
+The free quota covers everyday use, but it is not unlimited (see Three engines below).
 
 **2. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
@@ -114,6 +116,18 @@ Open-ended questions work too: ask "anything fun in AI today" and get six source
 
 ![Text-only DeepSeek running an open-ended news search via ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
+## X (Twitter) search, if you have Grok Build
+
+X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
+
+ModSearch handles it by routing, not by piling engines up. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the whole search runs on Grok instead of agy: real posts, author handles, x.com status links, in the exact same JSON shape as every other search, and zero agy quota spent (that quota is thin, save it for what Google is actually good at). No Grok Build, or grok stumbles mid-run: the query silently falls back to the normal engine. Nothing to configure.
+
+```bash
+modsearch -q "DeepSeek V4 Flash 在推特上的评价"       # routes to grok-cli on its own
+modsearch -q "community mood about the release" --x   # force the route without keywords
+modsearch -q "..." --no-x                             # pin the default engine
+```
+
 ## CLI reference
 
 ```bash
@@ -136,27 +150,25 @@ modsearch -u <url> [-q "<focus>"]   # fetch mode
 
 Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
-## X (Twitter) search, if you have Grok Build
+## Three engines
 
-X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
+| Engine | Needs | Covers |
+| :-- | :-- | :-- |
+| `antigravity-cli` (default) | a signed-in `agy`, no key | search + page fetch, on Google's index |
+| `tavily` | `TAVILY_API_KEY` ([free tier](https://app.tavily.com): 1,000/month) | search only, pick it with `-p tavily` |
+| `grok-cli` | a signed-in Grok Build (SuperGrok or X Premium) | content on X, auto-routed by keyword |
 
-ModSearch handles it by routing, not by piling engines up. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the whole search runs on Grok instead of agy: real posts, author handles, x.com status links, in the exact same JSON shape as every other search, and zero agy quota spent (that quota is thin, save it for what Google is actually good at). No Grok Build, or grok stumbles mid-run: the query silently falls back to the normal engine. Nothing to configure.
-
-```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"       # routes to grok-cli on its own
-modsearch -q "community mood about the release" --x   # force the route without keywords
-modsearch -q "..." --no-x                             # pin the default engine
-```
+`agy` wins on needing no key and loses on quota. Its free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Once it's gone you wait out the cycle: we hit that wall ourselves and the message read "94 hours until reset." If you search a lot, keep a `TAVILY_API_KEY` around as backup. The X route spends no agy quota at all.
 
 ## Using it in Codex (DeepSeek and friends)
 
-DeepSeek's official Responses endpoint ships a server-side `web_search` tool, so Codex configured with `web_search = "live"` against `api.deepseek.com` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch earns its keep in three cases: your channel has no built-in search (DashScope and most third-party gateways), you need to read one specific page (`-u` fetch, which built-in search cannot do), or your harness has no native search tools at all.
+DeepSeek's official endpoints ship a server-side `web_search` tool, carried by both the Responses API that Codex speaks and the Anthropic-compatible endpoint that Claude Code speaks, so pointing either at `api.deepseek.com` with `web_search = "live"` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch earns its keep elsewhere: your channel has no built-in search (DashScope and most third-party gateways, and also the official `/chat/completions` endpoint, which simply does not offer the tool, which is what shuts OpenCode and Pi out), you need to read one specific page (`-u` fetch, which built-in search cannot do), you need something from X (Google's index cannot see inside), or your harness has no native search tools at all.
 
 ## Why a bridge instead of a bigger model?
 
 - **Keep your model.** You picked DeepSeek-V4-Flash (or gpt-oss, or whatever else) for its price and its reasoning, not its search skills. ModSearch adds the live web without touching that choice.
 - **Evidence beats vibes.** Answers come back with URLs, dates, and an explicit `uncertainty` list, so your agent cites sources instead of guessing.
-- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 moved to its successor, Antigravity CLI, behind the same provider interface, so the next engine swap costs one file, not a rewrite. v2 also absorbed page fetching, which used to be its own project (modfetch, now retired).
+- **Engines die, the bridge survives.** v1 ran on Gemini CLI's free tier until Google shut it down in June 2026. v2 moved to its successor, Antigravity CLI, behind the same provider interface, so the next engine swap costs one file, not a rewrite.
 
 ModLens, ModSearch's sibling project, plays the same trick for vision: [liustack/modlens](https://github.com/liustack/modlens).
 
