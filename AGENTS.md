@@ -6,11 +6,11 @@ Provide the `modsearch` CLI tool that turns search queries and page URLs into st
 
 ## Technical Approach
 
-- **Pluggable provider** — v2 ships with Antigravity CLI (`agy`) as the default provider. The provider interface (`buildInvocation` + `parseOutput`) keeps the next engine swap contained to one file.
+- **Pluggable engines** — the engine interface (`buildInvocation` + `parseOutput` for subprocess engines, or `execute` for in-process ones) keeps each engine contained to one file, so adding or swapping one touches nothing else. Antigravity CLI (`agy`) is the preferred search engine when it is available.
 - **Two modes, one CLI**: `-q` searches the web, `-u` fetches a single page (absorbed from the retired `modfetch` project). `-u` plus `-q` fetches with an answer focus.
-- **Schema-enforced JSON output**: the provider is invoked with `--json-schema`, so the structured result comes back guaranteed, no markdown scraping.
+- **Schema-enforced JSON output**: subprocess engines are invoked with `--json-schema`, so the structured result comes back guaranteed, no markdown scraping.
 - **Single responsibility**: this project handles the live web (search + fetch). Image parsing lives in `modlens`.
-- **X handling**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota; grok failure falls back to the default provider silently. Explicit `-p` beats routing. One shared output contract for every engine.
+- **X handling**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota; grok failure falls back to a web engine silently. An explicit `-e`/`--engine` overrides routing. One shared output contract for every engine.
 
 ```bash
 pnpm install
@@ -45,6 +45,7 @@ skills/
 └── modsearch/
     ├── SKILL.md
     └── references/
+        ├── configure.md
         └── output-schema.md
 ```
 
@@ -58,7 +59,7 @@ modsearch -u "https://example.com/docs" -q "rate limits"
 modsearch -q "..." -o search.json -m gemini-3.1-pro-high --max-results 5
 ```
 
-The default provider requires Antigravity CLI installed and signed in (`agy`). Searches take 5-20 seconds, fetches 10-30.
+The Antigravity CLI search path requires `agy` installed and signed in. A run takes 10-30 seconds on the agent-loop engines (agy, grok) and 2-3 seconds on the direct API ones (tavily, http).
 
 ## Verification
 
