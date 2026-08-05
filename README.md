@@ -152,11 +152,13 @@ Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract
 
 ## Three engines
 
-| Engine | Needs | Covers |
-| :-- | :-- | :-- |
-| `antigravity-cli` (default) | a signed-in `agy`, no key | search + page fetch, on Google's index |
-| `tavily` | a Tavily key ([free tier](https://app.tavily.com): 1,000 credits/month, no card, one credit per basic search) | search only, pick it with `-p tavily` |
-| `grok-cli` | a signed-in Grok Build (SuperGrok or X Premium) | content on X, auto-routed by keyword |
+| Engine | Search `-q` | Fetch `-u` | Needs |
+| :-- | :-- | :-- | :-- |
+| `antigravity-cli` (default) | yes, on Google's index | yes | a signed-in `agy`, no key |
+| `tavily` | yes | no | a Tavily key ([free tier](https://app.tavily.com): 1,000 credits/month, no card, one credit per basic search) |
+| `grok-cli` | yes, X content only | no | a signed-in Grok Build (SuperGrok or X Premium) |
+
+Page fetch runs on `antigravity-cli` alone today. If you only set up Tavily, `-u` tells you straight out that this engine cannot fetch and names what else is set up here. It will not insist you install agy.
 
 Config lives in `~/.modsearch/config.json`. Environment variables override the file (`TAVILY_API_KEY`), and CLI flags override everything:
 

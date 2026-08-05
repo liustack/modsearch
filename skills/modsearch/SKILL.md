@@ -105,18 +105,27 @@ X is invisible to normal web search engines. modsearch handles this by routing: 
 
 ## Configuration
 
-`~/.modsearch/config.json` holds defaults (written 0600, keys masked on show). Env vars override the file, flags override everything. When the user asks how to configure modsearch or wants an engine switched, run these for them:
+`~/.modsearch/config.json` holds defaults (0600, keys masked on show). Env vars override the file, flags override everything.
+
+When the user asks how to configure modsearch, wants a key set, or wants engines switched, follow `references/configure.md` and run the commands for them:
 
 ```bash
-modsearch config init                          # write a starter config
-modsearch config set tavily.apiKey <key>       # free tier: 1,000 credits/month, https://app.tavily.com
-modsearch config set provider tavily           # pin one engine, disables routing
-modsearch config set provider ""               # back to routing
-modsearch config set antigravity-cli.bin <path>  # custom agy/grok binary paths
-modsearch config show                          # effective config, keys masked
+modsearch config init                       # starter config
+modsearch config set tavily.apiKey <key>    # free tier: 1,000 credits/month
+modsearch config set provider tavily        # pin one engine, routing off
+modsearch config set provider ""            # back to routing
+modsearch config show                       # effective config, keys masked
 ```
 
-Leave `provider` empty unless the user wants one engine pinned: routing (X queries to grok-cli, everything else to antigravity-cli) only runs when nothing is pinned.
+## What each engine can do
+
+| Engine | Search (`-q`) | Fetch (`-u`) | Needs |
+| :-- | :-- | :-- | :-- |
+| `antigravity-cli` (default) | yes | yes | `agy` signed in, no key |
+| `tavily` | yes | no | a Tavily key |
+| `grok-cli` | X posts only | no | Grok Build signed in |
+
+Page fetch runs on `antigravity-cli` alone right now. If the user has no agy set up and asks you to read a URL, tell them fetching is not available with their current setup and offer to search instead. Do not tell them to install agy unless they ask how to get fetching. Never treat a missing engine as the user's mistake.
 
 ## Alternative Provider: Tavily
 

@@ -130,6 +130,7 @@ function tryParseJson(text: string): unknown | null {
 
 export const antigravityCliProvider: SearchProvider = {
   name: 'antigravity-cli',
+  modes: ['search', 'fetch'],
   defaultModel: DEFAULT_MODEL,
   buildInvocation: buildAntigravityInvocation,
   parseOutput: parseAntigravityOutput,

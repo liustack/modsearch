@@ -34,6 +34,8 @@ export interface ProviderParsedOutput {
 
 export interface SearchProvider {
   name: string;
+  /** Which run modes this engine can actually serve. */
+  modes: RunMode[];
   defaultModel: string;
   // Subprocess providers implement buildInvocation + parseOutput.
   // In-process API providers (e.g. tavily) implement execute instead.
@@ -60,6 +62,11 @@ export function resolveProvider(providerName = 'antigravity-cli'): SearchProvide
   }
 
   return provider;
+}
+
+/** Distinct engines that can serve this mode. */
+export function providersForMode(mode: RunMode): SearchProvider[] {
+  return [...new Set(Object.values(PROVIDERS))].filter((provider) => provider.modes.includes(mode));
 }
 
 export function listProviders(): string[] {

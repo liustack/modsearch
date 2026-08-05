@@ -152,11 +152,13 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 
 ## 三个引擎
 
-| 引擎 | 需要什么 | 管什么 |
-| :-- | :-- | :-- |
-| `antigravity-cli`（默认） | `agy` 登录过，零 key | 搜索 + 抓网页，走 Google 索引 |
-| `tavily` | 一个 Tavily key（[免费档](https://app.tavily.com)每月 1000 credits，不要信用卡，基础搜索 1 次 1 credit） | 只管搜索，`-p tavily` 显式选用 |
-| `grok-cli` | Grok Build 登录过（SuperGrok 或 X Premium） | X 上的内容，命中关键词自动路由 |
+| 引擎 | 搜索 `-q` | 抓网页 `-u` | 需要什么 |
+| :-- | :-- | :-- | :-- |
+| `antigravity-cli`（默认） | ✓ 走 Google 索引 | ✓ | `agy` 登录过，零 key |
+| `tavily` | ✓ | 不支持 | 一个 Tavily key（[免费档](https://app.tavily.com)每月 1000 credits，不要信用卡，基础搜索 1 次 1 credit） |
+| `grok-cli` | ✓ 只管 X 上的内容 | 不支持 | Grok Build 登录过（SuperGrok 或 X Premium） |
+
+抓网页目前只有 `antigravity-cli` 能干。你要是只配了 Tavily，`-u` 会直说「这个引擎不支持抓网页」，并告诉你本机还有哪些引擎能干，不会硬要你去装 agy。
 
 配置放在 `~/.modsearch/config.json`，环境变量能盖过它（`TAVILY_API_KEY`），命令行参数最大：
 

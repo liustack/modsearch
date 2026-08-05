@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.1 - 2026-08-05
+
+- Engines now declare which modes they can serve, and asking one for something it cannot do says exactly that. The message adapts to the machine: it names other engines that are actually set up, and when none can fetch a page it says so once and moves on instead of insisting the user adopt Antigravity CLI. A user running Tavily alone is never told they did something wrong.
+- Skill: new `references/configure.md` with per-engine setup, a capability table, pinning, and troubleshooting, so asking an agent "how do I configure modsearch" gets real answers instead of guesses.
+
 ## 2.5.0 - 2026-08-05
 
 - Layered config at `~/.modsearch/config.json` via `modsearch config init/set/show` (0600 perms, keys masked on show), mirroring modlens. Store the Tavily key without exporting an env var, pin one engine to disable routing, or point at custom agy/grok binaries. Flags beat env vars, env vars beat the file.

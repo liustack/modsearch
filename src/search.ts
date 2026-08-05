@@ -1,7 +1,8 @@
 import { spawn } from 'child_process';
 import { loadConfigFile, resolveProviderSettings, type ModsearchConfig } from './config.ts';
-import { grokAvailable, isXQuery } from './providers/grok.ts';
+import { commandOnPath, grokAvailable, isXQuery } from './providers/grok.ts';
 import {
+  providersForMode,
   resolveProvider,
   type ProviderInvocation,
   type ProviderParsedOutput,
@@ -129,6 +130,12 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     grokBin,
   });
 
+  // An engine that cannot serve this mode should say so plainly. Never demand
+  // that the user adopt a specific engine they may have skipped on purpose.
+  if (!provider.modes.includes(mode)) {
+    throw new Error(describeMissingCapability(provider.name, mode, agyBin ?? 'agy'));
+  }
+
   const providerOptions = {
     mode,
     query,
@@ -172,6 +179,33 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
       usage: parsed.meta.usage,
     },
   };
+}
+
+/**
+ * Explain a mode the chosen engine cannot serve, in terms of what is actually
+ * on this machine. When nothing installed can do it, say so instead of
+ * insisting on a dependency the user never asked for.
+ */
+export function describeMissingCapability(
+  providerName: string,
+  mode: RunMode,
+  agyBin = 'agy',
+  isInstalled: (bin: string) => boolean = commandOnPath,
+): string {
+  const action = mode === 'fetch' ? 'page fetch (-u)' : 'search (-q)';
+  const head = `The ${providerName} engine does not support ${action}.`;
+  const usable = providersForMode(mode)
+    .map((provider) => provider.name)
+    .filter((name) => name !== providerName)
+    .filter((name) => (name === 'antigravity-cli' ? isInstalled(agyBin) : true));
+
+  if (usable.length > 0) {
+    return `${head} Set up here and able to: ${usable.join(', ')}. Drop -p to let modsearch route, or name one with -p <engine>.`;
+  }
+  if (mode === 'fetch') {
+    return `${head} No engine set up here can fetch a page either: that takes Antigravity CLI (agy). Search with -q instead, or add it when you want fetch: curl -fsSL https://antigravity.google/cli/install.sh | bash`;
+  }
+  return `${head} No other engine is set up here to do it either.`;
 }
 
 async function runProvider(

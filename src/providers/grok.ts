@@ -44,7 +44,7 @@ export function isXQuery(query: string): boolean {
   return trimmed.length > 0 && X_QUERY_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
-function commandOnPath(bin: string): boolean {
+export function commandOnPath(bin: string): boolean {
   if (bin.includes(path.sep)) {
     return fs.existsSync(bin);
   }
@@ -87,7 +87,7 @@ Rules:
 
 export function buildGrokInvocation(options: BuildProviderInvocationOptions): ProviderInvocation {
   if (options.mode !== 'search' || !options.query) {
-    throw new Error('grok-cli only supports search mode with a query.');
+    throw new Error('The grok-cli engine does not support page fetch (-u). It searches X only.');
   }
 
   let prompt = buildXSearchPrompt(options.query, options.maxResults ?? DEFAULT_MAX_POSTS);
@@ -234,6 +234,7 @@ function tryParseJson(text: string): unknown | null {
 
 export const grokCliProvider: SearchProvider = {
   name: 'grok-cli',
+  modes: ['search'],
   defaultModel: '',
   buildInvocation: buildGrokInvocation,
   parseOutput: parseGrokOutput,
