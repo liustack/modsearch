@@ -1,0 +1,43 @@
+name: release
+
+# Publishes to npm when a version tag is pushed (e.g. v3.4.0). Verifies first,
+# then publishes with provenance.
+#
+# PREREQUISITE (cannot be done from this repo): npm-side trusted publishing must
+# be enabled once, by hand, before this workflow can publish without a token.
+# On npmjs.com, open the @liustack/modsearch package settings and add a Trusted
+# Publisher pointing at this repository and this workflow file (.github/workflows/
+# release.yml). With that in place, the id-token permission below lets npm mint a
+# short-lived OIDC credential, so no NPM_TOKEN secret is needed and --provenance
+# attaches a verifiable build attestation.
+#
+# If you have not set up trusted publishing yet, add an NPM_TOKEN secret and set
+# `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` on the publish step instead.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance / trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm publish --access public --no-git-checks --provenance
