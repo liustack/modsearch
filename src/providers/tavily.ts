@@ -1,10 +1,26 @@
 // Community-contributed engine (thanks @mani2001, PR #1), ported to the
 // engine contract: schema-shaped result, no fabricated relevance score,
 // uncertainty as an array. Search mode only.
-import { tavily } from '@tavily/core';
+//
+// This talks to the Tavily REST API directly with the built-in fetch. The
+// official @tavily/core SDK dragged in ~30 production dependencies (an axios
+// chain with known advisories) to wrap a single POST, so it is gone. See
+// https://docs.tavily.com/documentation/api-reference/endpoint/search
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 
 const DEFAULT_MAX_RESULTS = 8;
+const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
+
+interface TavilyResult {
+  title?: string;
+  url?: string;
+  content?: string;
+}
+
+interface TavilyResponse {
+  answer?: string;
+  results?: TavilyResult[];
+}
 
 export async function executeTavilySearch(options: EngineRequest): Promise<EngineOutput> {
   if (options.mode === 'fetch') {
@@ -21,30 +37,53 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
     );
   }
 
-  const client = tavily({ apiKey });
-  // The SDK falls back to its own 60s ceiling, so a shorter --timeout has to be
-  // enforced out here or it means nothing.
-  let deadlineTimer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    deadlineTimer = setTimeout(
-      () => reject(new Error(`tavily timed out after ${options.timeoutMs} ms.`)),
-      options.timeoutMs,
-    );
-    deadlineTimer.unref();
-  });
   const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
   const startedAt = Date.now();
 
-  const response = await Promise.race([
-    client.search(options.query, {
-      maxResults,
-      searchDepth: 'basic',
-      includeAnswer: true,
-    }),
-    deadline,
-  ]).finally(() => clearTimeout(deadlineTimer));
+  // Own the abort signal so a --timeout shorter than any server-side ceiling is
+  // enforced here, and cancelling truly tears down the underlying request
+  // instead of leaving it running while we walk away.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  timer.unref?.();
 
-  const items = (response.results ?? []).map((r) => ({
+  let response: Response;
+  try {
+    response = await fetch(TAVILY_SEARCH_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        query: options.query,
+        search_depth: 'basic',
+        include_answer: true,
+        max_results: maxResults,
+      }),
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`tavily timed out after ${options.timeoutMs} ms.`);
+    }
+    throw new Error(
+      `tavily request failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => '')).trim();
+    throw new Error(
+      `tavily returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`,
+    );
+  }
+
+  const data = (await response.json()) as TavilyResponse;
+
+  const items = (data.results ?? []).map((r) => ({
     title: r.title ?? '',
     url: r.url ?? '',
     snippet: r.content ?? '',
@@ -53,7 +92,7 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
 
   const result = {
     summary:
-      response.answer ??
+      data.answer ??
       items
         .map((item) => item.snippet)
         .filter(Boolean)
