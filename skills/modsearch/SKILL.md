@@ -95,6 +95,8 @@ Fetch mode replaces `items` with `content` (the page as text or markdown) and `l
 
 ## Failure Handling
 
+Every error this CLI prints is catalogued with its cause and fix in the project's `docs/troubleshooting.md`. Read the message first: most of them already name the fix.
+
 - `No engine on this machine can search the web`: the message lists the two ways to fix it. Offer them, do not insist on one.
 - `Every engine for the <source> source failed`: each engine's failure is listed. Act on the first fixable one.
 - agy quota exhausted: not fatal when a Tavily key exists, since search falls through on its own. Otherwise relay the reset time from the message.

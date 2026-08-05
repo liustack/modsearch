@@ -17,22 +17,17 @@ ModSearch moves that step outside your model. Retrieval and distillation happen 
 
 It never touches your config and never adds a local proxy. Run it as a CLI or install it as an Agent Skill: `-q` searches, `-u` reads one page closely, and with Grok Build installed it reaches X too. How it works:
 
-```text
-your text-only model ──▶ modsearch skill (auto-triggers on fresh-info needs)
-                              │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-              -q "query"            -u <url>
-               web search           page fetch
-                    └─────────┬─────────┘
-                              ▼
-                   agy · Gemini 3.6 Flash (free quota)
-                              │
-                              ▼
-              structured JSON evidence ──▶ model answers with sources
-```
+![One query fans out to three sources: the web, one page, X, and evidence comes back to the terminal](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.jpg)
 
-Install the skill once and your agent starts searching and reading the web on its own. No model swap, no API key, no prompt surgery.
+- **Search stays out of your model's context.** Retrieval and distillation happen outside, and your model reads a few hundred tokens of evidence instead of whole pages.
+- **Answers carry sources.** Summary, links, dates, and an honest list of what could not be pinned down, so your model cites instead of recalling.
+- **It can read one page closely.** `-q` searches, `-u` turns a URL into clean evidence, with an optional extraction focus.
+- **It can see X.** With Grok Build installed it reaches the one place no web search can.
+- **Zero config, never stuck.** It uses whatever is installed, switches engines when a quota runs dry, and always has a local fallback for reading pages.
+
+**Requirements**: Node 18+, macOS or Linux. Search needs agy or a Tavily key. Page fetch needs nothing at all. Hit a problem? [Troubleshooting](docs/troubleshooting.md) lists every error this CLI prints, with causes and fixes.
+
+Install the skill once and your agent starts searching and reading the web on its own. No model swap, no prompt surgery.
 
 ## Why not just use built-in search
 

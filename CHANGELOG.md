@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.3 - 2026-08-05
+
+- README: adds a scannable feature block and a requirements line, which were missing entirely, so what you get is readable without consuming prose.
+- New `docs/troubleshooting.md`: every error this CLI prints, with cause and fix, linked from the README and the skill.
+- The ASCII flow diagram is now a real illustration. Its alignment had needed repair across several releases, which is a poor trade for a picture.
+- Test scaffolding moved into `src/testing/helpers.ts` and realistic engine samples into `src/fixtures/`. Fake binaries, temp HOMEs, and temp config paths were reimplemented per test file, so a fix in one copy left the others behind.
+- The Gemini CLI era research doc is marked historical so it is not read as current design.
+
 ## 3.2.2 - 2026-08-05
 
 - Docs: the README led with "your model's built-in search is a bit weak", which framed the whole project as a patch for one model's shortcoming and gave a reader with working search no reason to keep reading. It now leads with the cost that applies to everyone: built-in search pushes whole pages into your model's context, measured at about 30,000 tokens for one search-heavy answer, against a few hundred for structured evidence. Adds an honest comparison against built-in search and search MCP servers, weaknesses included, and states the two conditions that route a query to X.

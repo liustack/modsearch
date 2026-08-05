@@ -1,49 +1,24 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import { afterAll, describe, expect, it } from 'vitest';
+import {
+  BARE_ENV as BARE,
+  cleanupTempDirs,
+  withTempHome,
+  envWithBinaries,
+  withSignedInGrok,
+} from './testing/helpers.ts';
 import type { ModsearchConfig } from './config.ts';
 import { defaultSources, isXQuery, parseSources, planRole, planRun, X_DEGRADE_NOTE } from './router.ts';
 
-/** Nothing installed, no keys: the bare machine every new user starts on. */
-const BARE: NodeJS.ProcessEnv = { PATH: '/nonexistent' };
-
-/** A PATH holding fake binaries, so tests never depend on this machine. */
-function envWith(...binaries: string[]): NodeJS.ProcessEnv {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-bin-'));
-  for (const name of binaries) {
-    fs.writeFileSync(path.join(dir, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-  }
-  tempDirs.push(dir);
-  return { PATH: dir };
-}
-
-// Cleaned once at the end: WITH_AGY is built at module load and shared, so a
-// per-test cleanup would delete it out from under the later tests.
-const tempDirs: string[] = [];
-afterAll(() => {
-  while (tempDirs.length > 0) {
-    fs.rmSync(tempDirs.pop() as string, { recursive: true, force: true });
-  }
-});
-
-const WITH_AGY = envWith('agy');
+const WITH_AGY = envWithBinaries('agy');
 
 /** agy plus a signed-in grok, since grok availability also checks ~/.grok. */
 function envWithGrok(): { env: NodeJS.ProcessEnv; restoreHome: () => void } {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-home-'));
-  fs.mkdirSync(path.join(home, '.grok'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.grok', 'auth.json'), '{}');
-  tempDirs.push(home);
-  const realHome = process.env.HOME;
-  process.env.HOME = home;
-  return {
-    env: envWith('agy', 'grok'),
-    restoreHome: () => {
-      process.env.HOME = realHome;
-    },
-  };
+  const { env, restore } = withSignedInGrok();
+  return { env, restoreHome: restore };
 }
+
+afterAll(cleanupTempDirs);
+
 const names = (engines: Array<{ name: string }>) => engines.map((engine) => engine.name);
 
 function config(overrides: ModsearchConfig = {}): ModsearchConfig {
@@ -167,18 +142,15 @@ describe('run plans', () => {
   });
 
   it('degrades an X request to the web with an honest note when grok is missing', () => {
-    // Fake HOME so a real ~/.grok on the dev machine cannot make this pass.
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-home-'));
-    const realHome = process.env.HOME;
-    process.env.HOME = home;
-    tempDirs.push(home);
+    // An empty HOME, so a real ~/.grok on the dev machine cannot make this pass.
+    const { restore } = withTempHome();
     const [plan] = planRun({
       mode: 'search',
       query: '推特上怎么说',
       config: config(),
       env: WITH_AGY,
     });
-    process.env.HOME = realHome;
+    restore();
     expect(plan.source).toBe('x');
     expect(plan.engine.name).toBe('antigravity-cli');
     expect(plan.notes).toContain(X_DEGRADE_NOTE);
