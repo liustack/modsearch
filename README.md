@@ -38,6 +38,8 @@ Models like DeepSeek-V4-Flash are cheap, fast, capable, and unable to look anyth
 - **Zero config to start.** Nothing to fill in. It uses what is installed and switches engines when a quota runs dry.
 - **Install once, works everywhere.** Claude Code, Codex, Pi, and OpenCode all take it.
 
+<sub>The ~30,000-token figure is one 2026-08 measurement, not a benchmark: a single search-backed question answered by DeepSeek-V4-Flash through Codex's Responses API endpoint. It stands for the cost of pushing whole pages into context, not a fixed number.</sub>
+
 ## Installation
 
 ```bash
@@ -114,8 +116,10 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `-e, --engine <name>` | Force one engine for this run | picked from what works here |
 | `-o, --output <path>` | Also write JSON to a file | |
 | `-m, --model <name>` | Engine model | `gemini-3.6-flash-low` |
+| `--prompt <text>` | Extra constraints for this run, passed to the engine | |
 | `--max-results <n>` | Maximum search results | `8` |
 | `--timeout <ms>` | Engine timeout | `180000` |
+| `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
 Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings.

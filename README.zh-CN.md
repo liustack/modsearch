@@ -38,6 +38,8 @@ DeepSeek-V4-Flash 这类模型便宜、快、能打，唯独查不了资料读�
 - **零配置起步。** 没有配置文件要填，装了什么就用什么，额度烧穿自动换引擎。
 - **一次装好，处处能用。** Claude Code、Codex、Pi、OpenCode 都吃这套。
 
+<sub>「约三万 token」是 2026-08 的一次实测，不是基准跑分：DeepSeek-V4-Flash 经 Codex 的 Responses API 端点回答一次带搜索的问答。它说明的是「整页塞进上下文」的量级，不是某个固定数字。</sub>
+
 ## 安装
 
 ```bash
@@ -114,8 +116,10 @@ Codex 桌面 App 里的实拍：丢个博客链接问一句「说的什么」，
 | `-e, --engine <name>` | 本次强制用某个引擎 | 自动挑本机能用的 |
 | `-o, --output <path>` | 同时把 JSON 写入文件 | |
 | `-m, --model <name>` | 引擎模型 | `gemini-3.6-flash-low` |
+| `--prompt <text>` | 本次运行的额外约束，透传给引擎 | |
 | `--max-results <n>` | 搜索结果上限 | `8` |
 | `--timeout <ms>` | 引擎超时 | `180000` |
+| `--workdir <path>` | 需要跑命令的引擎的工作目录 | 当前目录 |
 | `--allow-private-network` | 放行保留网段，给映射公网域名的 VPN 用 | 关 |
 
 配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。
