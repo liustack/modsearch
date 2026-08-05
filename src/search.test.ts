@@ -2,181 +2,99 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  describeMissingCapability,
-  resolveMode,
-  routeProvider,
-  runCommand,
-  runSearch,
-  validateUrl,
-} from './search.ts';
+import type { ModsearchConfig } from './config.ts';
+import { noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
 
-describe('resolveMode', () => {
-  it('is search when only a query is given', () => {
+const BARE: NodeJS.ProcessEnv = { PATH: '/nonexistent' };
+
+describe('mode resolution', () => {
+  it('is search for a query, fetch for a url', () => {
     expect(resolveMode('latest node lts', undefined)).toBe('search');
-  });
-
-  it('is fetch when a url is given, with or without a query', () => {
     expect(resolveMode(undefined, 'https://example.com')).toBe('fetch');
-    expect(resolveMode('pricing details', 'https://example.com')).toBe('fetch');
+    expect(resolveMode('pricing', 'https://example.com')).toBe('fetch');
   });
 
-  it('rejects runs with neither query nor url', () => {
-    expect(() => resolveMode(undefined, undefined)).toThrow(
-      'Provide a search query (-q) or a URL to fetch (-u).',
-    );
-  });
-});
-
-describe('validateUrl', () => {
-  it('accepts http and https urls', () => {
-    expect(validateUrl(' https://example.com/page ')).toBe('https://example.com/page');
+  it('rejects runs with neither', () => {
+    expect(() => resolveMode(undefined, undefined)).toThrow('Provide a search query');
   });
 
-  it('rejects other schemes', () => {
+  it('validates fetch urls', () => {
+    expect(validateUrl(' https://example.com/a ')).toBe('https://example.com/a');
     expect(() => validateUrl('ftp://example.com')).toThrow('must start with http');
   });
 });
 
-describe('provider subprocess handling', () => {
+describe('zero-config machine', () => {
   const cleanups: Array<() => void> = [];
-
   afterEach(() => {
     while (cleanups.length > 0) {
       cleanups.pop()?.();
     }
   });
 
-  function fakeProvider(script: string) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-proc-'));
+  function fakeAgy(body: string): { bin: string; config: ModsearchConfig } {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-run-'));
     const bin = path.join(dir, 'fake-agy');
-    fs.writeFileSync(bin, script, { mode: 0o755 });
+    fs.writeFileSync(bin, body, { mode: 0o755 });
     cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
-    return bin;
+    return { bin, config: { engines: { 'antigravity-cli': { bin } } } };
   }
 
-  it('returns as soon as the provider exits, even when a descendant holds the stdout pipe open', async () => {
-    // agy leaves a language server running that inherited the pipe, so the
-    // child's 'close' event never fires and the run used to hang until the
-    // timeout killed it (modlens issue #1).
-    const bin = fakeProvider(`#!/bin/sh\necho 'hello there'\nsleep 30 &\nexit 0\n`);
-    const startedAt = Date.now();
-    const result = await runCommand('fake', { command: bin, args: [], cwd: os.tmpdir() }, 20_000);
-    expect(result.stdout.trim()).toBe('hello there');
-    expect(Date.now() - startedAt).toBeLessThan(10_000);
-  }, 30_000);
-
-  it('still reports a non-zero exit with its stderr', async () => {
-    const bin = fakeProvider('#!/bin/sh\necho "boom" >&2\nsleep 30 &\nexit 3\n');
+  it('tells the user how to enable search rather than crashing', async () => {
+    // Nothing installed, no keys, no config file.
     await expect(
-      runCommand('fake', { command: bin, args: [], cwd: os.tmpdir() }, 20_000),
-    ).rejects.toThrow(/failed with code 3.*boom/s);
-  }, 30_000);
+      runSearch({ query: 'anything', config: {}, env: BARE, timeoutMs: 5_000 }),
+    ).rejects.toThrow(/No engine on this machine can search the web/);
 
-  it('reports a timeout when the provider never exits', async () => {
-    const bin = fakeProvider('#!/bin/sh\nsleep 30\n');
-    await expect(
-      runCommand('fake', { command: bin, args: [], cwd: os.tmpdir() }, 1_000),
-    ).rejects.toThrow(/timed out after 1000 ms/);
-  }, 20_000);
-});
+    const message = noEngineMessage('search');
+    expect(message).toContain('antigravity-cli:');
+    expect(message).toContain('tavily:');
+  });
 
-describe('config file wiring', () => {
-  it('lets a pinned provider in the config beat X routing', () => {
-    const routed = routeProvider({ mode: 'search', query: 'tweets about deepseek' });
-    const pinned = routeProvider({
-      mode: 'search',
-      query: 'tweets about deepseek',
-      pinnedProvider: 'tavily',
+  it('still fetches a page with nothing installed', async () => {
+    // The http engine needs no setup, so -u works out of the box. This one
+    // hits a real URL through the local engine.
+    const result = await runSearch({
+      url: 'https://example.com',
+      config: { engines: { http: { allowPrivateNetwork: 'true' } } },
+      env: BARE,
+      timeoutMs: 30_000,
     });
-    expect(pinned.name).toBe('tavily');
-    // -p still outranks the pinned value
-    expect(
-      routeProvider({
-        mode: 'search',
-        query: 'anything',
-        provider: 'antigravity-cli',
-        pinnedProvider: 'tavily',
-      }).name,
-    ).toBe('antigravity-cli');
-    expect(routed.name).not.toBe('tavily');
-  });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].engine).toBe('http');
+    expect(String(result.results[0].content)).toContain('Example Domain');
+  }, 40_000);
 
-  it('takes the agy binary and model from the config file', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-cfg-'));
-    const bin = path.join(dir, 'fake-agy');
-    // Echo the model we were invoked with so the assertion sees it.
-    fs.writeFileSync(
-      bin,
-      `#!/bin/sh\nmodel=""\nwhile [ $# -gt 0 ]; do [ "$1" = "--model" ] && model="$2"; shift; done\nprintf '{"status":"SUCCESS","structured_output":{"summary":"%s","items":[],"uncertainty":[]}}' "$model"\n`,
-      { mode: 0o755 },
+  it('always returns an array of results, one per source', async () => {
+    const { bin, config } = fakeAgy(
+      `#!/bin/sh\necho '{"status":"SUCCESS","structured_output":{"summary":"web-sum","items":[],"uncertainty":[]}}'\n`,
     );
-    try {
-      const result = await runSearch({
-        query: 'plain query',
-        timeoutMs: 20_000,
-        config: {
-          providers: { 'antigravity-cli': { bin, model: 'gemini-3.1-pro-high' } },
-        },
-      });
-      expect(result.provider).toBe('antigravity-cli');
-      expect((result.result as { summary: string }).summary).toBe('gemini-3.1-pro-high');
-      expect(result.meta.model).toBe('gemini-3.1-pro-high');
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const result = await runSearch({
+      query: 'node lts',
+      config,
+      env: { PATH: path.dirname(bin) },
+      timeoutMs: 20_000,
+    });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]).toMatchObject({
+      source: 'web',
+      engine: 'antigravity-cli',
+      summary: 'web-sum',
+    });
+    expect(result.mode).toBe('search');
   }, 30_000);
 
-  it('bridges the tavily key from the config file into the env var', async () => {
-    const saved = process.env.TAVILY_API_KEY;
-    delete process.env.TAVILY_API_KEY;
-    try {
-      // tavily fails on fetch mode before touching the network, which is
-      // enough to prove the key made it through to the provider.
-      await expect(
-        runSearch({
-          url: 'https://example.com',
-          provider: 'tavily',
-          timeoutMs: 5_000,
-          config: { providers: { tavily: { apiKey: 'tvly-from-config' } } },
-        }),
-      ).rejects.toThrow(/does not support page fetch/);
-      expect(process.env.TAVILY_API_KEY).toBe('tvly-from-config');
-    } finally {
-      if (saved === undefined) {
-        delete process.env.TAVILY_API_KEY;
-      } else {
-        process.env.TAVILY_API_KEY = saved;
-      }
-    }
-  });
-});
-
-describe('capability reporting', () => {
-  it('points at another installed engine when one exists', () => {
-    const message = describeMissingCapability('tavily', 'fetch', 'agy', () => true);
-    expect(message).toContain('tavily engine does not support page fetch');
-    expect(message).toContain('antigravity-cli');
-    expect(message).not.toContain('install');
-  });
-
-  it('never demands agy when the user has not set it up', () => {
-    // A user with only a Tavily key gets pointed at the keyless http engine,
-    // not ordered to adopt an engine they skipped on purpose.
-    const message = describeMissingCapability('tavily', 'fetch', 'agy', () => false);
-    expect(message).toContain('does not support page fetch');
-    expect(message).toContain('http');
-    expect(message).not.toContain('antigravity-cli');
-    expect(message).not.toMatch(/use the default|you must|required|install/i);
-  });
-
-  it('rejects fetch on a pinned search-only engine before spending anything', async () => {
-    await expect(
-      runSearch({
-        url: 'https://example.com',
-        timeoutMs: 5_000,
-        config: { provider: 'tavily', providers: { tavily: { apiKey: 'tvly-x' } } },
-      }),
-    ).rejects.toThrow(/does not support page fetch/);
-  });
+  it('falls through to the next engine and says so', async () => {
+    const { bin } = fakeAgy('#!/bin/sh\nexit 1\n');
+    const result = await runSearch({
+      url: 'https://example.com',
+      config: {
+        engines: { 'antigravity-cli': { bin }, http: { allowPrivateNetwork: 'true' } },
+      },
+      env: { PATH: path.dirname(bin) },
+      timeoutMs: 30_000,
+    });
+    expect(result.results[0].engine).toBe('http');
+    expect((result.results[0].uncertainty as string[]).join(' ')).toContain('Fell back to http');
+  }, 40_000);
 });

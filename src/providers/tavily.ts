@@ -3,16 +3,16 @@
 // uncertainty as an array. Search mode only.
 import { tavily } from '@tavily/core';
 import type {
-  BuildProviderInvocationOptions,
-  ProviderParsedOutput,
-  SearchProvider,
+  EngineRequest,
+  EngineOutput,
+  SearchEngine,
 } from './index.ts';
 
 const DEFAULT_MAX_RESULTS = 8;
 
 export async function executeTavilySearch(
-  options: BuildProviderInvocationOptions,
-): Promise<ProviderParsedOutput> {
+  options: EngineRequest,
+): Promise<EngineOutput> {
   if (options.mode === 'fetch') {
     throw new Error(
       'The tavily engine does not support page fetch (-u). It searches only.',
@@ -22,7 +22,7 @@ export async function executeTavilySearch(
     throw new Error('Search mode requires a query.');
   }
 
-  const apiKey = process.env.TAVILY_API_KEY;
+  const apiKey = options.settings.apiKey;
   if (!apiKey) {
     throw new Error(
       'The tavily provider needs an API key. Set TAVILY_API_KEY, or run: modsearch config set tavily.apiKey <key> (free tier: 1,000 credits/month at https://app.tavily.com)',
@@ -71,9 +71,11 @@ function safeHostname(url: string): string | undefined {
   }
 }
 
-export const tavilyProvider: SearchProvider = {
+export const tavilyProvider: SearchEngine = {
   name: 'tavily',
-  modes: ['search'],
+  roles: ['search'],
+  requirement: 'set a Tavily key (free tier: 1,000 credits/month, no card)',
+  isAvailable: (settings, env) => Boolean(settings.apiKey || env.TAVILY_API_KEY),
   defaultModel: 'tavily-basic',
   execute: executeTavilySearch,
 };

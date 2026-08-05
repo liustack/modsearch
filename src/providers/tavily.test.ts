@@ -6,19 +6,20 @@ vi.mock('@tavily/core', () => ({
 }));
 
 import { executeTavilySearch } from './tavily.ts';
-import { resolveProvider } from './index.ts';
+import { resolveEngine } from './index.ts';
 
 describe('tavily provider', () => {
   it('resolves by name and exposes execute instead of buildInvocation', () => {
-    const provider = resolveProvider('tavily');
-    expect(provider.name).toBe('tavily');
-    expect(provider.execute).toBeTypeOf('function');
-    expect(provider.buildInvocation).toBeUndefined();
+    const engine = resolveEngine('tavily');
+    expect(engine.name).toBe('tavily');
+    expect(engine.roles).toEqual(['search']);
+    expect(engine.execute).toBeTypeOf('function');
+    expect(engine.buildInvocation).toBeUndefined();
   });
 
   it('rejects fetch mode', async () => {
     await expect(
-      executeTavilySearch({ mode: 'fetch', url: 'https://example.com', timeoutMs: 1000 }),
+      executeTavilySearch({ mode: 'fetch', url: 'https://example.com', timeoutMs: 1000, settings: {} }),
     ).rejects.toThrow(/does not support page fetch/);
   });
 
@@ -27,7 +28,7 @@ describe('tavily provider', () => {
     delete process.env.TAVILY_API_KEY;
     try {
       await expect(
-        executeTavilySearch({ mode: 'search', query: 'anything', timeoutMs: 1000 }),
+        executeTavilySearch({ mode: 'search', query: 'anything', timeoutMs: 1000, settings: {} }),
       ).rejects.toThrow(/TAVILY_API_KEY|config set tavily.apiKey/);
     } finally {
       if (saved !== undefined) process.env.TAVILY_API_KEY = saved;
@@ -52,6 +53,7 @@ describe('tavily provider', () => {
         query: 'v2 contract',
         maxResults: 2,
         timeoutMs: 1000,
+        settings: { apiKey: 'tvly-test' },
       });
 
       const result = parsed.result as {

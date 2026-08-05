@@ -1,11 +1,12 @@
 import * as path from 'path';
 import { buildFetchPrompt, buildSearchPrompt } from '../prompt.ts';
 import { fetchResultSchemaJson, searchResultSchemaJson } from '../schema.ts';
+import { commandOnPath } from '../system.ts';
 import type {
-  BuildProviderInvocationOptions,
+  EngineRequest,
   ProviderInvocation,
-  ProviderParsedOutput,
-  SearchProvider,
+  EngineOutput,
+  SearchEngine,
 } from './index.ts';
 
 export const DEFAULT_MODEL = 'gemini-3.6-flash-low';
@@ -22,7 +23,7 @@ interface AgyPrintEnvelope {
 }
 
 export function buildAntigravityInvocation(
-  options: BuildProviderInvocationOptions,
+  options: EngineRequest,
 ): ProviderInvocation {
   let prompt: string;
   let schemaJson: string;
@@ -68,13 +69,13 @@ export function buildAntigravityInvocation(
   ];
 
   return {
-    command: options.providerBin || 'agy',
+    command: options.settings.bin || 'agy',
     args,
     cwd: options.workdir ? path.resolve(options.workdir) : process.cwd(),
   };
 }
 
-export function parseAntigravityOutput(stdout: string): ProviderParsedOutput {
+export function parseAntigravityOutput(stdout: string): EngineOutput {
   const envelope = parseEnvelope(stdout);
 
   if (envelope.status && envelope.status !== 'SUCCESS') {
@@ -128,9 +129,11 @@ function tryParseJson(text: string): unknown | null {
   }
 }
 
-export const antigravityCliProvider: SearchProvider = {
+export const antigravityCliProvider: SearchEngine = {
   name: 'antigravity-cli',
-  modes: ['search', 'fetch'],
+  roles: ['search', 'fetch'],
+  requirement: 'install Antigravity CLI and sign in once (free, no key)',
+  isAvailable: (settings, env) => commandOnPath(settings.bin || 'agy', env),
   defaultModel: DEFAULT_MODEL,
   buildInvocation: buildAntigravityInvocation,
   parseOutput: parseAntigravityOutput,

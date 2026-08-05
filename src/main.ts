@@ -12,7 +12,7 @@ import {
   renderConfig,
   setConfigValue,
 } from './config.ts';
-import { listProviders } from './providers/index.ts';
+import { listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
 
 const program = new Command();
@@ -26,23 +26,23 @@ program
 
 program
   .command('search', { isDefault: true })
-  .description('Search the web or fetch a page (default command)')
+  .description('Search the web or X, or fetch a page (default command)')
   .option('-q, --query <text>', 'Search query (or answer focus when combined with -u)')
   .option('-u, --url <url>', 'Fetch this web page instead of searching')
   .option('-o, --output <path>', 'Write result JSON to a file')
   .option(
-    '-p, --provider <name>',
-    'Provider name (default: routed; antigravity-cli, or grok-cli for X/Twitter queries when Grok Build is signed in)',
+    '-s, --source <list>',
+    'Where to search: web, x, or web,x (default: web, or x when the query is about X)',
   )
-  .option('-m, --model <name>', 'Provider model name (default: gemini-3.6-flash-low)')
+  .option(
+    '-e, --engine <name>',
+    'Engine for this run, overriding config (antigravity-cli, tavily, grok-cli, http)',
+  )
+  .option('-m, --model <name>', 'Engine model, where the engine has one')
   .option('--prompt <text>', 'Extra constraints for this run')
   .option('--max-results <n>', 'Maximum number of search results', '8')
-  .option('--timeout <ms>', 'Provider timeout in milliseconds', '180000')
-  .option('--provider-bin <path>', 'Provider binary path (default: agy)')
-  .option('--workdir <path>', 'Working directory for the provider command')
-  .option('--x', 'Force the grok-cli X route even without X keywords in the query')
-  .option('--no-x', 'Never route to grok-cli; use the default provider')
-  .option('--grok-bin <path>', 'Grok Build binary path for the X route (default: grok)')
+  .option('--timeout <ms>', 'Engine timeout in milliseconds', '180000')
+  .option('--workdir <path>', 'Working directory for engines that run a command')
   .option(
     '--allow-private-network',
     'Let the http engine reach reserved address ranges, for VPNs that map public hosts into them',
@@ -62,15 +62,13 @@ program
       const result = await runSearch({
         query: options.query,
         url: options.url,
-        provider: options.provider,
+        engine: options.engine,
+        sources: options.source,
         model: options.model,
         prompt: options.prompt,
         timeoutMs,
-        providerBin: options.providerBin,
         maxResults,
         workdir: options.workdir,
-        x: options.x,
-        grokBin: options.grokBin,
         allowPrivateNetwork: options.allowPrivateNetwork,
       });
 
@@ -84,11 +82,10 @@ program
 
       process.stdout.write(`${output}\n`);
     } catch (error) {
-      const availableProviders = listProviders().join(', ');
       process.stderr.write(
         [
           `Error: ${error instanceof Error ? error.message : String(error)}`,
-          `Available providers: ${availableProviders}`,
+          `Known engines: ${listEngines().join(', ')}`,
         ].join('\n') + '\n',
       );
       process.exit(1);
@@ -97,7 +94,7 @@ program
 
 const config = program
   .command('config')
-  .description(`Manage ${CONFIG_PATH} (pinned provider, keys, binaries)`);
+  .description(`Manage ${CONFIG_PATH}. Optional: modsearch runs without it.`);
 
 config
   .command('init')
@@ -107,7 +104,7 @@ config
     try {
       initConfigFile(CONFIG_PATH, Boolean(options.force));
       process.stdout.write(
-        `Created ${CONFIG_PATH}\nLeave provider empty to keep routing, or pin one: modsearch config set provider <name>\n`,
+        `Created ${CONFIG_PATH}\nEvery field is optional: leave one empty and modsearch picks what works here.\n`,
       );
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
@@ -117,7 +114,7 @@ config
 
 config
   .command('set <key> <value>')
-  .description('Set a value, e.g. modsearch config set tavily.apiKey <key>')
+  .description('Set a value, e.g. tavily.apiKey <key>, or search.engine tavily')
   .action((key: string, value: string) => {
     try {
       setConfigValue(key, value);
