@@ -227,6 +227,8 @@ npx -y skills add liustack/liustack -g
 
 ## Security notes
 
+- The `http` engine carries SSRF guards: private addresses (IPv4 and IPv6, including `::ffff:` mapped forms), cloud metadata endpoints, and URLs with embedded credentials are refused, every redirect hop is re-checked, and body size and character counts are capped. **One known gap, stated rather than hidden**: the hostname is resolved for the check and resolved again by `fetch`, so a DNS answer that changes in between (rebinding) can point the connection somewhere the check never saw. Closing it requires pinning the connection to the validated IP, which Node's global `fetch` does not expose. Keep it in mind when fetching links you do not trust.
+
 - ModSearch runs `agy` with `--dangerously-skip-permissions`, because print mode can fail in some setups without it. The prompt keeps the agent to searching and fetching only, and tells it to treat page content as data, never as instructions. Even so, fetched pages are untrusted input, so prefer running inside a sandboxed workspace.
 - Search output is evidence. Whatever the engine cannot verify lands in `uncertainty`. The precise-looking but fabricated numeric `relevance` score from v1 is gone, item order carries the ranking.
 

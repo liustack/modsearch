@@ -7,6 +7,13 @@
 // The SSRF guards are the load-bearing part: an agent will happily fetch a URL
 // that appeared inside a web page, so blocked hostnames, private address
 // ranges, and every redirect hop are checked before a request goes out.
+//
+// Known gap, stated rather than hidden: the guard resolves the hostname and
+// then hands the same hostname to fetch, which resolves it again. A DNS answer
+// that changes between those two moments (rebinding) can point the connection
+// at an address the check never saw. Closing it needs the connection pinned to
+// the validated IP, which Node's global fetch does not expose, so it would mean
+// rewriting this transport on node:https. Until then the window is real.
 import * as dns from 'dns/promises';
 import { isIP } from 'net';
 import type {
