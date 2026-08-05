@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+A review pass fixing stale docs, a swallowed error, brittle tests, and thin release tooling.
+
+- The output-schema reference described the v2 envelope (a top-level `provider`, a single `result` object, `meta.model`/`conversationId`/`usage`) that no longer exists. It is rewritten for the v3 results-array output, and a drift test fingerprints the documented example envelopes against a live `RunSearchResult`, so the doc cannot rot without a test failing.
+- The agy quota reset time reaches the user again. A non-success envelope threw a bare status and dropped `envelope.error`, so the "Resets in 94h" that `docs/troubleshooting.md` promises never printed. The thrown message now carries it.
+- Test scaffolding is pulled into `src/testing/helpers.ts`. The search and config suites had each reimplemented the same fake-agy builder, bare environment, and temp config path. `src/fixtures/` was dead code with zero references and is now wired into the suites that assert on those exact shapes. The two fetch tests that hit `example.com` run against a loopback server, restoring the offline-tests rule.
+- Release changelog parsing had two regex bugs. The version dots were never escaped, so a version could match a look-alike heading, and the section lookahead ended at `\Z`, which JavaScript reads as a literal `Z`, so releasing the oldest changelog version failed to match at all. The logic moved behind a tested helper.
+- Both READMEs: the CLI tables gained `--prompt` and `--workdir`, and the "~30,000 token" figure now states its measurement (one 2026-08 reading, DeepSeek-V4-Flash through Codex's Responses API endpoint) instead of floating unsourced.
+- The disclaimer no longer contradicts the MIT license. "Personal study only, not commercial use" denied a right MIT grants. It now limits nothing and points at the upstream engines' own terms.
+- The Chinese README's promo block points at the WeChat public account, with the follow QR, instead of a second install pitch, and its star call-to-action is ModSearch alone. The English README keeps its liustack block.
+- Terminology settled on "engine", not "provider", everywhere a user can see it: the subprocess error text, the grok and tavily headers, and `AGENTS.md`. Legacy config keys keep their real v2 names.
+- `AGENTS.md` corrected: the engine override is `-e`/`--engine` (not `-p`), the v2-default framing is gone, the skills tree lists `configure.md`, and the timing matches `SKILL.md`.
+- Small cleanups: grok's max-posts fallback matches the real default of 8, `callEngine`'s request type is named directly, and `config init` lists `allowPrivateNetwork`.
+- The 894-line http fetcher split into three modules (network guards, HTML extraction, engine adapter) with tests following. No behavior changed and no SSRF check was lost.
+- Open-source scaffolding added: `CONTRIBUTING.md`, `SECURITY.md`, a Contributor Covenant code of conduct, issue and pull-request templates, and a weekly dependabot config.
+- Tooling and CI: Biome for formatting and linting, v8 coverage reporting, a node 18/20/22 by ubuntu/macos test matrix now that unit tests stay offline, a lint job, and a tag-triggered npm publish workflow with provenance.
+
 ## 3.3.0 - 2026-08-06
 
 - README rebuilt against how widely used projects actually write theirs (uv, crush, openclaw, hermes-agent, and current guidance): install command inside the first screen, a nav row and badges in the hero, short scannable highlights, and roughly 1,000 words instead of a long read. Detail moved into `docs/harness-setup.md` and `docs/security.md` rather than being inlined, and a Documentation table points at all of it.
