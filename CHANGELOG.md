@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.7 - 2026-08-06
+
+- README rewritten rather than patched again. The token argument had been made five separate times (opening, feature list, its own section, the comparison table, the Codex section), the hero ran nineteen lines before the first heading, the feature list and the capability table said the same things, and the comparison compared on weak axes ("setup cost" and "who pays those tokens" are one question). Twelve sections became eight, and phrases that announce honesty rather than demonstrate it are gone.
+
 ## 3.2.6 - 2026-08-06
 
 - The flow diagram says something again. Replacing ASCII art with an abstract illustration removed the labels along with the alignment chore, which was a bad trade: a picture of three icons tells a reader nothing. It is now a rendered diagram with real labels, one per language, generated from HTML so nothing drifts.
