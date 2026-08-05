@@ -3,6 +3,7 @@ import {
   enginesForRole,
   FETCH_FLOOR,
   findEngine,
+  listEngines,
   resolveEngine,
   ROLE_PREFERENCE,
   type RunMode,
@@ -76,8 +77,15 @@ export function defaultSources(query: string | undefined): Source[] {
  * cannot, so nobody has to configure page fetch separately. Searching X has
  * one possible engine, so there is nothing to choose there either.
  *
- * Page fetch always ends at the local HTTP engine: a wrong engine name, a
- * missing binary, or a runtime failure must never leave a URL unreadable.
+ * Page fetch normally ends at the local HTTP engine: a wrong engine name in the
+ * config, a missing binary, or a runtime failure must never leave a URL
+ * unreadable. An explicit --engine is the one exception, see below.
+ *
+ * An explicit --engine is a hard force: the chain holds exactly that engine,
+ * with no preference list appended and no http floor. If it cannot do the job
+ * it fails loudly rather than quietly spending another engine's quota. The
+ * `engine` in the config file stays a soft preference (still backed by the
+ * role defaults and the fetch floor), because a config choice is not a demand.
  */
 export function planRole(
   role: Role,
@@ -97,23 +105,38 @@ export function planRole(
   };
 
   const explicit = requestedEngine?.trim();
-  const configured = chosenEngine(config);
-  const named = explicit || configured;
-
-  if (named) {
-    const engine = findEngine(named);
-    const namedBy = explicit ? '--engine' : 'engine in the config file';
+  if (explicit) {
+    // Strict: force exactly this engine, no fallbacks. A silent switch to
+    // another engine here is what burned other providers' quotas.
+    const engine = findEngine(explicit);
     if (!engine) {
-      notes.push(`Unknown engine "${named}" (${namedBy}), so modsearch chose one that works.`);
+      notes.push(
+        `Unknown engine "${explicit}" (--engine). Drop -e to let modsearch pick one that works, or name a known engine: ${listEngines().join(', ')}.`,
+      );
+    } else if (!engine.roles.includes(role)) {
+      notes.push(
+        `The ${engine.name} engine cannot ${role} (--engine forces it with no fallback). Drop -e to let modsearch pick an engine that can. ${engine.name} handles: ${engine.roles.join(', ')}.`,
+      );
+    } else {
+      add(engine);
+    }
+    return { chain, notes };
+  }
+
+  // No explicit --engine: the config choice is a preference, backed by the
+  // role defaults and (for fetch) the local floor.
+  const configured = chosenEngine(config);
+  if (configured) {
+    const engine = findEngine(configured);
+    if (!engine) {
+      notes.push(
+        `Unknown engine "${configured}" (engine in the config file), so modsearch chose one that works.`,
+      );
     } else if (engine.roles.includes(role)) {
       add(engine);
-    } else if (explicit) {
-      // Only an explicit --engine deserves a complaint. A search engine that
-      // cannot fetch is the normal case, not a misconfiguration.
-      notes.push(
-        `The ${engine.name} engine cannot do ${role} (${namedBy}), so modsearch chose one that can. ${engine.name} handles: ${engine.roles.join(', ')}.`,
-      );
     }
+    // A configured search engine that cannot fetch is the normal case, not a
+    // misconfiguration, so it earns no complaint.
   }
 
   for (const name of ROLE_PREFERENCE[role]) {
@@ -159,8 +182,9 @@ export function planRun(input: PlanInput): SourcePlan[] {
 
     if (source === 'x') {
       // X has one engine. When it is unusable, the web is the only thing left,
-      // and the answer must say it is second-hand.
-      const web = planRole('search', input.config, undefined, env);
+      // and the answer must say it is second-hand. An explicit --engine carries
+      // into that fallback too, so a hard force stays a hard force.
+      const web = planRole('search', input.config, input.requestedEngine, env);
       const social = chain.filter((engine) => engine.roles.includes('social'));
       if (social.length === 0) {
         if (webRequested) {

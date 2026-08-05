@@ -128,7 +128,7 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 | `-q, --query <text>` | 查询词，配合 `-u` 时是提取关注点 | |
 | `-u, --url <url>` | 抓这一页，不做搜索 | |
 | `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 看查询词，默认 `web` |
-| `-e, --engine <name>` | 本次强制用某个引擎 | 自动挑本机能用的 |
+| `-e, --engine <name>` | 本次强制只用这一个引擎，不兜底：该引擎干不了或失败就直接报错，不会偷偷换别的引擎。想让 modsearch 自动挑并故障切换就别加它。 | 自动挑本机能用的 |
 | `-o, --output <path>` | 同时把 JSON 写入文件 | |
 | `-m, --model <name>` | 引擎模型 | `gemini-3.6-flash-low` |
 | `--prompt <text>` | 本次运行的额外约束，透传给引擎 | |

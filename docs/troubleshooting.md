@@ -66,19 +66,21 @@ The SSRF guard refused an address in a reserved range. Two very different causes
 
 The local `http` engine runs no JavaScript. A page rendered entirely client-side has almost nothing in its HTML, and the result says so in `uncertainty`. Options: fetch it through agy instead (`-e antigravity-cli`), or find a server-rendered URL for the same content.
 
-## A misconfigured engine
+## A forced engine that cannot run
+
+`-e`/`--engine` is a hard force: it uses exactly that engine, with no fallback. When the forced engine is a typo, cannot do the job, or fails at runtime, the run errors rather than quietly switching to another engine and spending its quota.
 
 ```
-Unknown engine "tavil" (--engine), so modsearch chose one that works.
+Unknown engine "tavil" (--engine). Drop -e to let modsearch pick one that works, or name a known engine: ...
 ```
 
-A typo. The message appears in `uncertainty` and the run continues on a working engine, so results are still valid. Fix the spelling to get the engine you meant.
+A typo. Fix the spelling, or drop `-e` to let modsearch choose automatically.
 
 ```
-The tavily engine cannot do fetch (--engine) ...
+The tavily engine cannot fetch (--engine forces it with no fallback). Drop -e to let modsearch pick an engine that can. ...
 ```
 
-You explicitly asked a search-only engine to read a page. Drop `-e` and let modsearch route.
+You forced a search-only engine to read a page. Drop `-e` and let modsearch route, or force `-e antigravity-cli` (which can fetch).
 
 ## Config file problems
 

@@ -96,6 +96,26 @@ describe('zero-config machine', () => {
   }, 40_000);
 });
 
+describe('a forced --engine is strict', () => {
+  afterEach(() => cleanupTempDirs());
+
+  it('errors instead of silently spending another engine when the forced one fails', async () => {
+    // agy is forced and fails. A Tavily key is present, so the old behavior
+    // would have quietly run Tavily (a real network call) and billed it. Strict
+    // forcing must error here and never touch another engine.
+    const config = agyConfig({ code: 1 }, { engines: { tavily: { apiKey: 'k' } } });
+    await expect(
+      runSearch({
+        query: 'q',
+        engine: 'antigravity-cli',
+        config,
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+      }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
+  }, 30_000);
+});
+
 describe('routing facts cannot be faked by an engine', () => {
   afterEach(() => cleanupTempDirs());
 

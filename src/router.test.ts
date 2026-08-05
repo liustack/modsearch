@@ -75,30 +75,40 @@ describe('engine chains per role', () => {
     expect(planRole('search', config(), undefined, BARE).chain).toEqual([]);
   });
 
-  it('always ends page fetch at the local http engine', () => {
-    // Bare machine, wrong engine name, engine that cannot fetch: still fetches.
+  it('ends page fetch at the local http engine when no engine is forced', () => {
+    // Bare machine, or an unfetchable config choice: the floor still fetches.
     expect(names(planRole('fetch', config(), undefined, BARE).chain)).toEqual(['http']);
-    expect(names(planRole('fetch', config(), 'nonsense', BARE).chain)).toEqual(['http']);
-    expect(names(planRole('fetch', config(), 'tavily', BARE).chain)).toEqual(['http']);
+    expect(names(planRole('fetch', config({ engine: 'tavily' }), undefined, BARE).chain)).toEqual([
+      'http',
+    ]);
     expect(names(planRole('fetch', config(), undefined, WITH_AGY).chain)).toEqual([
       'antigravity-cli',
       'http',
     ]);
   });
 
-  it('explains a misconfigured engine instead of failing silently', () => {
+  it('forces exactly the --engine given, with no floor and no other engine', () => {
+    // -e is a hard force: no http floor, no silent switch to another engine's
+    // quota. A bad or unfetchable choice yields an empty chain plus a note, and
+    // search.ts turns that into a loud error.
+    expect(planRole('fetch', config(), 'nonsense', BARE).chain).toEqual([]);
     expect(planRole('fetch', config(), 'nonsense', BARE).notes[0]).toContain('Unknown engine');
-    expect(planRole('fetch', config(), 'tavily', BARE).notes[0]).toContain('cannot do fetch');
+    expect(planRole('fetch', config(), 'tavily', BARE).chain).toEqual([]);
+    expect(planRole('fetch', config(), 'tavily', BARE).notes[0]).toContain('cannot fetch');
+    expect(names(planRole('fetch', config(), 'http', BARE).chain)).toEqual(['http']);
+    // A search force does not fall through to the other search engine.
+    expect(names(planRole('search', config({}), 'tavily', WITH_AGY).chain)).toEqual(['tavily']);
+    // No note when nothing is forced.
     expect(planRole('fetch', config(), undefined, BARE).notes).toEqual([]);
   });
 
   it('honors the engine chosen in the config file', () => {
     const pinned = config({ engine: 'tavily', engines: { tavily: { apiKey: 'k' } } });
     expect(names(planRole('search', pinned, undefined, WITH_AGY).chain)[0]).toBe('tavily');
-    // --engine still wins over the file
-    expect(names(planRole('search', pinned, 'antigravity-cli', WITH_AGY).chain)[0]).toBe(
+    // --engine still wins over the file, and wins alone
+    expect(names(planRole('search', pinned, 'antigravity-cli', WITH_AGY).chain)).toEqual([
       'antigravity-cli',
-    );
+    ]);
   });
 });
 
@@ -190,9 +200,9 @@ describe('fetch follows the chosen engine without being configured', () => {
     ]);
   });
 
-  it('complains only when --engine explicitly names something that cannot fetch', () => {
+  it('complains and refuses to fall back when --engine names something that cannot fetch', () => {
     const chain = planRole('fetch', config(), 'tavily', BARE);
-    expect(names(chain.chain)).toEqual(['http']);
-    expect(chain.notes[0]).toContain('cannot do fetch');
+    expect(chain.chain).toEqual([]);
+    expect(chain.notes[0]).toContain('cannot fetch');
   });
 });

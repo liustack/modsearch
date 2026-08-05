@@ -128,7 +128,7 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `-q, --query <text>` | Query, or the extraction focus when paired with `-u` | |
 | `-u, --url <url>` | Fetch this page instead of searching | |
 | `-s, --source <list>` | Corpora: `web`, `x`, or `web,x` | from the query, else `web` |
-| `-e, --engine <name>` | Force one engine for this run | picked from what works here |
+| `-e, --engine <name>` | Force exactly one engine for this run. No fallback: if it cannot do the job or fails, the run errors instead of switching to another engine. Drop it to let modsearch pick and fail over. | picked from what works here |
 | `-o, --output <path>` | Also write JSON to a file | |
 | `-m, --model <name>` | Engine model | `gemini-3.6-flash-low` |
 | `--prompt <text>` | Extra constraints for this run, passed to the engine | |

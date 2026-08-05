@@ -38,7 +38,7 @@ modsearch -u "<url>"                   # fetch one page
 modsearch -u "<url>" -q "<focus>"      # fetch with an extraction focus
 ```
 
-Optional flags: `-o <file>` also writes the JSON, `-e <engine>` overrides the engine for this run, `-m <model>`, `--max-results <n>`, `--prompt "<constraints>"`, `--timeout <ms>`.
+Optional flags: `-o <file>` also writes the JSON, `-e <engine>` forces exactly one engine for this run (a hard override with no fallback: if that engine cannot do the job or fails, the run errors rather than switching to another engine, so leave it off unless the user wants one specific engine), `-m <model>`, `--max-results <n>`, `--prompt "<constraints>"`, `--timeout <ms>`.
 
 An X-flavored query (twitter, tweet, 推特, 推文, x.com, "on X") goes to X on its own, and only to X, because a web index cannot see inside X. Pass `--source web,x` when the user wants both.
 
