@@ -46,6 +46,12 @@ export function runCommand(
     let timedOut = false;
     let settled = false;
     let drainTimer: NodeJS.Timeout | undefined;
+    // Track the real exit, not child.killed. child.killed flips to true the
+    // moment any signal is *sent*, so a process that ignores SIGTERM would read
+    // as "killed" and never get the follow-up SIGKILL. Only the 'exit' event
+    // proves it is actually gone.
+    let exitCode: number | null = null;
+    let exited = false;
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -54,7 +60,9 @@ export function runCommand(
       // long as it liked, so report the timeout now and make sure it dies.
       settle(null);
       setTimeout(() => {
-        if (!child.killed) {
+        // Escalate only when the child is still running. A process that
+        // honored SIGTERM has already fired 'exit', so this does nothing.
+        if (!exited) {
           child.kill('SIGKILL');
         }
       }, SIGKILL_GRACE_MS).unref();
@@ -91,8 +99,6 @@ export function runCommand(
       resolve({ stdout, stderr });
     };
 
-    let exitCode: number | null = null;
-    let exited = false;
     const restartDrain = () => {
       if (!exited || settled) {
         return;
