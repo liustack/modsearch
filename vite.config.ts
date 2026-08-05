@@ -27,7 +27,7 @@ export default defineConfig({
       // so adding a new built-in import can never silently bundle to undefined.
       external: [
         'commander',
-        '@tavily/core',
+        'undici',
         ...builtinModules,
         ...builtinModules.map((name) => `node:${name}`),
       ],

@@ -147,7 +147,7 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 | [配置手册](skills/modsearch/references/configure.md) | 配 key、换引擎、排查配置 |
 | [输出契约](skills/modsearch/references/output-schema.md) | 要解析 JSON 或写下游工具 |
 | [宿主接入](docs/harness-setup.md) | 在 Codex、Claude Code、OpenCode、Pi 里配置 |
-| [安全说明](docs/security.md) | SSRF 防护、已知缺口、不可信输入的处理 |
+| [安全说明](docs/security.md) | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
 | [更新日志](CHANGELOG.md) | 想知道某个版本改了什么 |
 | [AGENTS.md](AGENTS.md) | 要改这个项目的代码 |
 

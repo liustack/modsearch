@@ -147,7 +147,7 @@ Configuration is optional. `~/.modsearch/config.json` holds one decision: which 
 | [Configuration](skills/modsearch/references/configure.md) | Setting a key, switching engines, fixing config |
 | [Output contract](skills/modsearch/references/output-schema.md) | Parsing the JSON or building on it |
 | [Harness setup](docs/harness-setup.md) | Wiring it into Codex, Claude Code, OpenCode, or Pi |
-| [Security](docs/security.md) | SSRF guards, the known gap, untrusted input |
+| [Security](docs/security.md) | SSRF guards, DNS-rebinding protection, untrusted input |
 | [CHANGELOG](CHANGELOG.md) | Finding what changed in a version |
 | [AGENTS.md](AGENTS.md) | Working on this codebase |
 

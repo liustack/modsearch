@@ -8,7 +8,8 @@
 // (with every redirect hop re-validated), reads the body under caps, and maps
 // the result onto the shared engine contract. The SSRF guards live in
 // ./http/network.ts and the markup handling in ./http/htmlExtract.ts.
-import { assertSafeRemoteTarget, normalizeFetchUrl } from './http/network.ts';
+import { Agent } from 'undici';
+import { assertSafeRemoteTarget, normalizeFetchUrl, type PinnedTarget } from './http/network.ts';
 import {
   extractLinks,
   extractVisibleTextFromHtml,
@@ -92,71 +93,115 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
   const redirectChain: string[] = [];
   // One deadline for the whole run: DNS, every redirect hop, and the body.
   const deadline = AbortSignal.timeout(timeoutMs);
+  // Every pinned dispatcher created along the way, closed when the run ends.
+  const dispatchers: Agent[] = [];
 
-  for (let i = 0; i <= maxRedirects; i += 1) {
-    await assertSafeRemoteTarget(currentUrl, allowPrivateNetwork);
+  try {
+    for (let i = 0; i <= maxRedirects; i += 1) {
+      // Validate, then pin the socket to the exact IP that was validated. Each
+      // redirect hop repeats both, so a mid-run DNS change cannot slip through.
+      const pinned = await assertSafeRemoteTarget(currentUrl, allowPrivateNetwork);
+      const dispatcher = pinnedDispatcher(pinned);
+      dispatchers.push(dispatcher);
 
-    const { response } = await fetchOnce(currentUrl, deadline, timeoutMs, userAgent);
-    if (isRedirectStatus(response.status)) {
-      const location = response.headers.get('location');
-      if (!location) {
-        throw new Error(`Redirect response (${response.status}) missing location header.`);
+      const { response } = await fetchOnce(currentUrl, dispatcher, deadline, timeoutMs, userAgent);
+      if (isRedirectStatus(response.status)) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new Error(`Redirect response (${response.status}) missing location header.`);
+        }
+
+        if (i === maxRedirects) {
+          throw new Error(`Too many redirects. Max redirects: ${maxRedirects}.`);
+        }
+
+        const nextUrl = new URL(location, currentUrl);
+        redirectChain.push(currentUrl.toString());
+        currentUrl = nextUrl;
+        continue;
       }
 
-      if (i === maxRedirects) {
-        throw new Error(`Too many redirects. Max redirects: ${maxRedirects}.`);
+      const contentTypeHeader = response.headers.get('content-type') || '';
+      if (!isTextLikeContentType(contentTypeHeader)) {
+        throw new Error(
+          `Unsupported content-type: ${contentTypeHeader || 'unknown'}. Only text-like content is allowed.`,
+        );
       }
 
-      const nextUrl = new URL(location, currentUrl);
-      redirectChain.push(currentUrl.toString());
-      currentUrl = nextUrl;
-      continue;
+      const readBody = await readBodyWithLimit(response, maxBytes, timeoutMs);
+      const decoded = decodeBody(readBody.body, contentTypeHeader);
+
+      const normalizedContentType = contentTypeHeader.split(';')[0]?.trim().toLowerCase() || '';
+      const extraction =
+        normalizedContentType.includes('html') || normalizedContentType.includes('xhtml')
+          ? extractVisibleTextFromHtml(decoded)
+          : {
+              title: null,
+              text: normalizeWhitespace(decoded),
+            };
+
+      const trimmed = trimToMaxChars(extraction.text, maxChars);
+
+      return {
+        rawHtml: normalizedContentType.includes('html') ? decoded : undefined,
+        requestUrl: requestUrl.toString(),
+        finalUrl: currentUrl.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        contentType: contentTypeHeader,
+        title: extraction.title,
+        text: trimmed.text,
+        meta: {
+          fetchedAt: new Date().toISOString(),
+          bytes: readBody.bytes,
+          truncated: trimmed.truncated,
+          redirectChain,
+          timeoutMs,
+          maxBytes,
+          maxChars,
+          privateNetworkAllowed: allowPrivateNetwork,
+        },
+      };
     }
 
-    const contentTypeHeader = response.headers.get('content-type') || '';
-    if (!isTextLikeContentType(contentTypeHeader)) {
-      throw new Error(
-        `Unsupported content-type: ${contentTypeHeader || 'unknown'}. Only text-like content is allowed.`,
-      );
+    throw new Error('Failed to fetch target URL.');
+  } finally {
+    // The body is fully read into memory before we return, so closing the
+    // pinned dispatchers here frees their sockets without cutting a live read.
+    for (const dispatcher of dispatchers) {
+      dispatcher.close().catch(() => {});
     }
-
-    const readBody = await readBodyWithLimit(response, maxBytes, timeoutMs);
-    const decoded = decodeBody(readBody.body, contentTypeHeader);
-
-    const normalizedContentType = contentTypeHeader.split(';')[0]?.trim().toLowerCase() || '';
-    const extraction =
-      normalizedContentType.includes('html') || normalizedContentType.includes('xhtml')
-        ? extractVisibleTextFromHtml(decoded)
-        : {
-            title: null,
-            text: normalizeWhitespace(decoded),
-          };
-
-    const trimmed = trimToMaxChars(extraction.text, maxChars);
-
-    return {
-      rawHtml: normalizedContentType.includes('html') ? decoded : undefined,
-      requestUrl: requestUrl.toString(),
-      finalUrl: currentUrl.toString(),
-      status: response.status,
-      statusText: response.statusText,
-      contentType: contentTypeHeader,
-      title: extraction.title,
-      text: trimmed.text,
-      meta: {
-        fetchedAt: new Date().toISOString(),
-        bytes: readBody.bytes,
-        truncated: trimmed.truncated,
-        redirectChain,
-        timeoutMs,
-        maxBytes,
-        maxChars,
-        privateNetworkAllowed: allowPrivateNetwork,
-      },
-    };
   }
+}
 
-  throw new Error('Failed to fetch target URL.');
+/**
+ * An undici dispatcher whose DNS lookup is hard-wired to the one IP the safety
+ * check validated. The connection goes to that IP, while the URL's hostname
+ * still drives the Host header and TLS SNI, so a DNS answer that changes after
+ * the check cannot redirect the socket.
+ */
+function pinnedDispatcher(pinned: PinnedTarget): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) => {
+        const record = { address: pinned.address, family: pinned.family };
+        // undici asks with { all: true } and expects an array; be tolerant of
+        // the single-record signature too.
+        if (options && (options as { all?: boolean }).all) {
+          (callback as (err: Error | null, addresses: Array<{ address: string; family: number }>) => void)(
+            null,
+            [record],
+          );
+        } else {
+          (callback as (err: Error | null, address: string, family: number) => void)(
+            null,
+            pinned.address,
+            pinned.family,
+          );
+        }
+      },
+    },
+  });
 }
 
 /**
@@ -166,6 +211,7 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
  */
 async function fetchOnce(
   url: URL,
+  dispatcher: Agent,
   signal: AbortSignal,
   timeoutMs: number,
   userAgent: string,
@@ -177,12 +223,15 @@ async function fetchOnce(
       method: 'GET',
       redirect: 'manual',
       signal,
+      // `dispatcher` is a Node/undici extension to fetch's options, not in the
+      // DOM RequestInit type, so it is attached through a cast.
+      dispatcher,
       headers: {
         'user-agent': userAgent,
         accept:
           'text/html,application/xhtml+xml,application/json,text/plain,application/xml,text/xml;q=0.9,*/*;q=0.5',
       },
-    });
+    } as RequestInit & { dispatcher: Agent });
 
     return {
       response,

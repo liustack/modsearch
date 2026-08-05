@@ -100,7 +100,7 @@ Nothing else to turn on. An X-flavored query goes to X automatically once `grok`
 
 ### http (fetch, nothing to install)
 
-No setup. It carries SSRF guards (private ranges, cloud metadata, per-hop redirect checks, size caps) with one documented gap: DNS answers are resolved twice, so rebinding can slip past. Do not present this engine as safe for arbitrary untrusted URLs.
+No setup. It carries SSRF guards (private ranges, cloud metadata, per-hop redirect checks, size caps) and pins each connection to the validated IP, so DNS rebinding cannot slip past. It runs no JavaScript, so it is not a full browser sandbox: still run untrusted URLs in a sandboxed working directory.
 
 A VPN that maps public hosts into reserved ranges will trip those guards:
 

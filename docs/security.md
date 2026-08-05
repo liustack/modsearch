@@ -1,5 +1,5 @@
 ---
-summary: 'Security: SSRF guards, the known DNS rebinding gap, and how untrusted page content is handled'
+summary: 'Security: SSRF guards, DNS-rebinding protection, and how untrusted page content is handled'
 read_when:
   - Fetching URLs you do not control
   - Reviewing what this tool does on your machine
@@ -18,11 +18,11 @@ The `http` engine refuses, before any request goes out:
 
 Every redirect hop is re-checked, and response size and character counts are capped.
 
-## The known gap: DNS rebinding
+## DNS rebinding is closed
 
-Stated rather than hidden: the hostname is resolved once for the safety check and resolved again by `fetch` when the request goes out. A DNS answer that changes between those two moments can point the connection at an address the check never saw.
+The safety check resolves the hostname, validates every address it maps to, and then returns the exact IP it approved. The connection is pinned to that IP through an `undici` dispatcher with a custom lookup, so the socket goes to the address the check saw and nothing else. A DNS answer that changes between the check and the connect can no longer swap in an address the guard never inspected. The Host header and TLS SNI still carry the original hostname, so ordinary sites work unchanged. Every redirect hop repeats the check and re-pins to the new target.
 
-Closing it requires pinning the connection to the validated IP, which Node's global `fetch` does not expose, so it would mean rewriting the transport on `node:https`. Until then the window is real. Keep it in mind when fetching links you do not control.
+The pin is IP-level, not port-level, and only the local `http` engine is affected. The engine-driven fetch (agy) runs in its own sandbox and is out of scope here.
 
 ## VPNs and reserved ranges
 

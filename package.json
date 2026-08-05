@@ -47,7 +47,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "undici": "^6.28.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.7",

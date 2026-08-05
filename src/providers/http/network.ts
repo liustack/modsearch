@@ -3,14 +3,25 @@
 // so blocked hostnames, private and reserved address ranges, and every redirect
 // hop are validated here before a request goes out.
 //
-// Known gap, stated rather than hidden: assertSafeRemoteTarget resolves the
-// hostname and then hands the same hostname to fetch, which resolves it again. A
-// DNS answer that changes between those two moments (rebinding) can point the
-// connection at an address the check never saw. Closing it needs the connection
-// pinned to the validated IP, which Node's global fetch does not expose, so it
-// would mean rewriting the transport on node:https. Until then the window is real.
+// DNS rebinding is closed: assertSafeRemoteTarget resolves the hostname, checks
+// every address, and returns the exact IP it validated. The caller pins the
+// connection to that IP (via an undici Agent with a custom lookup, see
+// httpFetch.ts), so a DNS answer that changes between the check and the connect
+// can no longer point the socket at an address the check never saw. The Host
+// header and TLS SNI still carry the original hostname. Every redirect hop
+// repeats the check and re-pins.
 import * as dns from 'dns/promises';
 import { isIP } from 'net';
+
+/** The validated connection target: connect to this exact IP, not a re-lookup. */
+export interface PinnedTarget {
+  /** The original hostname, kept for the Host header and TLS SNI. */
+  hostname: string;
+  /** The IP the safety check validated. The socket connects here. */
+  address: string;
+  /** 4 or 6. */
+  family: number;
+}
 
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
@@ -79,22 +90,20 @@ export function isPrivateIpAddress(ipAddress: string): boolean {
 export async function assertSafeRemoteTarget(
   url: URL,
   allowPrivateNetwork: boolean,
-): Promise<void> {
+): Promise<PinnedTarget> {
   if (isBlockedHostname(url.hostname)) {
     throw new Error(`Blocked hostname: ${url.hostname}`);
   }
 
-  if (allowPrivateNetwork) {
-    return;
-  }
-
   const hostname = stripIpv6Brackets(url.hostname);
+
+  // A literal IP is its own validated target: pin straight to it.
   const ipFamily = isIP(hostname);
   if (ipFamily > 0) {
-    if (isPrivateIpAddress(hostname)) {
+    if (!allowPrivateNetwork && isPrivateIpAddress(hostname)) {
       throw new Error(`Blocked private network target: ${hostname}`);
     }
-    return;
+    return { hostname, address: hostname, family: ipFamily };
   }
 
   let resolved: Array<{ address: string; family: number }>;
@@ -110,14 +119,21 @@ export async function assertSafeRemoteTarget(
     throw new Error(`Host ${hostname} did not resolve to any IP address.`);
   }
 
-  const blocked = resolved.find((record) => isPrivateIpAddress(record.address));
-  if (blocked) {
-    // VPN and proxy clients routinely map public hosts into reserved ranges
-    // (198.18/15 especially), so a real site can look private from here.
-    throw new Error(
-      `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set http.allowPrivateNetwork true`,
-    );
+  if (!allowPrivateNetwork) {
+    const blocked = resolved.find((record) => isPrivateIpAddress(record.address));
+    if (blocked) {
+      // VPN and proxy clients routinely map public hosts into reserved ranges
+      // (198.18/15 especially), so a real site can look private from here.
+      throw new Error(
+        `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set http.allowPrivateNetwork true`,
+      );
+    }
   }
+
+  // Pin to the first validated address. The connection uses exactly this IP,
+  // so a later DNS change cannot swap in one the check never saw.
+  const [chosen] = resolved;
+  return { hostname, address: chosen.address, family: chosen.family };
 }
 
 function stripIpv6Brackets(hostname: string): string {
