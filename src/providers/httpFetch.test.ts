@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
+import { TRAP_HTML } from '../fixtures/index.ts';
 import {
   extractLinks,
   extractVisibleTextFromHtml,
@@ -145,6 +146,16 @@ describe('hardening against hostile pages', () => {
     expect(extractLinks(html, 'https://cdn.example.net/page')).toEqual([
       { text: 'Guide', url: 'https://docs.example.com/v2/guide?a=1&b=2' },
     ]);
+  });
+
+  it('survives every trap on one page (the shared fixture)', () => {
+    const extracted = extractVisibleTextFromHtml(TRAP_HTML);
+    expect(extracted.title).toBe('Trap Page');
+    expect(extracted.text).toContain('visible & intact');
+    expect(extracted.text).not.toContain('console.log');
+    const links = extractLinks(TRAP_HTML, 'https://cdn.example.net/page');
+    expect(links).toContainEqual({ text: 'Guide', url: 'https://docs.example.com/v2/guide' });
+    expect(links).toContainEqual({ text: 'Other', url: 'https://other.example.com/x' });
   });
 });
 

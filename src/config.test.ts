@@ -1,7 +1,5 @@
 import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   engineSettings,
   initConfigFile,
@@ -11,19 +9,17 @@ import {
   chosenEngine,
   setConfigValue,
 } from './config.ts';
-
-function tempConfigPath(): string {
-  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-config-')), 'config.json');
-}
+import { cleanupTempDirs, tempConfigPath } from './testing/helpers.ts';
 
 describe('config file', () => {
+  afterEach(() => cleanupTempDirs());
+
   it('is optional: a missing file reads as empty', () => {
     expect(loadConfigFile(tempConfigPath())).toEqual({});
   });
 
   it('throws a fix-or-delete error on unparseable JSON', () => {
     const p = tempConfigPath();
-    fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, '{broken');
     expect(() => loadConfigFile(p)).toThrow('Fix or delete the file');
   });

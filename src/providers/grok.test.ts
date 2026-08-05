@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { grokSalvageEnvelope } from '../fixtures/index.ts';
 import { SEARCH_RESULT_SCHEMA } from '../schema.ts';
 import { buildGrokInvocation, buildXSearchPrompt, grokAvailable, parseGrokOutput } from './grok.ts';
 import { resolveEngine } from './index.ts';
@@ -53,12 +54,7 @@ describe('grok engine', () => {
   });
 
   it('salvages the last valid object when grok validates the schema too late', () => {
-    const parsed = parseGrokOutput(
-      JSON.stringify({
-        structuredOutput: null,
-        text: '{ "summary": "progress", "items": [], "uncertainty": [] }{ "summary": "real", "items": [{"title": "@a", "snippet": "s{x}"}], "uncertainty": [] }',
-      }),
-    );
+    const parsed = parseGrokOutput(grokSalvageEnvelope('real'));
     expect((parsed.result as { summary: string }).summary).toBe('real');
   });
 
