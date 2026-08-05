@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.6 - 2026-08-06
+
+- The flow diagram says something again. Replacing ASCII art with an abstract illustration removed the labels along with the alignment chore, which was a bad trade: a picture of three icons tells a reader nothing. It is now a rendered diagram with real labels, one per language, generated from HTML so nothing drifts.
+
 ## 3.2.5 - 2026-08-06
 
 - README: drops the roles vocabulary. Telling a reader there is one setting and then handing them a table of three roles and four engines contradicts itself, and roles are an internal idea anyway. The section now answers what a reader actually asks: what do you want to do, and what does it take.

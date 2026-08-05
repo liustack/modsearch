@@ -17,7 +17,7 @@ ModSearch moves that step outside your model. Retrieval and distillation happen 
 
 It never touches your config and never adds a local proxy. Run it as a CLI or install it as an Agent Skill: `-q` searches, `-u` reads one page closely, and with Grok Build installed it reaches X too. How it works:
 
-![One query fans out to three sources: the web, one page, X, and evidence comes back to the terminal](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.jpg)
+![A text-only model reaches web search, one-page reading, and X through the modsearch skill, and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.en.png)
 
 - **Search stays out of your model's context.** Retrieval and distillation happen outside, and your model reads a few hundred tokens of evidence instead of whole pages.
 - **Answers carry sources.** Summary, links, dates, and an honest list of what could not be pinned down, so your model cites instead of recalling.
