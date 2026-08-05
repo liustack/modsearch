@@ -11,7 +11,11 @@
 
 DeepSeek-V4-Flash 碗大又好吃，速度快，性能强，但官方内联的联网搜索能力有点弱，第三方提供商甚至根本不支持联网搜索能力。在这个年代一个大模型它查不了资料，看不了网页可是大麻烦。
 
-ModSearch 用最轻的方式解决它：不动你的配置，不装本地代理，就是一个搜索外挂，CLI 和 skill 两种用法。它产出的不是一段网页摘抄，是结构化的搜索证据：摘要、来源列表（标题、链接、日期）、还有一份老实的不确定清单。搜索和抓网页归它一起管，`-q` 搜，`-u` 抓。默认引擎是 [Antigravity CLI](https://antigravity.google)（`agy`），走 Google 自家的索引，零 key 就能开跑。原理如下：
+不止是「有没有」的问题。就算你的模型自带搜索，那条路也在悄悄吃你的钱：抓回来的网页整个塞进主模型的上下文，一次带搜索的问答我实测烧掉约三万 token。
+
+ModSearch 把搜索这一步挪到主模型外面。抓取和提炼发生在别处，主模型只读一份几百 token 的结构化证据：摘要、来源清单（标题、链接、日期）、还有一份老实的不确定列表。**两边差着两个数量级。**
+
+不动你的配置，不装本地代理，CLI 和 skill 两种用法，`-q` 搜索、`-u` 精读一个页面、装了 Grok 还能搜 X。原理如下：
 
 ```text
 纯文本模型 ──▶ modsearch skill（需要时效信息时自动触发）
@@ -29,6 +33,23 @@ ModSearch 用最轻的方式解决它：不动你的配置，不装本地代理�
 ```
 
 skill 装一次，你的 agent 以后自己搜索、自己读网页。模型不用换，API key 不用要，提示词也不用改。
+
+## 为什么不直接用内置搜索
+
+内置搜索的工作方式是：模型发起搜索，服务端把抓回来的网页原文整个塞进上下文，模型再从里面找答案。你为每一个导航栏、每一段页脚、每一条 cookie 提示付费，而它们和你的问题毫无关系。实测一次带搜索的问答约三万 token，其中大半烧在这里。
+
+ModSearch 交给主模型的是证据，不是原料。
+
+| | 内置搜索 | 搜索类 MCP server | ModSearch |
+| :-- | :-- | :-- | :-- |
+| 主模型上下文开销 | 整页塞进去，实测约 3 万 token/次 | 多数也是整页 | 几百 token 的结构化证据 |
+| 谁付这笔 token | 你的 API 账单 | 你的 API 账单 | 搜索在外部完成，不进主模型账单 |
+| 渠道没有搜索工具时 | 用不了（第三方网关、chat completions 端点） | 能用 | 能用 |
+| 精读某一个 URL | 一般给不了 | 看实现 | `-u`，还能带关注点提炼 |
+| X（推特）上的内容 | 看不见 | 看不见 | 装了 Grok Build 就能看 |
+| 上手成本 | 零 | 装 server、改配置 | 一个 CLI 或 skill，零配置起步 |
+
+诚实说短板：agy 的免费额度是周配额，重度用会撞墙（备个 Tavily key 就自动接上）。X 那条路要 SuperGrok 或 X Premium 订阅。本地抓取器不跑 JavaScript，纯前端渲染的页面它抓得薄。
 
 ## 快速开始
 
@@ -132,7 +153,9 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
 
-装了它就自动生效：X 味的查询整条走 Grok，返回真实帖子、作者 handle、原帖链接。没装也不报错，问题会由网页搜索接手，并在 `uncertainty` 里老实写明「这是二手信息，网页看不进 X 里面」。
+装了它就自动生效，两个条件同时成立才会走 X：查询词里带着 X 味（`twitter`、`tweet`、`x.com`、`on X`，中文的推特、推文、发推、在 X 上），并且本机装了 `grok` 且登录过。命中时**只走 X 不走网页**，一点 agy 额度都不花。
+
+返回的是真实帖子、作者 handle、原帖链接。没装 Grok 也不报错：问题由网页搜索接手，并在 `uncertainty` 里老实写明这是看不进 X 的二手信息。想自己决定就用 `--source x`、`--source web,x` 或 `--source web`。
 
 ## CLI 参数
 
@@ -203,7 +226,17 @@ modsearch config show                       # key 打码显示
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
-DeepSeek 官方端点自带服务端 `web_search` 工具，Codex 走的 Responses API 承接，Claude Code 走的 Anthropic 兼容端点也承接，配上 `web_search = "live"` 直连 `api.deepseek.com`，普通搜索就被顺手覆盖了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。ModSearch 真正派上用场是这几种情况：你的渠道没内置搜索（DashScope 和大多数第三方网关都是这样，官方的 `/chat/completions` 端点也没提供这个工具，OpenCode、Pi 这些宿主就是这么被挡在门外的）、你要精读某一个具体页面（`-u` 抓取，内置搜索干不了）、你要查 X 上的内容（Google 索引进不去）、或者你用的宿主压根没有原生搜索工具。
+先说清楚一件事：DeepSeek 官方端点自带服务端 `web_search`，Codex 走的 Responses API 承接，Claude Code 走的 Anthropic 兼容端点也承接，配上 `web_search = "live"` 直连 `api.deepseek.com` 就有搜索能力了（见[官方集成文档](https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex)）。
+
+所以在 Codex 里，ModSearch 换来的不是「从无到有」，是前面那笔账：搜索不再往你的上下文里灌整页网页。想把这活交给它，在 `~/.codex/config.toml` 里关掉内置的那条：
+
+```toml
+web_search = "disabled"
+```
+
+内置搜索开着的时候模型会优先伸手用它，skill 很难插上话，关掉之后触发条件才生效。
+
+另外有几种情况是内置搜索给不了的：官方的 `/chat/completions` 端点没提供这个工具（OpenCode、Pi 这些宿主就是这么被挡在门外的），DashScope 和大多数第三方网关同理。精读某一个页面、查 X 上的内容，也都不在它的能力范围里。
 
 ## 为什么外挂，而不是换更大的模型？
 

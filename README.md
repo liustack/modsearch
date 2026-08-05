@@ -11,7 +11,11 @@
 
 DeepSeek-V4-Flash gives you a lot of model for very little money: fast and strong, but its built-in web search is weak, and most third-party gateways ship no search at all. A model that cannot look things up or read a web page is a real handicap these days.
 
-ModSearch fixes this the lightest way possible: it never touches your config, never adds a local proxy, and is just a search plug-in you can run as a CLI or install as an Agent Skill. What it hands back is not a scraped blob of page text but structured search evidence: a summary, a source list with titles, links and dates, and an honest list of what it could not pin down. Searching and page fetching live in one tool, `-q` searches, `-u` fetches. The default engine is [Antigravity CLI](https://antigravity.google) (`agy`), running on Google's own index, with no key required. How it works:
+It is not only a question of having search at all. Even when your model ships with it, that route quietly bills you: the pages it retrieves are pushed whole into your model's context, and one search-heavy answer measured about 30,000 tokens here.
+
+ModSearch moves that step outside your model. Retrieval and distillation happen elsewhere, and your model reads a few hundred tokens of structured evidence instead: a summary, a source list with titles, links and dates, and an honest list of what could not be pinned down. **Two orders of magnitude apart.**
+
+It never touches your config and never adds a local proxy. Run it as a CLI or install it as an Agent Skill: `-q` searches, `-u` reads one page closely, and with Grok Build installed it reaches X too. How it works:
 
 ```text
 your text-only model ──▶ modsearch skill (auto-triggers on fresh-info needs)
@@ -29,6 +33,23 @@ your text-only model ──▶ modsearch skill (auto-triggers on fresh-info need
 ```
 
 Install the skill once and your agent starts searching and reading the web on its own. No model swap, no API key, no prompt surgery.
+
+## Why not just use built-in search
+
+Built-in search works like this: the model asks, the server pushes the retrieved pages into the context whole, and the model hunts for the answer inside them. You pay for every navigation bar, every footer, every cookie banner, none of which has anything to do with your question. One search-heavy answer measured about 30,000 tokens here, most of it spent exactly there.
+
+ModSearch hands your model evidence, not raw material.
+
+| | Built-in search | Search MCP servers | ModSearch |
+| :-- | :-- | :-- | :-- |
+| Cost to your model's context | whole pages, ~30k tokens per answer measured | usually whole pages too | a few hundred tokens of structured evidence |
+| Who pays those tokens | your API bill | your API bill | retrieval happens outside, off that bill |
+| When your channel has no search tool | unavailable (third-party gateways, chat completions endpoints) | works | works |
+| Reading one specific URL | usually not offered | depends on the server | `-u`, with an extraction focus |
+| Content on X (Twitter) | invisible | invisible | visible with Grok Build installed |
+| Setup cost | none | install a server, edit config | one CLI or skill, zero config to start |
+
+The honest weaknesses: agy's free tier is a weekly quota and heavy use will hit the wall (a Tavily key picks up automatically when it does), the X route needs a SuperGrok or X Premium subscription, and the local fetcher runs no JavaScript, so pages rendered entirely client-side come back thin.
 
 ## Quick start
 
@@ -132,7 +153,9 @@ Open-ended questions work too: ask "anything fun in AI today" and get six source
 
 X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
 
-Install it and it just works: an X-flavored query runs entirely on Grok and comes back with real posts, author handles, and x.com links. Without it nothing breaks. Web search takes the question instead, and the result says plainly in `uncertainty` that this is second-hand, because the web cannot see inside X.
+Install it and it just works. Two conditions decide it: the query mentions X (`twitter`, `tweet`, `x.com`, `on X`, or the Chinese equivalents), and `grok` is installed and signed in on this machine. When both hold, the query goes **to X only**, spending no agy quota.
+
+What comes back is real posts, author handles, and x.com links. Without Grok nothing breaks: web search takes the question and the result says plainly in `uncertainty` that this is second-hand, because the web cannot see inside X. Decide it yourself with `--source x`, `--source web,x`, or `--source web`.
 
 ## CLI reference
 
@@ -203,7 +226,17 @@ You don't have to remember any of it: the skill carries the full setup guide, so
 
 ## Using it in Codex (DeepSeek and friends)
 
-DeepSeek's official endpoints ship a server-side `web_search` tool, carried by both the Responses API that Codex speaks and the Anthropic-compatible endpoint that Claude Code speaks, so pointing either at `api.deepseek.com` with `web_search = "live"` already covers plain searching (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)). ModSearch earns its keep elsewhere: your channel has no built-in search (DashScope and most third-party gateways, and also the official `/chat/completions` endpoint, which simply does not offer the tool, which is what shuts OpenCode and Pi out), you need to read one specific page (`-u` fetch, which built-in search cannot do), you need something from X (Google's index cannot see inside), or your harness has no native search tools at all.
+First, the honest part: DeepSeek's official endpoints ship a server-side `web_search` tool, carried by both the Responses API that Codex speaks and the Anthropic-compatible endpoint that Claude Code speaks, so pointing either at `api.deepseek.com` with `web_search = "live"` already gives you search (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)).
+
+So inside Codex, ModSearch is not about going from nothing to something. It is the bill from earlier: search stops pouring whole pages into your context. To hand it the job, turn the built-in one off in `~/.codex/config.toml`:
+
+```toml
+web_search = "disabled"
+```
+
+While the built-in tool is on, the model reaches for it first and the skill rarely gets a word in. Switched off, the skill's triggers apply.
+
+A few things built-in search cannot give you at all: the official `/chat/completions` endpoint does not offer the tool (which is what shuts OpenCode and Pi out), and neither do DashScope or most third-party gateways. Reading one specific page and reaching X are outside its scope too.
 
 ## Why a bridge instead of a bigger model?
 
