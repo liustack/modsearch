@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.3.0 - 2026-08-06
+
+- README rebuilt against how widely used projects actually write theirs (uv, crush, openclaw, hermes-agent, and current guidance): install command inside the first screen, a nav row and badges in the hero, short scannable highlights, and roughly 1,000 words instead of a long read. Detail moved into `docs/harness-setup.md` and `docs/security.md` rather than being inlined, and a Documentation table points at all of it.
+
 ## 3.2.7 - 2026-08-06
 
 - README rewritten rather than patched again. The token argument had been made five separate times (opening, feature list, its own section, the comparison table, the Codex section), the hero ran nineteen lines before the first heading, the feature list and the capability table said the same things, and the comparison compared on weak axes ("setup cost" and "who pays those tokens" are one question). Twelve sections became eight, and phrases that announce honesty rather than demonstrate it are gone.
