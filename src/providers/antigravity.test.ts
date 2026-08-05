@@ -15,6 +15,7 @@ describe('buildAntigravityInvocation (search mode)', () => {
       maxResults: 5,
       extraPrompt: 'Prefer official sources',
       timeoutMs: 120_000,
+      settings: {},
     });
 
     expect(invocation.command).toBe('agy');
@@ -35,7 +36,9 @@ describe('buildAntigravityInvocation (search mode)', () => {
   });
 
   it('requires a query', () => {
-    expect(() => buildAntigravityInvocation({ mode: 'search', timeoutMs: 1000 })).toThrow(
+    expect(() => buildAntigravityInvocation({ mode: 'search', timeoutMs: 1000,
+      settings: {},
+    })).toThrow(
       'Search mode requires a query.',
     );
   });
@@ -48,6 +51,7 @@ describe('buildAntigravityInvocation (fetch mode)', () => {
       url: 'https://example.com/docs',
       query: 'rate limits',
       timeoutMs: 180_000,
+      settings: {},
     });
 
     expect(invocation.args).toContain(DEFAULT_MODEL);
@@ -63,7 +67,9 @@ describe('buildAntigravityInvocation (fetch mode)', () => {
   });
 
   it('requires a url', () => {
-    expect(() => buildAntigravityInvocation({ mode: 'fetch', timeoutMs: 1000 })).toThrow(
+    expect(() => buildAntigravityInvocation({ mode: 'fetch', timeoutMs: 1000,
+      settings: {},
+    })).toThrow(
       'Fetch mode requires a URL.',
     );
   });

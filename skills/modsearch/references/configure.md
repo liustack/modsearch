@@ -1,91 +1,116 @@
 # Configuring ModSearch
 
-Read this when the user asks how to set up modsearch, wants to add a key, switch engines, or asks why a run failed for setup reasons. Run the commands for them instead of pasting instructions.
+Read this when the user asks how to set up modsearch, wants a key added, wants a different engine, or hits a setup-related failure. Run the commands for them instead of pasting instructions.
 
-## Where config lives
+## The mental model
 
-`~/.modsearch/config.json`, written with 0600 permissions and printed with keys masked.
+Three jobs, called roles. Each role has engines that can do it:
 
-Precedence: CLI flags > environment variables > this file > built-in defaults.
+| Role | What it does | Engines |
+| :-- | :-- | :-- |
+| `search` | search the public web | `antigravity-cli`, `tavily` |
+| `fetch` | read one URL | `antigravity-cli`, `http` |
+| `social` | search X (Twitter) | `grok-cli` |
 
-```bash
-modsearch config init     # write a starter file
-modsearch config show     # effective config, keys masked
-```
+Two facts follow from this table, and they answer most questions:
 
-## What each engine can do
+- **Page fetch always works.** The `http` engine needs nothing installed, and it is the last resort for `fetch` no matter what else is configured or broken.
+- **Web search needs one engine.** Either Antigravity CLI (free, no key) or a Tavily key. With neither, `-q` explains both options instead of failing silently.
 
-| Engine | Search (`-q`) | Fetch (`-u`) | Needs |
-| :-- | :-- | :-- | :-- |
-| `antigravity-cli` (default) | yes | yes | `agy` installed and signed in, no key |
-| `tavily` | yes | no | a Tavily key |
-| `grok-cli` | X posts only | no | Grok Build installed and signed in |
-| `http` | no | yes | nothing at all |
+X is a separate corpus, not a competing search engine, so it never replaces web search. `--source` chooses corpora, `--engine` chooses the tool.
 
-Page fetch prefers `antigravity-cli` and falls back to `http` when agy is missing, so `-u` always works. `http` is a plain HTTP request plus text extraction: fast and free, but no synthesis, no focus narrowing, and nothing for JavaScript-rendered pages.
+## Zero setup
 
-## Engine setup
+modsearch runs with no config file at all. It looks at what is on the machine and uses the best thing available. Only create a config when the user wants to change that.
 
-### antigravity-cli (default, free, no key)
+The fastest path to a fully working setup is Antigravity CLI, because it covers both search and fetch with no key:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy    # the user completes a browser sign-in, then exits
 ```
 
-Sign-in cannot be done non-interactively: ask the user to run `agy` once themselves. Its free tier is a weekly quota shared with the Antigravity desktop app and SDK, so heavy days can exhaust it. When they do, the error says so and the fix is to wait for the reset or use another engine.
+Sign-in cannot be done non-interactively: ask the user to run `agy` once themselves.
+
+## Config file
+
+`~/.modsearch/config.json`, written 0600, keys masked when shown. Precedence: CLI flags > environment variables > this file > built-in defaults.
+
+```bash
+modsearch config init     # starter file, every field optional
+modsearch config show     # effective config, keys masked
+```
+
+Shape:
+
+```json
+{
+  "search": { "engine": "" },
+  "fetch":  { "engine": "" },
+  "social": { "engine": "" },
+  "engines": {
+    "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
+    "tavily":          { "apiKey": "" },
+    "grok-cli":        { "bin": "grok" },
+    "http":            { "allowPrivateNetwork": "false" }
+  }
+}
+```
+
+An empty `engine` means "use the best available one". Setting it pins that role only, and never disturbs the others.
+
+```bash
+modsearch config set search.engine tavily     # pin web search to Tavily
+modsearch config set search.engine ""         # back to automatic
+modsearch config set tavily.apiKey <key>      # engine credentials
+```
+
+A config written before roles existed (one global `provider` plus a `providers` map) is read and mapped automatically. Nothing to migrate by hand.
+
+## Engine setup
+
+### antigravity-cli (search + fetch, free, no key)
+
+Install and sign in as above. Its free tier is a weekly quota shared with the Antigravity desktop app and SDK, so a heavy day can exhaust it. The error says so plainly when that happens.
 
 ```bash
 modsearch config set antigravity-cli.model gemini-3.1-pro-high   # harder research questions
 modsearch config set antigravity-cli.bin /custom/path/to/agy
 ```
 
-### tavily (search only, free tier)
+### tavily (search, free tier)
 
-Free tier is 1,000 credits a month with no credit card, and a basic search costs one credit. Key from https://app.tavily.com.
+1,000 credits a month, no credit card, one credit per basic search. Key from https://app.tavily.com.
 
 ```bash
 modsearch config set tavily.apiKey <key>
 # or environment: export TAVILY_API_KEY=<key>
-modsearch -q "<query>" -p tavily
 ```
 
-Good backup when agy's quota is spent. It cannot fetch pages.
+Good insurance when agy's quota runs dry: with a key present, web search falls to Tavily on its own.
 
-### grok-cli (X/Twitter, rides a SuperGrok or X Premium subscription)
+### grok-cli (X, rides a SuperGrok or X Premium subscription)
 
 ```bash
 curl -fsSL https://x.ai/cli/install.sh | bash
 grok    # the user signs in with SuperGrok or X Premium
-modsearch config set grok-cli.bin /custom/path/to/grok
 ```
 
-No modsearch setting turns this on: X-flavored queries route here automatically once `grok` is installed and signed in. `--x` forces the route, `--no-x` keeps it off.
+Nothing else to turn on. An X-flavored query goes to X automatically once `grok` is installed and signed in. Without it, an X question is answered from the public web, and the result says so in `uncertainty`.
 
-### http (page fetch, nothing to install)
+### http (fetch, nothing to install)
 
-Nothing to set up. It carries SSRF guards, so a VPN that maps public hosts into reserved ranges will trip them:
+No setup. It carries SSRF guards, so a VPN that maps public hosts into reserved ranges will trip them:
 
 ```bash
 modsearch -u <url> --allow-private-network
 modsearch config set http.allowPrivateNetwork true   # make it permanent
 ```
 
-## Pinning an engine
-
-Leave `provider` empty to keep routing (X queries to `grok-cli`, everything else to `antigravity-cli`). Set it to pin one engine and turn routing off.
-
-```bash
-modsearch config set provider tavily   # pin
-modsearch config set provider ""       # back to routing
-```
-
-Pinning a search-only engine means `-u` page fetch stops working. Say so before pinning if the user fetches pages.
-
 ## Troubleshooting
 
-- `Provider CLI not found: agy`: Antigravity CLI is not installed, or `antigravity-cli.bin` points somewhere wrong.
-- Quota errors from agy: the weekly free quota is spent. Wait for the reset in the message, or switch to `tavily` for search.
-- `does not support page fetch`: the selected engine only searches. The message lists what else is set up here. Do not push agy on a user who has not asked for fetching.
-- `The tavily engine needs an API key`: set it with the command above.
+- `No engine on this machine can search the web`: neither agy nor a Tavily key is set up. The message lists both fixes. Offer, do not insist.
+- Quota errors from agy: the weekly free quota is spent. Add a Tavily key, or wait for the reset named in the message.
+- `Blocked private network target`: SSRF guard. If the user is behind a VPN, retry with `--allow-private-network`.
+- Wrong engine name in config: modsearch says so in `uncertainty` and uses a working engine anyway. Fix the name when the user wants that engine back.
 - Timeouts: retry once with `--timeout 300000` before reporting failure.

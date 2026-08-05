@@ -1,60 +1,51 @@
-import { spawn } from 'child_process';
-import { loadConfigFile, resolveProviderSettings, type ModsearchConfig } from './config.ts';
-import { commandOnPath, grokAvailable, isXQuery } from './providers/grok.ts';
-import {
-  providersForMode,
-  resolveProvider,
-  type ProviderInvocation,
-  type ProviderParsedOutput,
-  type RunMode,
-  type SearchProvider,
-} from './providers/index.ts';
+import { engineSettings, loadConfigFile, type ModsearchConfig } from './config.ts';
+import { enginesForRole, type EngineOutput, type RunMode, type SearchEngine, type Source } from './providers/index.ts';
+import { parseSources, planRun, SOURCE_ROLE, type SourcePlan } from './router.ts';
+import { runCommand } from './subprocess.ts';
 
 export interface RunSearchOptions {
   query?: string;
   url?: string;
-  provider?: string;
+  /** Engine override for this run, e.g. `tavily`. */
+  engine?: string;
+  /** Source list, e.g. `web,x`. Undefined decides from the query. */
+  sources?: string;
   model?: string;
   prompt?: string;
   timeoutMs?: number;
-  providerBin?: string;
   maxResults?: number;
   workdir?: string;
-  /** X routing: true forces the grok route, false disables it, undefined = auto. */
-  x?: boolean;
-  grokBin?: string;
-  /** Let the http engine reach reserved ranges (VPN split tunnels). */
+  /** One-off override for the http engine's private network guard. */
   allowPrivateNetwork?: boolean;
   /** Injected config, for tests. Loaded from ~/.modsearch/config.json otherwise. */
   config?: ModsearchConfig;
+  env?: NodeJS.ProcessEnv;
+}
+
+/** One source's answer. Engine result fields are flattened in beside them. */
+export interface SourceResult {
+  source: Source;
+  engine: string;
+  model?: string;
+  durationSeconds: number | null;
+  [resultField: string]: unknown;
 }
 
 export interface RunSearchResult {
   mode: RunMode;
   query: string | null;
   url: string | null;
-  provider: string;
-  result: unknown;
+  /** Always an array, one entry per source, so the shape never changes. */
+  results: SourceResult[];
   meta: {
     generatedAt: string;
-    model: string;
-    conversationId: string | null;
-    durationSeconds: number | null;
-    usage: unknown | null;
+    durationSeconds: number;
   };
 }
 
-interface CommandResult {
-  stdout: string;
-  stderr: string;
-}
-
 const DEFAULT_TIMEOUT_MS = 180_000;
-// Give the provider's own timeout a chance to fire first; SIGTERM is the backstop.
+// Give the engine's own timeout a chance to fire first; SIGTERM is the backstop.
 const KILL_GRACE_MS = 30_000;
-// After the provider exits, how long to keep draining stdout before giving up
-// on the pipe closing. Reset whenever more output arrives.
-const DRAIN_GRACE_MS = 500;
 
 export function resolveMode(query?: string, url?: string): RunMode {
   const hasQuery = Boolean(query?.trim());
@@ -75,262 +66,154 @@ export function validateUrl(url: string): string {
   return trimmed;
 }
 
-/**
- * Pick the provider for this run. An explicit `-p`, or a provider pinned in
- * the config file, always wins. Otherwise X-flavored search queries route
- * entirely to Grok Build when it is installed and signed in, so they spend no
- * agy quota at all; everything else goes to the default provider.
- */
-export function routeProvider(options: {
-  mode: RunMode;
-  query?: string;
-  provider?: string;
-  pinnedProvider?: string;
-  x?: boolean;
-  grokBin?: string;
-  agyBin?: string;
-}): SearchProvider {
-  const requested = options.provider?.trim() || options.pinnedProvider?.trim();
-  if (requested) {
-    return resolveProvider(requested);
-  }
-  // Page fetch prefers agy for its synthesis and focus extraction, but a
-  // machine without agy should still be able to read a URL, so fall back to
-  // the direct HTTP engine instead of failing.
-  if (options.mode === 'fetch') {
-    return resolveProvider(commandOnPath(options.agyBin ?? 'agy') ? 'antigravity-cli' : 'http');
-  }
-  if (
-    options.mode === 'search' &&
-    options.query &&
-    options.x !== false &&
-    (options.x === true || isXQuery(options.query)) &&
-    grokAvailable(options.grokBin)
-  ) {
-    return resolveProvider('grok-cli');
-  }
-  return resolveProvider();
-}
-
 export async function runSearch(options: RunSearchOptions): Promise<RunSearchResult> {
+  const startedAt = Date.now();
   const query = options.query?.trim() || undefined;
   const url = options.url?.trim() ? validateUrl(options.url) : undefined;
   const mode = resolveMode(query, url);
-
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const env = options.env ?? process.env;
+  const config = options.config ?? loadConfigFile();
 
-  // Layered config: flags > env vars > ~/.modsearch/config.json > built-ins.
-  const config: ModsearchConfig = options.config ?? loadConfigFile();
-  const settings = (name: string) => resolveProviderSettings(name, config);
-  const agyBin = options.providerBin || settings('antigravity-cli').bin || undefined;
-  const grokBin = options.grokBin || settings('grok-cli').bin || undefined;
-  const tavilyKey = settings('tavily').apiKey;
-  const allowPrivateNetwork =
-    options.allowPrivateNetwork ?? settings('http').allowPrivateNetwork === 'true';
-  if (tavilyKey && !process.env.TAVILY_API_KEY) {
-    // The Tavily SDK reads the env var, so bridge the config file into it.
-    process.env.TAVILY_API_KEY = tavilyKey;
-  }
-
-  let provider = routeProvider({
+  const plans = planRun({
     mode,
     query,
-    provider: options.provider,
-    pinnedProvider: config.provider,
-    x: options.x,
-    grokBin,
-    agyBin,
+    config,
+    requestedEngine: options.engine,
+    requestedSources: options.sources ? parseSources(options.sources) : undefined,
+    env,
   });
 
-  // An engine that cannot serve this mode should say so plainly. Never demand
-  // that the user adopt a specific engine they may have skipped on purpose.
-  if (!provider.modes.includes(mode)) {
-    throw new Error(describeMissingCapability(provider.name, mode, agyBin ?? 'agy'));
-  }
-
-  const providerOptions = {
-    mode,
-    query,
-    url,
-    maxResults: options.maxResults,
-    extraPrompt: options.prompt,
-    providerBin: agyBin,
-    grokBin,
-    allowPrivateNetwork,
-    workdir: options.workdir,
-    timeoutMs,
-  };
-
-  let model = options.model || settings(provider.name).model || provider.defaultModel;
-  let parsed: ProviderParsedOutput;
-  try {
-    parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
-  } catch (error) {
-    // The grok route is best-effort: when it was chosen by routing (not by an
-    // explicit -p) and fails at runtime, fall back to the default provider
-    // silently instead of surfacing a broken bonus path.
-    if (provider.name === 'grok-cli' && !options.provider?.trim() && !config.provider?.trim()) {
-      provider = resolveProvider();
-      model = options.model || settings(provider.name).model || provider.defaultModel;
-      parsed = await runProvider(provider, { ...providerOptions, model }, timeoutMs);
-    } else {
-      throw error;
-    }
+  const results: SourceResult[] = [];
+  for (const plan of plans) {
+    results.push(await runOneSource(plan, { mode, query, url, timeoutMs, config, env, options }));
   }
 
   return {
     mode,
     query: query ?? null,
     url: url ?? null,
-    provider: provider.name,
-    result: parsed.result,
+    results,
     meta: {
       generatedAt: new Date().toISOString(),
-      model,
-      conversationId: parsed.meta.conversationId,
-      durationSeconds: parsed.meta.durationSeconds,
-      usage: parsed.meta.usage,
+      durationSeconds: (Date.now() - startedAt) / 1000,
     },
   };
 }
 
+async function runOneSource(
+  plan: SourcePlan,
+  context: {
+    mode: RunMode;
+    query?: string;
+    url?: string;
+    timeoutMs: number;
+    config: ModsearchConfig;
+    env: NodeJS.ProcessEnv;
+    options: RunSearchOptions;
+  },
+): Promise<SourceResult> {
+  const { mode, query, url, timeoutMs, config, env, options } = context;
+  const candidates = [plan.engine, ...plan.fallbacks].filter(Boolean);
+
+  if (candidates.length === 0) {
+    throw new Error(noEngineMessage(SOURCE_ROLE[plan.source] === 'social' ? 'social' : mode));
+  }
+
+  const failures: string[] = [];
+  for (const engine of candidates) {
+    const settings = engineSettings(engine.name, config, env);
+    if (options.allowPrivateNetwork) {
+      settings.allowPrivateNetwork = 'true';
+    }
+    const model = options.model || settings.model || engine.defaultModel;
+    const startedAt = Date.now();
+
+    let output: EngineOutput;
+    try {
+      output = await callEngine(
+        engine,
+        {
+          mode,
+          query,
+          url,
+          model,
+          maxResults: options.maxResults,
+          extraPrompt: options.prompt,
+          workdir: options.workdir,
+          timeoutMs,
+          settings,
+        },
+        timeoutMs,
+      );
+    } catch (error) {
+      failures.push(`${engine.name}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+
+    const notes = [...plan.notes];
+    if (failures.length > 0) {
+      notes.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
+    }
+
+    return {
+      source: plan.source,
+      engine: engine.name,
+      ...(model ? { model } : {}),
+      ...withNotes(output.result, notes),
+      durationSeconds: (Date.now() - startedAt) / 1000,
+    };
+  }
+
+  throw new Error(
+    `Every engine for the ${plan.source} source failed.\n${failures.map((line) => `  - ${line}`).join('\n')}`,
+  );
+}
+
+async function callEngine(
+  engine: SearchEngine,
+  request: Parameters<NonNullable<SearchEngine['execute']>>[0],
+  timeoutMs: number,
+): Promise<EngineOutput> {
+  if (engine.execute) {
+    return engine.execute(request);
+  }
+  if (engine.buildInvocation && engine.parseOutput) {
+    const invocation = engine.buildInvocation(request);
+    const commandResult = await runCommand(
+      engine.name,
+      invocation,
+      timeoutMs + KILL_GRACE_MS,
+      engine.describeFailure,
+    );
+    return engine.parseOutput(commandResult.stdout);
+  }
+  throw new Error(`Engine ${engine.name} implements neither execute nor buildInvocation.`);
+}
+
+/** Merge routing notes into the result's uncertainty list. */
+function withNotes(result: unknown, notes: string[]): Record<string, unknown> {
+  const shaped = (result && typeof result === 'object' ? { ...result } : { result }) as Record<
+    string,
+    unknown
+  >;
+  if (notes.length === 0) {
+    return shaped;
+  }
+  const existing = Array.isArray(shaped.uncertainty) ? (shaped.uncertainty as unknown[]) : [];
+  shaped.uncertainty = [...notes, ...existing];
+  return shaped;
+}
+
 /**
- * Explain a mode the chosen engine cannot serve, in terms of what is actually
- * on this machine. When nothing installed can do it, say so instead of
- * insisting on a dependency the user never asked for.
+ * Nothing on this machine can do this job. Say what would fix it, one line per
+ * engine, instead of naming a single dependency as if it were mandatory.
  */
-export function describeMissingCapability(
-  providerName: string,
-  mode: RunMode,
-  agyBin = 'agy',
-  isInstalled: (bin: string) => boolean = commandOnPath,
-): string {
-  const action = mode === 'fetch' ? 'page fetch (-u)' : 'search (-q)';
-  const head = `The ${providerName} engine does not support ${action}.`;
-  const usable = providersForMode(mode)
-    .map((provider) => provider.name)
-    .filter((name) => name !== providerName)
-    .filter((name) => (name === 'antigravity-cli' ? isInstalled(agyBin) : true));
-
-  if (usable.length > 0) {
-    return `${head} Set up here and able to: ${usable.join(', ')}. Drop -p to let modsearch route, or name one with -p <engine>.`;
-  }
-  return `${head} No other engine is set up here to do it either.`;
-}
-
-async function runProvider(
-  provider: SearchProvider,
-  providerOptions: Parameters<NonNullable<SearchProvider['buildInvocation']>>[0],
-  timeoutMs: number,
-): Promise<ProviderParsedOutput> {
-  if (provider.execute) {
-    return provider.execute(providerOptions);
-  }
-  if (provider.buildInvocation && provider.parseOutput) {
-    const invocation = provider.buildInvocation(providerOptions);
-    const commandResult = await runCommand(provider.name, invocation, timeoutMs + KILL_GRACE_MS);
-    return provider.parseOutput(commandResult.stdout);
-  }
-  throw new Error(`Provider ${provider.name} implements neither execute nor buildInvocation.`);
-}
-
-/** Exported for tests: the timeout path is otherwise behind a 30s backstop. */
-export function runCommand(
-  providerName: string,
-  invocation: ProviderInvocation,
-  timeoutMs: number,
-): Promise<CommandResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(invocation.command, invocation.args, {
-      cwd: invocation.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    let settled = false;
-    let drainTimer: NodeJS.Timeout | undefined;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGTERM');
-    }, timeoutMs);
-
-    // 'close' waits for every stdio pipe to close, but agy leaves a language
-    // server running that inherited the pipe, so its write end never closes
-    // and 'close' never fires (modlens issue #1). Settle on 'exit' plus a
-    // drain window instead, and drop the pipes afterwards so the lingering
-    // descendant cannot keep this process alive either.
-    const settle = (code: number | null) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      clearTimeout(drainTimer);
-      child.stdout?.destroy();
-      child.stderr?.destroy();
-      child.unref();
-
-      if (timedOut) {
-        reject(new Error(`${providerName} provider timed out after ${timeoutMs} ms.`));
-        return;
-      }
-      if (code !== 0) {
-        reject(
-          new Error(
-            `${providerName} provider failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
-          ),
-        );
-        return;
-      }
-      resolve({ stdout, stderr });
-    };
-
-    let exitCode: number | null = null;
-    let exited = false;
-    const restartDrain = () => {
-      if (!exited || settled) {
-        return;
-      }
-      clearTimeout(drainTimer);
-      drainTimer = setTimeout(() => settle(exitCode), DRAIN_GRACE_MS);
-    };
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-      restartDrain();
-    });
-
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-      restartDrain();
-    });
-
-    child.on('error', (error) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      clearTimeout(drainTimer);
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(
-          new Error(`Provider CLI not found: ${invocation.command}. Install it and sign in first.`),
-        );
-        return;
-      }
-      reject(error);
-    });
-
-    child.on('exit', (code) => {
-      exitCode = code;
-      exited = true;
-      restartDrain();
-    });
-
-    // Normal providers close their pipes right after exiting: settle at once.
-    child.on('close', (code) => settle(code));
-  });
+export function noEngineMessage(role: 'search' | 'fetch' | 'social'): string {
+  const options = enginesForRole(role)
+    .map((engine) => `  - ${engine.name}: ${engine.requirement}`)
+    .join('\n');
+  const job =
+    role === 'fetch' ? 'fetch a page' : role === 'social' ? 'search X' : 'search the web';
+  return `No engine on this machine can ${job}. Any one of these enables it:\n${options}`;
 }

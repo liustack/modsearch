@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.0 - 2026-08-05
+
+Breaking. modsearch used to treat every engine as one flat list with a single `-p` flag and a routing chain between them, which put a web search engine, an X client, and a page fetcher on the same axis. They are three different jobs, so they are now three roles.
+
+- **Roles**: `search` (public web: antigravity-cli, tavily), `fetch` (one URL: antigravity-cli, http), `social` (X: grok-cli). Each role picks its own engine, so changing one never disturbs another.
+- **Sources instead of engine swapping**: `--source web`, `--source x`, or `--source web,x`. X coexists with web search rather than replacing it. An X-flavored query still goes to X alone by default, spending no agy quota.
+- **Output contract**: `results` is now an array with one entry per source, each carrying `source`, `engine`, and that engine's result fields. Always an array, so the shape never changes. Replaces the old single `result` object.
+- **Config by role**: `~/.modsearch/config.json` gains `search`/`fetch`/`social` blocks plus one `engines` map. `modsearch config set search.engine tavily` pins one role. Old configs (`provider` plus `providers`) are read and mapped automatically.
+- **Page fetch cannot be configured into failure**: a wrong engine name, a missing binary, or a runtime error all fall through to the local `http` engine, which needs nothing installed.
+- **Zero config, zero install still works**: fetch runs anywhere, and when no search engine exists the error lists both ways to get one instead of naming a single dependency.
+- CLI: `-p/--provider` becomes `-e/--engine`, and `--x`/`--no-x` become `--source`. Internals split into `router.ts` (all routing), `subprocess.ts`, and `system.ts`.
+
 ## 2.6.0 - 2026-08-05
 
 - New `http` engine for page fetch, ported from the retired modfetch project: a plain HTTP request plus text and link extraction, with no dependencies, no key, and no quota. Page fetch now prefers `antigravity-cli` and falls back to `http` when agy is missing, so `-u` works on a machine with nothing installed. Honest trade: no LLM synthesis, no focus narrowing, and JavaScript-rendered pages come back thin.

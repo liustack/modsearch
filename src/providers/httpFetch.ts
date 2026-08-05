@@ -10,9 +10,9 @@
 import * as dns from 'dns/promises';
 import { isIP } from 'net';
 import type {
-  BuildProviderInvocationOptions,
-  ProviderParsedOutput,
-  SearchProvider,
+  EngineRequest,
+  EngineOutput,
+  SearchEngine,
 } from './index.ts';
 
 export interface FetchOptions {
@@ -671,17 +671,18 @@ export function extractLinks(html: string, baseUrl: string): Array<{ text: strin
 }
 
 export async function executeHttpFetch(
-  options: BuildProviderInvocationOptions,
-): Promise<ProviderParsedOutput> {
+  options: EngineRequest,
+): Promise<EngineOutput> {
   if (options.mode !== 'fetch' || !options.url) {
     throw new Error('The http engine does not support search (-q). It fetches one page at a time.');
   }
 
   const startedAt = Date.now();
+  const allowPrivate = options.settings.allowPrivateNetwork === 'true';
   const result = await runFetch({
     url: options.url,
     timeoutMs: Math.min(options.timeoutMs, 60_000),
-    allowPrivateNetwork: options.allowPrivateNetwork,
+    allowPrivateNetwork: allowPrivate,
   });
 
   const uncertainty: string[] = [
@@ -698,7 +699,7 @@ export async function executeHttpFetch(
       'This engine cannot narrow the page to a focus. The full text is here, so pick out the relevant parts yourself.',
     );
   }
-  if (options.allowPrivateNetwork) {
+  if (allowPrivate) {
     uncertainty.push(
       'Private network protection was disabled for this fetch, so the URL was trusted as given.',
     );
@@ -724,9 +725,10 @@ export async function executeHttpFetch(
   };
 }
 
-export const httpFetchProvider: SearchProvider = {
+export const httpFetchProvider: SearchEngine = {
   name: 'http',
-  modes: ['fetch'],
-  defaultModel: '',
+  roles: ['fetch'],
+  requirement: 'nothing, it always works',
+  isAvailable: () => true,
   execute: executeHttpFetch,
 };

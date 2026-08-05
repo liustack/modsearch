@@ -13,58 +13,19 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { searchResultSchemaJson } from '../schema.ts';
+import { commandOnPath } from '../system.ts';
 import type {
-  BuildProviderInvocationOptions,
+  EngineRequest,
   ProviderInvocation,
-  ProviderParsedOutput,
-  SearchProvider,
+  EngineOutput,
+  SearchEngine,
 } from './index.ts';
 
 export const DEFAULT_MAX_POSTS = 5;
 
-// Conservative on purpose: a false negative just means the query goes to the
-// default provider, while a false positive burns a grok run on a non-X topic.
-// `--x` forces the route on, `--no-x` pins it off.
-const X_QUERY_PATTERNS: RegExp[] = [
-  /twitter/i,
-  /\btweets?\b/i,
-  /\btweeted\b/i,
-  /\bx\.com\b/i,
-  /\bon\s+x\b/i,
-  /\bx\s+(?:post|posts|thread|threads|user|users|search|reply|replies|timeline)\b/i,
-  /推特/,
-  /推文/,
-  /发推/,
-  /在\s*[Xx]\s*上/,
-  /[Xx]\s*(?:平台|帖子)/,
-];
-
-export function isXQuery(query: string): boolean {
-  const trimmed = query.trim();
-  return trimmed.length > 0 && X_QUERY_PATTERNS.some((pattern) => pattern.test(trimmed));
-}
-
-export function commandOnPath(bin: string): boolean {
-  if (bin.includes(path.sep)) {
-    return fs.existsSync(bin);
-  }
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
-    if (!dir) {
-      continue;
-    }
-    try {
-      fs.accessSync(path.join(dir, bin), fs.constants.X_OK);
-      return true;
-    } catch {
-      // keep looking
-    }
-  }
-  return false;
-}
-
 /** Installed and signed in: binary reachable plus ~/.grok/auth.json present. */
-export function grokAvailable(bin = 'grok'): boolean {
-  return fs.existsSync(path.join(os.homedir(), '.grok', 'auth.json')) && commandOnPath(bin);
+export function grokAvailable(bin = 'grok', env: NodeJS.ProcessEnv = process.env): boolean {
+  return fs.existsSync(path.join(os.homedir(), '.grok', 'auth.json')) && commandOnPath(bin, env);
 }
 
 export function buildXSearchPrompt(query: string, maxResults: number): string {
@@ -85,7 +46,7 @@ Rules:
 6. Do not create or modify any files.`;
 }
 
-export function buildGrokInvocation(options: BuildProviderInvocationOptions): ProviderInvocation {
+export function buildGrokInvocation(options: EngineRequest): ProviderInvocation {
   if (options.mode !== 'search' || !options.query) {
     throw new Error('The grok-cli engine does not support page fetch (-u). It searches X only.');
   }
@@ -106,7 +67,7 @@ export function buildGrokInvocation(options: BuildProviderInvocationOptions): Pr
   }
 
   return {
-    command: options.grokBin || 'grok',
+    command: options.settings.bin || 'grok',
     args: [
       '-p',
       prompt,
@@ -127,7 +88,7 @@ interface GrokEnvelope {
   [key: string]: unknown;
 }
 
-export function parseGrokOutput(stdout: string): ProviderParsedOutput {
+export function parseGrokOutput(stdout: string): EngineOutput {
   const trimmed = stdout.trim();
   let parsed = tryParseJson(trimmed);
   if (parsed === null) {
@@ -232,9 +193,11 @@ function tryParseJson(text: string): unknown | null {
   }
 }
 
-export const grokCliProvider: SearchProvider = {
+export const grokCliProvider: SearchEngine = {
   name: 'grok-cli',
-  modes: ['search'],
+  roles: ['social'],
+  requirement: 'install Grok Build and sign in with SuperGrok or X Premium',
+  isAvailable: (settings, env) => grokAvailable(settings.bin, env),
   defaultModel: '',
   buildInvocation: buildGrokInvocation,
   parseOutput: parseGrokOutput,

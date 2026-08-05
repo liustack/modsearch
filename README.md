@@ -32,16 +32,7 @@ Install the skill once and your agent starts searching and reading the web on it
 
 ## Quick start
 
-**1. Install Antigravity CLI and sign in** (one-time, no key):
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # opens browser sign-in, then exit
-```
-
-The free quota covers everyday use, but it is not unlimited (see Three engines below).
-
-**2. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
+**1. Install the skill.** Just tell your agent (Claude Code, Codex, OpenClaw, Cursor, ...):
 
 ```text
 Install the skill from https://github.com/liustack/modsearch
@@ -53,7 +44,16 @@ or do it yourself:
 npx -y skills add liustack/modsearch
 ```
 
-**3. Use it.** Ask anything time-sensitive, or paste in a URL. The skill fires whenever the model needs the live web.
+**2. Install Antigravity CLI and sign in** (one-time, no key). It covers both searching and page fetching on its own:
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy    # opens browser sign-in, then exit
+```
+
+**3. Use it.** Ask anything time-sensitive, or paste a URL. The skill fires when the model needs the live web.
+
+There is no config step. modsearch uses whatever is on your machine: page fetch needs nothing at all and always works, while search needs either agy or a Tavily key, and tells you about both if neither is there. Touch the config only when you want to change that, see below.
 
 ## See it work
 
@@ -120,62 +120,74 @@ Open-ended questions work too: ask "anything fun in AI today" and get six source
 
 X locked its doors after the API shutdown: Google's index cannot see inside, so no web search engine can tell you what people are saying on X. The one engine that can is xAI's own [Grok Build CLI](https://x.ai/news/grok-build-cli), included with SuperGrok and X Premium subscriptions.
 
-ModSearch handles it by routing, not by piling engines up. When a query smells like X (twitter, tweet, 推特, 推文, x.com, "on X") and a signed-in `grok` binary is on the machine, the whole search runs on Grok instead of agy: real posts, author handles, x.com status links, in the exact same JSON shape as every other search, and zero agy quota spent (that quota is thin, save it for what Google is actually good at). No Grok Build, or grok stumbles mid-run: the query silently falls back to the normal engine. Nothing to configure.
-
-```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"       # routes to grok-cli on its own
-modsearch -q "community mood about the release" --x   # force the route without keywords
-modsearch -q "..." --no-x                             # pin the default engine
-```
+Install it and it just works: an X-flavored query runs entirely on Grok and comes back with real posts, author handles, and x.com links. Without it nothing breaks. Web search takes the question instead, and the result says plainly in `uncertainty` that this is second-hand, because the web cannot see inside X.
 
 ## CLI reference
 
 ```bash
-modsearch -q "<query>"              # search mode
-modsearch -u <url> [-q "<focus>"]   # fetch mode
+modsearch -q "<query>"               # search mode
+modsearch -u <url> [-q "<focus>"]    # fetch mode
 ```
 
 | Flag | Meaning | Default |
 | :-- | :-- | :-- |
-| `-q, --query <text>` | Search query, or answer focus with `-u` | |
+| `-q, --query <text>` | Query, or the extraction focus when paired with `-u` | |
 | `-u, --url <url>` | Fetch this page instead of searching | |
+| `-s, --source <list>` | Corpora: `web`, `x`, or `web,x` | from the query, else `web` |
+| `-e, --engine <name>` | Force one engine for this run | picked per role |
 | `-o, --output <path>` | Also write JSON to a file | |
-| `-m, --model <name>` | Provider model | `gemini-3.6-flash-low` |
-| `-p, --provider <name>` | Provider | `antigravity-cli` |
-| `--max-results <n>` | Max search results | `8` |
+| `-m, --model <name>` | Engine model, where the engine has one | `gemini-3.6-flash-low` |
+| `--max-results <n>` | Maximum search results | `8` |
 | `--prompt <text>` | Extra constraints | |
-| `--timeout <ms>` | Provider timeout | `180000` |
-| `--provider-bin <path>` | Provider binary | `agy` |
-| `--workdir <path>` | Working directory for the provider | |
+| `--timeout <ms>` | Engine timeout | `180000` |
+| `--allow-private-network` | Let the http engine reach reserved ranges, for VPNs that map public hosts into them | off |
+| `--workdir <path>` | Working directory for engines that run a command | |
 
-Reach for `-m gemini-3.1-pro-high` on harder research questions. Output contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
+Output is always a `results` array, one entry per corpus, length 1 in the common case, so the shape never changes. Full contract: [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md).
 
-## Three engines
+## Three roles, four engines
 
-| Engine | Search `-q` | Fetch `-u` | Needs |
-| :-- | :-- | :-- | :-- |
-| `antigravity-cli` (default) | yes, on Google's index | yes | a signed-in `agy`, no key |
-| `tavily` | yes | no | a Tavily key ([free tier](https://app.tavily.com): 1,000 credits/month, no card, one credit per basic search) |
-| `grok-cli` | yes, X content only | no | a signed-in Grok Build (SuperGrok or X Premium) |
-| `http` | no | yes, direct HTTP | nothing at all |
+modsearch does three jobs, and each has its own engines. They are three separate dimensions, not competitors on one list:
 
-`http` is the floor: with no agy installed, page fetch lands here automatically. A plain HTTP request plus text extraction, no dependencies, no key, about a second. The trade is no LLM synthesis and no focus extraction, so you get the whole page as served, and JavaScript-rendered pages come back thin. With agy around, agy wins on quality.
+| Role | What it does | Engines |
+| :-- | :-- | :-- |
+| `search` | search the public web | `antigravity-cli` (free, no key), `tavily` (needs a key, has a free tier) |
+| `fetch` | read one URL | `antigravity-cli` (LLM extraction), `http` (plain HTTP, no dependencies) |
+| `social` | search X (Twitter) | `grok-cli` (Grok Build, included with SuperGrok or X Premium) |
 
-It carries SSRF guards (blocked hostnames, private address ranges, every redirect hop re-checked). If a VPN on your machine maps public hosts into reserved ranges, ordinary sites get blocked too: allow them with `--allow-private-network`, or `modsearch config set http.allowPrivateNetwork true`.
+Two guarantees follow, and they answer most questions:
 
-Config lives in `~/.modsearch/config.json`. Environment variables override the file (`TAVILY_API_KEY`), and CLI flags override everything:
+- **Page fetch always works.** The `http` engine needs nothing installed and is the floor for that role. A wrong config, a missing agy, an engine that dies mid-run: all of them land there rather than leaving a URL unreadable.
+- **Search needs one engine.** Either agy or a Tavily key. With neither, the command names both options instead of failing vaguely.
+
+X is a separate corpus, not a rival to Google, so it never replaces web search. `--source` picks corpora, `--engine` picks tools, and the two stay apart.
 
 ```bash
-modsearch config init                        # write a starter config
-modsearch config set tavily.apiKey <key>     # saved with 0600 perms
-modsearch config set provider tavily         # pin one engine, turns routing off
-modsearch config set provider ""             # clear it, routing is back
-modsearch config show                        # keys come out masked
+modsearch -q "..."                  # search the web
+modsearch -q "..." --source x       # search X only
+modsearch -q "..." --source web,x   # both, one entry each in the output
+modsearch -u <url>                  # fetch a page
 ```
 
-You don't have to remember any of that. The skill carries these instructions, so once it's installed you can just ask your agent: "set my Tavily key in modsearch," "how do I configure modsearch."
+An X-flavored query (twitter, tweet, 推特, 推文, x.com) goes to X on its own and spends no agy quota.
 
-`agy` wins on needing no key and loses on quota. Its free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Once it's gone you wait out the cycle: we hit that wall ourselves and the message read "94 hours until reset." If you search a lot, keep a `TAVILY_API_KEY` around as backup. The X route spends no agy quota at all.
+`agy` wins on needing no key and loses on quota: its free tier is now a one-time weekly grant, pooled across the desktop app, the CLI, and the SDK. Once it is gone you wait out the cycle (we hit that wall ourselves and the message read "94 hours until reset"). Adding a Tavily key gives you an automatic backup: when agy fails, search falls through on its own.
+
+## Configuration (optional)
+
+`~/.modsearch/config.json`, organised by role. Environment variables override the file, CLI flags override everything:
+
+```bash
+modsearch config init                       # starter file, every field optional
+modsearch config set tavily.apiKey <key>    # engine credentials, saved 0600
+modsearch config set search.engine tavily   # pin the engine for one role
+modsearch config set search.engine ""       # clear it, back to automatic
+modsearch config show                       # keys come out masked
+```
+
+An empty engine means "use whatever works here". Pinning one role never disturbs the other two. Configs in the old shape (one global `provider` plus a `providers` map) are read and mapped automatically, with nothing to migrate by hand.
+
+You don't have to remember any of it: the skill carries the full setup guide, so you can just ask your agent "set my Tavily key in modsearch."
 
 ## Using it in Codex (DeepSeek and friends)
 

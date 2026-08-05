@@ -3,8 +3,17 @@ import * as os from 'os';
 import * as path from 'path';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
+//
+// The file is organised by role, not by engine. A role is a job modsearch can
+// do (search the public web, fetch one page, search X), and each role names the
+// engine that should do it. Engine credentials and binaries live once, under
+// `engines`, so changing one role never disturbs another.
 
-export interface ProviderSettings {
+export type Role = 'search' | 'fetch' | 'social';
+
+export const ROLES: Role[] = ['search', 'fetch', 'social'];
+
+export interface EngineSettings {
   apiKey?: string;
   model?: string;
   bin?: string;
@@ -12,10 +21,16 @@ export interface ProviderSettings {
   allowPrivateNetwork?: string;
 }
 
+export interface RoleConfig {
+  /** Engine for this role. Empty means: use the best one available here. */
+  engine?: string;
+}
+
 export interface ModsearchConfig {
-  /** Pin one provider and skip routing. Empty string means auto-route. */
-  provider?: string;
-  providers?: Record<string, ProviderSettings>;
+  search?: RoleConfig;
+  fetch?: RoleConfig;
+  social?: RoleConfig;
+  engines?: Record<string, EngineSettings>;
 }
 
 export const CONFIG_DIR = path.join(os.homedir(), '.modsearch');
@@ -26,11 +41,53 @@ export function currentConfigPath(): string {
   return path.join(os.homedir(), '.modsearch', 'config.json');
 }
 
-const ENV_BINDINGS: Record<string, Partial<Record<keyof ProviderSettings, string>>> = {
+const ENV_BINDINGS: Record<string, Partial<Record<keyof EngineSettings, string>>> = {
   tavily: { apiKey: 'TAVILY_API_KEY' },
 };
 
-const SETTABLE_FIELDS: Array<keyof ProviderSettings> = ['apiKey', 'model', 'bin', 'allowPrivateNetwork'];
+const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
+  'apiKey',
+  'model',
+  'bin',
+  'allowPrivateNetwork',
+];
+
+/** Engines that used to be pinned globally, mapped to the role they serve. */
+const LEGACY_ENGINE_ROLES: Record<string, Role> = {
+  'antigravity-cli': 'search',
+  tavily: 'search',
+  'grok-cli': 'social',
+  http: 'fetch',
+};
+
+interface LegacyConfig {
+  provider?: string;
+  providers?: Record<string, EngineSettings>;
+}
+
+/**
+ * Configs written before roles existed had one global `provider` plus a
+ * `providers` map. Read those rather than making the user start over.
+ */
+export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): ModsearchConfig {
+  if (!raw.providers && !raw.provider) {
+    return raw;
+  }
+  const migrated: ModsearchConfig = {
+    ...(raw.search ? { search: raw.search } : {}),
+    ...(raw.fetch ? { fetch: raw.fetch } : {}),
+    ...(raw.social ? { social: raw.social } : {}),
+    engines: { ...raw.providers, ...raw.engines },
+  };
+  const pinned = raw.provider?.trim();
+  if (pinned) {
+    const role = LEGACY_ENGINE_ROLES[pinned];
+    if (role && !migrated[role]?.engine) {
+      migrated[role] = { engine: pinned };
+    }
+  }
+  return migrated;
+}
 
 export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfig {
   let raw: string;
@@ -45,7 +102,7 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
     if (!parsed || typeof parsed !== 'object') {
       return {};
     }
-    return parsed as ModsearchConfig;
+    return migrateLegacyConfig(parsed as ModsearchConfig & LegacyConfig);
   } catch (error) {
     throw new Error(
       `Failed to parse ${configPath}: ${(error as Error).message}. Fix or delete the file.`,
@@ -53,19 +110,22 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
   }
 }
 
-/** Resolve settings for one provider with env vars overriding the config file. */
-export function resolveProviderSettings(
-  providerName: string,
+/** Engine chosen for this role, if the user set one. */
+export function roleEngine(config: ModsearchConfig, role: Role): string | undefined {
+  return config[role]?.engine?.trim() || undefined;
+}
+
+/** Settings for one engine, with env vars overriding the file. */
+export function engineSettings(
+  engineName: string,
   config: ModsearchConfig,
   env: NodeJS.ProcessEnv = process.env,
-): ProviderSettings {
-  const fromFile = config.providers?.[providerName] ?? {};
-  const bindings = ENV_BINDINGS[providerName] ?? {};
+): EngineSettings {
+  const fromFile = config.engines?.[engineName] ?? {};
+  const bindings = ENV_BINDINGS[engineName] ?? {};
 
-  const settings: ProviderSettings = { ...fromFile };
-  for (const [field, envName] of Object.entries(bindings) as Array<
-    [keyof ProviderSettings, string]
-  >) {
+  const settings: EngineSettings = { ...fromFile };
+  for (const [field, envName] of Object.entries(bindings) as Array<[keyof EngineSettings, string]>) {
     const value = env[envName]?.trim();
     if (value) {
       settings[field] = value;
@@ -74,27 +134,35 @@ export function resolveProviderSettings(
   return settings;
 }
 
-/** Set a dotted key like "tavily.apiKey" or "provider" and persist with 0600 perms. */
-export function setConfigValue(dottedKey: string, value: string, configPath = currentConfigPath()): void {
+/**
+ * Set a dotted key and persist with 0600 perms. Two shapes:
+ *   search.engine tavily             role to engine
+ *   engines.tavily.apiKey <key>      engine setting
+ * The `engines.` prefix may be dropped: `tavily.apiKey` works too.
+ */
+export function setConfigValue(
+  dottedKey: string,
+  value: string,
+  configPath = currentConfigPath(),
+): void {
   const config = loadConfigFile(configPath);
+  const parts = dottedKey.split('.').filter(Boolean);
 
-  if (dottedKey === 'provider') {
-    config.provider = value;
+  if (parts.length === 2 && ROLES.includes(parts[0] as Role) && parts[1] === 'engine') {
+    config[parts[0] as Role] = { engine: value };
   } else {
-    const dot = dottedKey.indexOf('.');
-    if (dot <= 0 || dot === dottedKey.length - 1) {
+    const [engineName, field] = parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
+    if (!engineName || !field) {
       throw new Error(
-        `Invalid config key: ${dottedKey}. Use "provider" or "<provider>.<${SETTABLE_FIELDS.join('|')}>".`,
+        `Invalid config key: ${dottedKey}. Use "<${ROLES.join('|')}>.engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
       );
     }
-    const providerName = dottedKey.slice(0, dot);
-    const field = dottedKey.slice(dot + 1) as keyof ProviderSettings;
-    if (!SETTABLE_FIELDS.includes(field)) {
-      throw new Error(`Unknown config field: ${field}. Use ${SETTABLE_FIELDS.join(', ')}.`);
+    if (!SETTABLE_ENGINE_FIELDS.includes(field as keyof EngineSettings)) {
+      throw new Error(`Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`);
     }
-    config.providers ??= {};
-    config.providers[providerName] ??= {};
-    config.providers[providerName][field] = value;
+    config.engines ??= {};
+    config.engines[engineName] ??= {};
+    config.engines[engineName][field as keyof EngineSettings] = value;
   }
 
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -107,10 +175,11 @@ export function setConfigValue(dottedKey: string, value: string, configPath = cu
 }
 
 export const CONFIG_TEMPLATE: ModsearchConfig = {
-  // Empty means route automatically: X queries to grok-cli, everything else
-  // to antigravity-cli. Set a name here to pin one engine.
-  provider: '',
-  providers: {
+  // An empty engine means: use the best one available on this machine.
+  search: { engine: '' },
+  fetch: { engine: '' },
+  social: { engine: '' },
+  engines: {
     'antigravity-cli': { bin: 'agy', model: 'gemini-3.6-flash-low' },
     tavily: { apiKey: '' },
     'grok-cli': { bin: 'grok' },
@@ -136,13 +205,10 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
 export function renderConfig(config: ModsearchConfig): string {
   const masked: ModsearchConfig = {
     ...config,
-    providers: Object.fromEntries(
-      Object.entries(config.providers ?? {}).map(([name, settings]) => [
+    engines: Object.fromEntries(
+      Object.entries(config.engines ?? {}).map(([name, settings]) => [
         name,
-        {
-          ...settings,
-          ...(settings.apiKey ? { apiKey: maskKey(settings.apiKey) } : {}),
-        },
+        { ...settings, ...(settings.apiKey ? { apiKey: maskKey(settings.apiKey) } : {}) },
       ]),
     ),
   };

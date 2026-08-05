@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   extractLinks,
@@ -6,8 +9,8 @@ import {
   isPrivateIpAddress,
   normalizeFetchUrl,
 } from './httpFetch.ts';
-import { resolveProvider } from './index.ts';
-import { routeProvider } from '../search.ts';
+import { resolveEngine } from './index.ts';
+import { planRole } from '../router.ts';
 
 describe('http engine safety guards', () => {
   it.each([
@@ -70,39 +73,36 @@ describe('http engine extraction', () => {
 
 describe('http engine routing', () => {
   it('is registered as a fetch-only engine', () => {
-    const provider = resolveProvider('http');
-    expect(provider.name).toBe('http');
-    expect(provider.modes).toEqual(['fetch']);
-    expect(resolveProvider('direct').name).toBe('http');
+    const engine = resolveEngine('http');
+    expect(engine.name).toBe('http');
+    expect(engine.roles).toEqual(['fetch']);
+    expect(engine.isAvailable({}, {})).toBe(true);
+    expect(resolveEngine('direct').name).toBe('http');
   });
 
   it('takes over page fetch when agy is not installed', () => {
-    expect(routeProvider({ mode: 'fetch', agyBin: '/nonexistent/agy' }).name).toBe('http');
-    expect(routeProvider({ mode: 'fetch', agyBin: '/bin/sh' }).name).toBe('antigravity-cli');
+    const bare = planRole('fetch', {}, undefined, { PATH: '/nonexistent' } as NodeJS.ProcessEnv);
+    expect(bare.chain[0].name).toBe('http');
   });
 
   it('never takes over search', () => {
-    expect(routeProvider({ mode: 'search', query: 'anything' }).name).not.toBe('http');
+    expect(resolveEngine('http').roles).not.toContain('search');
   });
 });
 
 describe('private network escape hatch', () => {
   it('is off by default and settable from the config file', async () => {
     const { loadConfigFile, setConfigValue } = await import('../config.ts');
-    const fs = await import('fs');
-    const os = await import('os');
-    const path = await import('path');
-    const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-apn-')), 'config.json');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-apn-'));
+    const p = path.join(dir, 'config.json');
 
-    expect(loadConfigFile(p).providers?.http?.allowPrivateNetwork).toBeUndefined();
+    expect(loadConfigFile(p).engines?.http?.allowPrivateNetwork).toBeUndefined();
     setConfigValue('http.allowPrivateNetwork', 'true', p);
-    expect(loadConfigFile(p).providers?.http?.allowPrivateNetwork).toBe('true');
-    fs.rmSync(path.dirname(p), { recursive: true, force: true });
+    expect(loadConfigFile(p).engines?.http?.allowPrivateNetwork).toBe('true');
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('names the VPN case in the block message so the fix is obvious', async () => {
-    // A VPN that maps public hosts into 198.18/15 makes real sites look
-    // private, and a bare "blocked" message would send people hunting.
+  it('blocks a private target by default and names the VPN case', async () => {
     const { runFetch } = await import('./httpFetch.ts');
     await expect(runFetch({ url: 'http://127.0.0.1:1/x' })).rejects.toThrow(
       /Blocked private network target/,

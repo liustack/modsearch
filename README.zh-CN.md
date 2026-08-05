@@ -32,16 +32,7 @@ skill 装一次，你的 agent 以后自己搜索、自己读网页。模型不�
 
 ## 快速开始
 
-**1. 安装 Antigravity CLI 并登录**（一次性，零 key）：
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy    # 浏览器完成登录后退出
-```
-
-免费额度够日常用，但不是无限（见下文「三个引擎」）。
-
-**2. 安装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
+**1. 装 skill。** 直接告诉你的 agent（Claude Code、Codex、OpenClaw、Cursor 等）：
 
 ```text
 安装这个 skill https://github.com/liustack/modsearch
@@ -53,7 +44,16 @@ agy    # 浏览器完成登录后退出
 npx -y skills add liustack/modsearch
 ```
 
-**3. 用起来。** 问任何时效性问题，或者贴一个 URL 上去。模型需要联网的时候，skill 自动触发。
+**2. 装 Antigravity CLI 并登录**（一次性，零 key）。它一个人就把搜索和抓网页都包了：
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy    # 浏览器完成登录后退出
+```
+
+**3. 用起来。** 问任何时效性问题，或者贴一个 URL 上去。模型需要联网时 skill 自动触发。
+
+没有配置文件这一步。modsearch 看你装了什么就用什么：抓网页本来就零依赖，永远能用，搜索则需要 agy 或者一个 Tavily key，两个都没有时它会把两条路都告诉你。想改默认行为再去碰配置，见下文。
 
 ## 看看效果
 
@@ -120,13 +120,7 @@ npx @liustack/modsearch -u "https://github.com/liustack/liustack" -q "what skill
 
 X 关上 API 大门之后，Google 的索引进不去，任何网页搜索引擎都答不了「X 上大家怎么说」。能进去的只有 xAI 自家的 [Grok Build CLI](https://x.ai/news/grok-build-cli)，SuperGrok 和 X Premium 订阅自带。
 
-ModSearch 的做法是路由，不是堆引擎。查询词里带着 X 味（twitter、tweet、推特、推文、x.com、on X 这些），而且本机装着登录过的 `grok`，这条查询就整条改走 Grok：真实帖子、作者 handle、原帖链接，JSON 结构跟普通搜索一模一样，而且一点 agy 额度都不花（那点额度本来就紧张，留给 Google 真正擅长的活）。没装 Grok Build，或者 grok 半路失手，查询就安静回落到默认引擎。零配置。
-
-```bash
-modsearch -q "DeepSeek V4 Flash 在推特上的评价"   # 自动改走 grok-cli
-modsearch -q "社区对这次发布的风评" --x            # 没有关键词也强制路由
-modsearch -q "..." --no-x                          # 锁定默认引擎
-```
+装了它就自动生效：X 味的查询整条走 Grok，返回真实帖子、作者 handle、原帖链接。没装也不报错，问题会由网页搜索接手，并在 `uncertainty` 里老实写明「这是二手信息，网页看不进 X 里面」。
 
 ## CLI 参数
 
@@ -135,47 +129,65 @@ modsearch -q "<查询词>"              # 搜索模式
 modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 ```
 
-| 参数                    | 含义                                 | 默认值                 |
-| :---------------------- | :----------------------------------- | :--------------------- |
-| `-q, --query <text>`    | 查询词，配合 `-u` 使用时是提取关注点 |                        |
-| `-u, --url <url>`       | 抓取这一页，不做搜索                 |                        |
-| `-o, --output <path>`   | 同时把 JSON 写入文件                 |                        |
-| `-m, --model <name>`    | provider 模型                        | `gemini-3.6-flash-low` |
-| `-p, --provider <name>` | provider                             | `antigravity-cli`      |
-| `--max-results <n>`     | 搜索结果上限                         | `8`                    |
-| `--prompt <text>`       | 额外约束                             |                        |
-| `--timeout <ms>`        | provider 超时                        | `180000`               |
-| `--provider-bin <path>` | provider 可执行文件                  | `agy`                  |
-| `--workdir <path>`      | provider 运行目录                    |                        |
+| 参数 | 含义 | 默认值 |
+| :-- | :-- | :-- |
+| `-q, --query <text>` | 查询词，配合 `-u` 时是提取关注点 | |
+| `-u, --url <url>` | 抓这一页，不做搜索 | |
+| `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 看查询词，默认 `web` |
+| `-e, --engine <name>` | 本次强制用某个引擎 | 按角色自动挑 |
+| `-o, --output <path>` | 同时把 JSON 写入文件 | |
+| `-m, --model <name>` | 引擎模型（有模型概念的引擎才有用） | `gemini-3.6-flash-low` |
+| `--max-results <n>` | 搜索结果上限 | `8` |
+| `--prompt <text>` | 额外约束 | |
+| `--timeout <ms>` | 引擎超时 | `180000` |
+| `--allow-private-network` | 放行保留网段，给把公网域名映射进内网段的 VPN 用 | 关 |
+| `--workdir <path>` | 需要起子进程的引擎的运行目录 | |
 
-调研问题难啃，换成 `-m gemini-3.1-pro-high`。输出契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
+输出永远是 `results` 数组，一个语料一格，单语料时长度就是 1，形状不会变。完整契约见 [skills/modsearch/references/output-schema.md](skills/modsearch/references/output-schema.md)。
 
-## 三个引擎
+## 三个角色，四个引擎
 
-| 引擎 | 搜索 `-q` | 抓网页 `-u` | 需要什么 |
-| :-- | :-- | :-- | :-- |
-| `antigravity-cli`（默认） | ✓ 走 Google 索引 | ✓ | `agy` 登录过，零 key |
-| `tavily` | ✓ | 不支持 | 一个 Tavily key（[免费档](https://app.tavily.com)每月 1000 credits，不要信用卡，基础搜索 1 次 1 credit） |
-| `grok-cli` | ✓ 只管 X 上的内容 | 不支持 | Grok Build 登录过（SuperGrok 或 X Premium） |
-| `http` | 不支持 | ✓ 直接 HTTP 抓 | 什么都不用装 |
+modsearch 干三件事，每件事有自己的引擎。它们是三个维度，不是一条链上的竞品：
 
-`http` 是保底那条腿：没有 agy 时抓网页自动走它，纯 HTTP 请求加正文提取，零依赖零 key，一秒出结果。代价是没有 LLM 综合，也不能按关注点提炼，给你的是整页原文，JS 渲染的页面还会抓得很薄。有 agy 就优先用 agy，成色高一截。
+| 角色 | 干什么 | 可用引擎 |
+| :-- | :-- | :-- |
+| `search` | 搜公共网页 | `antigravity-cli`（免费零 key）、`tavily`（要 key，有免费档） |
+| `fetch` | 读一个 URL | `antigravity-cli`（带 LLM 提炼）、`http`（纯 HTTP，零依赖） |
+| `social` | 搜 X（推特） | `grok-cli`（要 Grok Build，SuperGrok 或 X Premium 订阅自带） |
 
-它自带 SSRF 防护（挡内网地址、云元数据端点、逐跳校验重定向）。如果你的 VPN 把公网域名映射进保留网段，正常网站也会被误挡，用 `--allow-private-network` 放行，或者 `modsearch config set http.allowPrivateNetwork true`。
+两条由此而来的保证，回答了大部分问题：
 
-配置放在 `~/.modsearch/config.json`，环境变量能盖过它（`TAVILY_API_KEY`），命令行参数最大：
+- **抓网页永远能用。** `http` 引擎什么都不用装，是 fetch 这一角色的兜底。配置写错、agy 没装、引擎跑挂，都会落到它，不会让你读不了网页。
+- **搜索需要一个引擎。** agy 或 Tavily key，二选一即可。都没有时命令会把两条路一起告诉你，而不是含糊报错。
+
+X 是另一个语料库，不是跟 Google 竞争的搜索引擎，所以它从不顶替网页搜索。`--source` 选语料，`--engine` 选工具，两件事分开。
 
 ```bash
-modsearch config init                        # 生成配置骨架
-modsearch config set tavily.apiKey <key>     # 落盘即 0600 权限
-modsearch config set provider tavily         # 钉死一个引擎，路由随之关闭
-modsearch config set provider ""             # 清空，恢复自动路由
-modsearch config show                        # key 打码显示
+modsearch -q "..."                  # 搜网页
+modsearch -q "..." --source x       # 只搜 X
+modsearch -q "..." --source web,x   # 两个都要，结果各占一格
+modsearch -u <url>                  # 抓网页
 ```
 
-这些命令你一条都不用记。skill 里带着这份配置说明，装完直接问你的 agent：「帮我把 Tavily key 配进 modsearch」「modsearch 怎么配置」，它自己会跑完。
+查询词里带 X 味（twitter、推特、推文、x.com 这些）会自动只走 X，一点 agy 额度都不花。
 
-`agy` 胜在零 key，短板是额度。它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，subagent 并行还加倍消耗，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。搜得多的人可以配上 `TAVILY_API_KEY` 备一手，X 那条路则完全不吃 agy 额度。
+`agy` 胜在零 key，短板是额度：它的免费档如今是一次性发放的周配额，桌面应用、CLI、SDK 共用一个池子，用超了得等下个周期（我们实测撞过一次，提示「94 小时后重置」）。配上 Tavily key 就有了自动备胎，agy 挂了搜索会自己落过去。
+
+## 配置（可选）
+
+`~/.modsearch/config.json`，按角色组织，环境变量能盖过它，命令行参数最大：
+
+```bash
+modsearch config init                       # 生成骨架，每个字段都可留空
+modsearch config set tavily.apiKey <key>    # 引擎凭据，落盘即 0600
+modsearch config set search.engine tavily   # 钉死某个角色的引擎
+modsearch config set search.engine ""       # 清空，恢复自动挑选
+modsearch config show                       # key 打码显示
+```
+
+引擎留空就是「本机有什么用什么」。钉死只影响那一个角色，不会波及另外两个。老格式的配置文件（一个全局 `provider` 加一个 `providers` 表）会被自动读懂并映射过来，不用手动迁移。
+
+这些命令你一条都不用记：skill 里带着完整的配置说明，直接问你的 agent「帮我把 Tavily key 配进 modsearch」就行。
 
 ## 在 Codex 里用（DeepSeek 等纯文本模型）
 
