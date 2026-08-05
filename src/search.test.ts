@@ -116,6 +116,53 @@ describe('a forced --engine is strict', () => {
   }, 30_000);
 });
 
+describe('X degrade is labeled, never silently mislabeled', () => {
+  afterEach(() => cleanupTempDirs());
+
+  it('marks a web-served X answer as degraded web while keeping requestedSource x', async () => {
+    // No Grok on this machine, so a web engine answers the X request. The entry
+    // must not claim source "x": a consumer would read web hearsay as X data.
+    const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
+    const result = await runSearch({
+      query: '推特上怎么说',
+      sources: 'x',
+      config,
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+    });
+    expect(result.results).toHaveLength(1);
+    const entry = result.results[0];
+    expect(entry.source).toBe('web');
+    expect(entry.requestedSource).toBe('x');
+    expect(entry.status).toBe('degraded');
+    expect(entry.engine).toBe('antigravity-cli');
+    expect((entry.uncertainty as string[]).join(' ')).toContain('X itself was not reachable');
+  }, 30_000);
+
+  it('emits an explicit empty unavailable X entry for web,x when X is unreachable', async () => {
+    const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
+    const result = await runSearch({
+      query: 'node lts',
+      sources: 'web,x',
+      config,
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+    });
+    expect(result.results.map((r) => r.source)).toEqual(['web', 'x']);
+
+    const web = result.results[0];
+    expect(web.status).toBe('ok');
+    expect(web.requestedSource).toBe('web');
+
+    const x = result.results[1];
+    expect(x.status).toBe('unavailable');
+    expect(x.requestedSource).toBe('x');
+    expect(x.engine).toBeNull();
+    expect(x.items).toEqual([]);
+    expect((x.uncertainty as string[]).join(' ')).toContain('X itself was not reachable');
+  }, 30_000);
+});
+
 describe('routing facts cannot be faked by an engine', () => {
   afterEach(() => cleanupTempDirs());
 

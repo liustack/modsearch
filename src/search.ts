@@ -29,11 +29,24 @@ export interface RunSearchOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** How well this entry served the source that was requested. */
+export type SourceStatus = 'ok' | 'degraded' | 'unavailable';
+
 /** One source's answer. Engine result fields are flattened in beside them. */
 export interface SourceResult {
+  /** The corpus this entry actually came from. May differ from requestedSource. */
   source: Source;
-  engine: string;
+  /** The corpus that was asked for. Equals `source` unless the run degraded. */
+  requestedSource: Source;
+  /** Which engine answered, or null when the source was unreachable. */
+  engine: string | null;
   model?: string;
+  /**
+   * `ok`: served the requested source. `degraded`: a stand-in corpus answered
+   * (e.g. the web answering an X request, so it is second-hand). `unavailable`:
+   * nothing could serve the source, and `items` is empty.
+   */
+  status: SourceStatus;
   durationSeconds: number | null;
   [resultField: string]: unknown;
 }
@@ -121,7 +134,24 @@ async function runOneSource(
   },
 ): Promise<SourceResult> {
   const { mode, query, url, timeoutMs, config, env, options } = context;
-  const candidates = [plan.engine, ...plan.fallbacks].filter(Boolean);
+
+  // The source was asked for but nothing can serve it. Return an explicit
+  // empty entry rather than dropping the slot, so a consumer sees it was
+  // requested and came back empty on purpose.
+  if (plan.unavailable) {
+    return {
+      source: plan.source,
+      requestedSource: plan.source,
+      engine: null,
+      status: 'unavailable',
+      summary: '',
+      items: [],
+      uncertainty: plan.notes,
+      durationSeconds: null,
+    };
+  }
+
+  const candidates = [plan.engine, ...plan.fallbacks].filter(Boolean) as SearchEngine[];
 
   if (candidates.length === 0) {
     const base = noEngineMessage(SOURCE_ROLE[plan.source] === 'social' ? 'social' : mode);
@@ -171,6 +201,18 @@ async function runOneSource(
       }
     }
 
+    // The corpus this answer really came from. An X plan served by a web engine
+    // (Grok missing or dead) is second-hand web data: label it `web` with
+    // `status: "degraded"` so nobody reads it as X coverage. A social engine
+    // answering an X plan is the real thing.
+    const requestedSource = plan.source;
+    let actualSource: Source = plan.source;
+    let status: SourceStatus = 'ok';
+    if (plan.source === 'x' && !engine.roles.includes('social')) {
+      actualSource = 'web';
+      status = 'degraded';
+    }
+
     // Routing facts go last: an engine returning its own `source` or `engine`
     // key must not be able to rewrite who answered.
     // Strip routing-shaped keys the engine returned before stamping the real
@@ -178,15 +220,19 @@ async function runOneSource(
     // had no model of its own.
     const body = withNotes(output.result, notes);
     delete body.source;
+    delete body.requestedSource;
     delete body.engine;
     delete body.model;
+    delete body.status;
     delete body.durationSeconds;
 
     return {
       ...body,
-      source: plan.source,
+      source: actualSource,
+      requestedSource,
       engine: engine.name,
       model,
+      status,
       durationSeconds: (Date.now() - startedAt) / 1000,
     };
   }

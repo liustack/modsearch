@@ -124,16 +124,17 @@ describe('run plans', () => {
         env,
       });
       expect(plans.map((plan) => plan.source)).toEqual(['web', 'x']);
-      expect(plans[0].engine.name).toBe('antigravity-cli');
-      expect(plans[1].engine.name).toBe('grok-cli');
+      expect(plans[0].engine?.name).toBe('antigravity-cli');
+      expect(plans[1].engine?.name).toBe('grok-cli');
     } finally {
       restoreHome();
     }
   });
 
-  it('does not search the web twice when x degrades into it', () => {
-    // Both sources asked for, no grok: the web entry already covers the ground,
-    // so a second identical query would just bill the same quota again.
+  it('does not search the web twice, but keeps an explicit unavailable X slot', () => {
+    // Both sources asked for, no grok: the web entry covers its own ground, so
+    // no second identical query runs. The X slot is not dropped, though: it
+    // comes back as an explicit unavailable entry so the gap is visible.
     const plans = planRun({
       mode: 'search',
       query: 'anything',
@@ -141,16 +142,21 @@ describe('run plans', () => {
       requestedSources: ['web', 'x'],
       env: WITH_AGY,
     });
-    expect(plans).toHaveLength(1);
-    expect(plans[0].source).toBe('web');
-    expect(plans[0].notes).toContain(X_DEGRADE_NOTE);
+    expect(plans.map((plan) => plan.source)).toEqual(['web', 'x']);
+    // The web entry is a clean web answer, not a degraded one.
+    expect(plans[0].notes).not.toContain(X_DEGRADE_NOTE);
+    expect(plans[0].unavailable).toBeFalsy();
+    // The X entry runs nothing and carries the honest caveat.
+    expect(plans[1].unavailable).toBe(true);
+    expect(plans[1].engine).toBeUndefined();
+    expect(plans[1].notes).toContain(X_DEGRADE_NOTE);
   });
 
   it('carries the degrade note on the plan so a mid-run grok failure is flagged', () => {
     const { env, restoreHome } = envWithGrok();
     try {
       const [plan] = planRun({ mode: 'search', query: '推特上怎么说', config: config(), env });
-      expect(plan.engine.name).toBe('grok-cli');
+      expect(plan.engine?.name).toBe('grok-cli');
       expect(plan.degradeNote).toBe(X_DEGRADE_NOTE);
       expect(plan.fallbacks.length).toBeGreaterThan(0);
     } finally {
@@ -169,13 +175,13 @@ describe('run plans', () => {
     });
     restore();
     expect(plan.source).toBe('x');
-    expect(plan.engine.name).toBe('antigravity-cli');
+    expect(plan.engine?.name).toBe('antigravity-cli');
     expect(plan.notes).toContain(X_DEGRADE_NOTE);
   });
 
   it('fetch mode ignores sources and always plans a fetch chain', () => {
     const [plan] = planRun({ mode: 'fetch', config: config(), env: BARE });
-    expect(plan.engine.name).toBe('http');
+    expect(plan.engine?.name).toBe('http');
     expect(plan.source).toBe('web');
   });
 });

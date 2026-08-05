@@ -10,7 +10,7 @@ Provide the `modsearch` CLI tool that turns search queries and page URLs into st
 - **Two modes, one CLI**: `-q` searches the web, `-u` fetches a single page (absorbed from the retired `modfetch` project). `-u` plus `-q` fetches with an answer focus.
 - **Schema-enforced JSON output**: subprocess engines are invoked with `--json-schema`, so the structured result comes back guaranteed, no markdown scraping.
 - **Single responsibility**: this project handles the live web (search + fetch). Image parsing lives in `modlens`.
-- **X handling**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota; grok failure falls back to a web engine with a degrade note. An explicit `-e`/`--engine` is a hard force: exactly that engine, no fallback, an error if it cannot do the job. One shared output contract for every engine.
+- **X handling**: X-flavored `-q` queries route entirely to Grok Build (`grok-cli`) when it is installed and signed in, spending no agy quota. When Grok is missing or fails, a web engine answers instead, and that entry is marked `status: "degraded"` with `source: "web"` and `requestedSource: "x"` so the second-hand nature is explicit, never silent. On a `--source web,x` run with X unreachable, the X slot returns a separate `status: "unavailable"` entry rather than vanishing. An explicit `-e`/`--engine` is a hard force: exactly that engine, no fallback, an error if it cannot do the job. One shared output contract for every engine.
 
 ```bash
 pnpm install

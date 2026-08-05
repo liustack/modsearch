@@ -11,8 +11,10 @@ every run:
   "results": [
     {
       "source": "web",
+      "requestedSource": "web",
       "engine": "antigravity-cli",
       "model": "gemini-3.6-flash-low",
+      "status": "ok",
       "durationSeconds": 5.5,
       "summary": "The current Node.js LTS is v24.19.0 (Krypton), released 2026-08-03.",
       "items": [
@@ -47,17 +49,50 @@ Key points:
 
 ## The `results` entry
 
-Every entry starts with the same four routing fields, then flattens the engine's
-own result fields in beside them:
+Every entry starts with the same routing fields, then flattens the engine's own
+result fields in beside them:
 
 | Field | Meaning |
 | :-- | :-- |
-| `source` | `web` or `x`, the corpus this entry answers for |
-| `engine` | which engine actually answered (`antigravity-cli`, `tavily`, `grok-cli`, `http`) |
+| `source` | `web` or `x`, the corpus this entry's evidence actually came from |
+| `requestedSource` | `web` or `x`, the corpus that was asked for. Differs from `source` when the run degraded |
+| `engine` | which engine actually answered (`antigravity-cli`, `tavily`, `grok-cli`, `http`), or `null` when the source was unreachable |
 | `model` | the model used, where the engine has one (empty string when it does not) |
-| `durationSeconds` | how long this one source took |
+| `status` | `ok`, `degraded`, or `unavailable` (see below) |
+| `durationSeconds` | how long this one source took, or `null` when nothing ran |
 
 The remaining fields depend on the mode.
+
+### `status` and degraded X answers
+
+`status` tells a consumer how well the entry served the source that was asked
+for:
+
+- `ok`: the requested corpus answered. `source` equals `requestedSource`.
+- `degraded`: a stand-in corpus answered. Only X degrades today: when Grok Build
+  is missing, signed out, or failing, a web engine answers the X request. The
+  entry then reads `requestedSource: "x"`, `source: "web"`, `status: "degraded"`,
+  and `uncertainty` explains that web data cannot see inside X. Do not present a
+  degraded entry as X coverage.
+- `unavailable`: nothing could serve the source. `engine` is `null`, `items` is
+  empty, `durationSeconds` is `null`, and `uncertainty` says why. This appears
+  for the X slot of a `--source web,x` run when X is unreachable, so the slot is
+  explicit rather than silently missing:
+
+```json
+{
+  "source": "x",
+  "requestedSource": "x",
+  "engine": null,
+  "status": "unavailable",
+  "summary": "",
+  "items": [],
+  "uncertainty": [
+    "X itself was not reachable here (Grok Build missing, signed out, or failing), so this came from the public web, which cannot see inside X."
+  ],
+  "durationSeconds": null
+}
+```
 
 ## Search mode (`-q`)
 
@@ -96,8 +131,10 @@ The engine result flattened into the entry:
   "results": [
     {
       "source": "web",
+      "requestedSource": "web",
       "engine": "antigravity-cli",
       "model": "gemini-3.6-flash-low",
+      "status": "ok",
       "durationSeconds": 8.1,
       "summary": "About page for the Node.js project.",
       "content": "# About Node.js\nNode.js is a JavaScript runtime...",

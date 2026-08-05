@@ -1,6 +1,5 @@
 import { chosenEngine, engineSettings, type ModsearchConfig, type Role } from './config.ts';
 import {
-  enginesForRole,
   FETCH_FLOOR,
   findEngine,
   listEngines,
@@ -42,13 +41,20 @@ export const X_DEGRADE_NOTE =
 
 export interface SourcePlan {
   source: Source;
-  engine: SearchEngine;
+  /** The engine to try first. Absent on an `unavailable` plan, which runs nothing. */
+  engine?: SearchEngine;
   /** Added to the result when a fallback engine, not the first choice, answers. */
   degradeNote?: string;
   /** Engines to try after this one fails, in order. */
   fallbacks: SearchEngine[];
   /** Problems worth telling the user about, e.g. a config typo. */
   notes: string[];
+  /**
+   * No engine can serve this source. Instead of dropping the slot, emit an
+   * explicit empty entry (status "unavailable") so a machine consumer sees the
+   * source was asked for and could not be reached.
+   */
+  unavailable?: boolean;
 }
 
 export interface PlanInput {
@@ -153,16 +159,6 @@ export function planRole(
   return { chain, notes };
 }
 
-/** Is an engine for X usable right now? */
-function socialAvailable(input: PlanInput, env: NodeJS.ProcessEnv): boolean {
-  // Ask the engines directly. Reading the planned chain counted an explicitly
-  // named engine as present even when it was not installed, which then ran the
-  // same web search twice.
-  return enginesForRole('social').some((engine) =>
-    engine.isAvailable(engineSettings(engine.name, input.config, env), env),
-  );
-}
-
 /** Full plan: which sources to run, and the engine chain for each. */
 export function planRun(input: PlanInput): SourcePlan[] {
   const env = input.env ?? process.env;
@@ -176,7 +172,7 @@ export function planRun(input: PlanInput): SourcePlan[] {
   // When x degrades to the web and the web is already being consulted, running
   // both plans would issue the same query twice and bill it twice.
   const webRequested = sources.includes('web');
-  return sources.flatMap((source) => {
+  return sources.flatMap((source): SourcePlan[] => {
     const role = SOURCE_ROLE[source];
     const { chain, notes } = planRole(role, input.config, input.requestedEngine, env);
 
@@ -188,9 +184,18 @@ export function planRun(input: PlanInput): SourcePlan[] {
       const social = chain.filter((engine) => engine.roles.includes('social'));
       if (social.length === 0) {
         if (webRequested) {
-          // The web entry already covers this ground: drop the duplicate and
-          // let that entry carry the caveat.
-          return [];
+          // The web entry already answers this ground, so do not run a second
+          // identical search. But do not silently drop the X slot either: emit
+          // an explicit empty entry marked unavailable, so nobody mistakes the
+          // web result for X coverage.
+          return [
+            {
+              source: 'x' as Source,
+              fallbacks: [],
+              notes: [...notes, X_DEGRADE_NOTE],
+              unavailable: true,
+            },
+          ];
         }
         return [
           {
@@ -214,11 +219,10 @@ export function planRun(input: PlanInput): SourcePlan[] {
       ];
     }
 
-    const webNotes = [...notes];
-    if (webRequested && sources.includes('x') && !socialAvailable(input, env)) {
-      webNotes.push(X_DEGRADE_NOTE);
-    }
-    return [{ source, engine: chain[0], fallbacks: chain.slice(1), notes: webNotes }];
+    // A web result answering a web request is not degraded. When X was also
+    // asked for and is unreachable, the explicit unavailable X entry above
+    // carries that caveat, so this entry stays a clean web answer.
+    return [{ source, engine: chain[0], fallbacks: chain.slice(1), notes }];
   });
 }
 
