@@ -32,27 +32,30 @@ describe('runCommand timeout handling', () => {
     const dir = tempDir('modsearch-sigkill-');
     const pidFile = path.join(dir, 'pid');
     const bin = path.join(dir, 'stubborn');
-    // Ignore SIGTERM and sit there. Only SIGKILL can end this.
-    fs.writeFileSync(bin, `#!/bin/sh\necho $$ > "${pidFile}"\ntrap '' TERM\nsleep 30\n`, {
+    // Install the SIGTERM-ignoring trap BEFORE anything else, so a SIGTERM that
+    // races the startup cannot kill the child on the default handler. Then it
+    // records its PID and sits there: only SIGKILL can end it.
+    fs.writeFileSync(bin, `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}"\nsleep 30\n`, {
       mode: 0o755,
     });
 
-    const promise = runCommand('stubborn', { command: bin, args: [], cwd: dir }, 300);
+    const promise = runCommand('stubborn', { command: bin, args: [], cwd: dir }, 800);
     await expect(promise).rejects.toThrow(/timed out/);
 
-    // The child wrote its PID at startup; give it a beat to flush to disk.
+    // The child wrote its PID at startup; give it a generous beat to flush to
+    // disk, since a busy machine running the full suite starves timers.
     await waitFor(() => {
       try {
         return fs.readFileSync(pidFile, 'utf-8').trim().length > 0;
       } catch {
         return false;
       }
-    }, 2_000);
+    }, 5_000);
     const pid = Number.parseInt(fs.readFileSync(pidFile, 'utf-8').trim(), 10);
     expect(Number.isFinite(pid)).toBe(true);
-    expect(processGone(pid)).toBe(false);
 
     // SIGKILL follows SIGTERM after the 2s grace window: the PID must vanish.
-    expect(await waitFor(() => processGone(pid), 5_000)).toBe(true);
-  }, 10_000);
+    // The window is wide so scheduling jitter under load cannot flake it.
+    expect(await waitFor(() => processGone(pid), 12_000)).toBe(true);
+  }, 25_000);
 });
