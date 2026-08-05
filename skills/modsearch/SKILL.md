@@ -56,7 +56,7 @@ Three jobs, each with its own engines:
 
 modsearch picks per role from what is installed and falls through on failure, so do not probe first: run the command and read `results[].engine` to see who answered.
 
-- Page fetch never fails for want of an engine, because the local `http` engine is the floor. It returns the page as served, with no summary and no focus narrowing, so pick out the relevant parts yourself. Very little text back means the page is JavaScript-rendered, which that engine does not run: say so rather than claiming the page is empty.
+- Page fetch never fails for want of an engine, because the local `http` engine is the floor (unless you force a specific engine with `-e`, which turns off that fallback). It returns the page as served, with no summary and no focus narrowing, so pick out the relevant parts yourself. Very little text back means the page is JavaScript-rendered, which that engine does not run: say so rather than claiming the page is empty.
 - An X question answered by a web engine means Grok Build is not set up. That entry reads `status: "degraded"`, `requestedSource: "x"`, `source: "web"`, with the reason in `uncertainty`. Relay that caveat instead of presenting it as X coverage. On a `--source web,x` run where X is unreachable, the X slot comes back as a separate entry with `status: "unavailable"` and empty `items`, so the gap is explicit: report that X could not be reached rather than treating the web entry as if it covered X.
 - Setup and key questions: follow `references/configure.md` and run the commands for the user.
 
