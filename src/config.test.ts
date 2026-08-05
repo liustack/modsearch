@@ -89,10 +89,16 @@ describe('config file', () => {
     expect(engineSettings('tavily', config, {} as NodeJS.ProcessEnv).apiKey).toBe('from-file');
   });
 
-  it('init writes a template and refuses to overwrite without force', () => {
+  it('init writes only the shape, never baked-in defaults', () => {
+    // Pre-filling every engine buried the one real decision, and a default
+    // written into the file would silently outrank a future change to it.
     const p = tempConfigPath();
     initConfigFile(p);
-    expect(loadConfigFile(p).engines?.['antigravity-cli']?.bin).toBe('agy');
+    const config = loadConfigFile(p);
+    expect(config.engine).toBe('');
+    expect(config.engines).toEqual({});
+    expect(JSON.parse(fs.readFileSync(p, 'utf-8'))).toEqual({ engine: '', engines: {} });
+
     expect(() => initConfigFile(p)).toThrow('already exists');
     initConfigFile(p, true);
   });
