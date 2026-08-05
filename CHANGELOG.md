@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.2 - 2026-08-05
+
+- Docs: the README led with "your model's built-in search is a bit weak", which framed the whole project as a patch for one model's shortcoming and gave a reader with working search no reason to keep reading. It now leads with the cost that applies to everyone: built-in search pushes whole pages into your model's context, measured at about 30,000 tokens for one search-heavy answer, against a few hundred for structured evidence. Adds an honest comparison against built-in search and search MCP servers, weaknesses included, and states the two conditions that route a query to X.
+
 ## 3.2.1 - 2026-08-05
 
 - `config init` now writes only the shape (`{"engine": "", "engines": {}}`) instead of every engine with its fields pre-filled. The old skeleton buried the single real decision under placeholders, and worse, it wrote today's defaults (`bin: agy`, a model name) into the file, where they would silently outrank any future change to those defaults. The command prints what can be set instead of putting it on disk.
