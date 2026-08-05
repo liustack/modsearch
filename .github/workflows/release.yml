@@ -1,7 +1,9 @@
 name: release
 
-# Publishes to npm when a version tag is pushed (e.g. v3.4.0). Verifies first,
-# then publishes with provenance.
+# Publishes to npm and creates the GitHub release when a version tag is pushed
+# (e.g. v3.4.0). Verifies first, then publishes with provenance. This is the
+# single publisher: `pnpm release` only prepares and pushes the tag, it does not
+# publish, so there is no second process racing this one.
 #
 # PREREQUISITE (cannot be done from this repo): npm-side trusted publishing must
 # be enabled once, by hand, before this workflow can publish without a token.
@@ -20,7 +22,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write # required to create the GitHub release
   id-token: write # required for npm provenance / trusted publishing
 
 jobs:
@@ -41,3 +43,16 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm publish --access public --no-git-checks --provenance
+      - name: Build release notes from CHANGELOG
+        run: >
+          node --input-type=module -e "
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { changelogSection } from './scripts/changelog.mjs';
+          const version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          const notes = changelogSection(readFileSync('CHANGELOG.md', 'utf-8'), version) ?? '';
+          writeFileSync('RELEASE_NOTES.md', notes);
+          "
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md

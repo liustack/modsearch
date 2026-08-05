@@ -5,8 +5,14 @@
 //   pnpm release 3.2.4        explicit version
 //   pnpm release patch        bump from the current one
 //
-// The order matters: everything that can refuse to release runs before
-// anything irreversible (tag, push, publish) happens.
+// This script only prepares and pushes the release: validate, bump, commit,
+// tag, push. It does NOT publish. Pushing the tag triggers CI
+// (.github/workflows/release.yml), which publishes to npm with provenance and
+// creates the GitHub release. Two publishers racing (a local `pnpm publish`
+// plus the tag-triggered workflow) is exactly the double-publish this avoids.
+//
+// The order matters: everything that can refuse to release runs before the
+// tag and push, the only irreversible steps here.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -76,14 +82,8 @@ writeFileSync(pkgPath, pkgRaw.replace(`"version": "${pkg.version}"`, `"version":
 run('git', ['commit', '-am', `chore(release): v${next}`]);
 run('git', ['tag', '-a', `v${next}`, '-m', `v${next}`]);
 run('git', ['push', '--follow-tags']);
-runLoud('pnpm', ['publish', '--access', 'public', '--no-git-checks']);
 
-try {
-  run('gh', ['release', 'create', `v${next}`, '--title', `v${next}`, '--notes', notes]);
-  console.log(`\nGitHub release created: v${next}`);
-} catch (error) {
-  console.warn(`\nPublished, but the GitHub release failed: ${error.message}`);
-  console.warn(`Create it by hand: gh release create v${next} --notes-file <(...)`);
-}
-
-console.log(`\n${pkg.name} v${next} is out.`);
+console.log(`\nPushed v${next}. CI takes it from here.`);
+console.log('The release workflow (.github/workflows/release.yml) publishes to npm');
+console.log('with provenance and creates the GitHub release.');
+console.log('Watch it: gh run watch, or the repository Actions tab.');
