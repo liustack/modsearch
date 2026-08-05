@@ -157,8 +157,11 @@ modsearch -u <url> [-q "<关注点>"]   # 抓取模式
 | `antigravity-cli`（默认） | ✓ 走 Google 索引 | ✓ | `agy` 登录过，零 key |
 | `tavily` | ✓ | 不支持 | 一个 Tavily key（[免费档](https://app.tavily.com)每月 1000 credits，不要信用卡，基础搜索 1 次 1 credit） |
 | `grok-cli` | ✓ 只管 X 上的内容 | 不支持 | Grok Build 登录过（SuperGrok 或 X Premium） |
+| `http` | 不支持 | ✓ 直接 HTTP 抓 | 什么都不用装 |
 
-抓网页目前只有 `antigravity-cli` 能干。你要是只配了 Tavily，`-u` 会直说「这个引擎不支持抓网页」，并告诉你本机还有哪些引擎能干，不会硬要你去装 agy。
+`http` 是保底那条腿：没有 agy 时抓网页自动走它，纯 HTTP 请求加正文提取，零依赖零 key，一秒出结果。代价是没有 LLM 综合，也不能按关注点提炼，给你的是整页原文，JS 渲染的页面还会抓得很薄。有 agy 就优先用 agy，成色高一截。
+
+它自带 SSRF 防护（挡内网地址、云元数据端点、逐跳校验重定向）。如果你的 VPN 把公网域名映射进保留网段，正常网站也会被误挡，用 `--allow-private-network` 放行，或者 `modsearch config set http.allowPrivateNetwork true`。
 
 配置放在 `~/.modsearch/config.json`，环境变量能盖过它（`TAVILY_API_KEY`），命令行参数最大：
 

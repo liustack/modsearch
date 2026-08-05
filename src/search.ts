@@ -23,6 +23,8 @@ export interface RunSearchOptions {
   /** X routing: true forces the grok route, false disables it, undefined = auto. */
   x?: boolean;
   grokBin?: string;
+  /** Let the http engine reach reserved ranges (VPN split tunnels). */
+  allowPrivateNetwork?: boolean;
   /** Injected config, for tests. Loaded from ~/.modsearch/config.json otherwise. */
   config?: ModsearchConfig;
 }
@@ -86,10 +88,17 @@ export function routeProvider(options: {
   pinnedProvider?: string;
   x?: boolean;
   grokBin?: string;
+  agyBin?: string;
 }): SearchProvider {
   const requested = options.provider?.trim() || options.pinnedProvider?.trim();
   if (requested) {
     return resolveProvider(requested);
+  }
+  // Page fetch prefers agy for its synthesis and focus extraction, but a
+  // machine without agy should still be able to read a URL, so fall back to
+  // the direct HTTP engine instead of failing.
+  if (options.mode === 'fetch') {
+    return resolveProvider(commandOnPath(options.agyBin ?? 'agy') ? 'antigravity-cli' : 'http');
   }
   if (
     options.mode === 'search' &&
@@ -116,6 +125,8 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
   const agyBin = options.providerBin || settings('antigravity-cli').bin || undefined;
   const grokBin = options.grokBin || settings('grok-cli').bin || undefined;
   const tavilyKey = settings('tavily').apiKey;
+  const allowPrivateNetwork =
+    options.allowPrivateNetwork ?? settings('http').allowPrivateNetwork === 'true';
   if (tavilyKey && !process.env.TAVILY_API_KEY) {
     // The Tavily SDK reads the env var, so bridge the config file into it.
     process.env.TAVILY_API_KEY = tavilyKey;
@@ -128,6 +139,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     pinnedProvider: config.provider,
     x: options.x,
     grokBin,
+    agyBin,
   });
 
   // An engine that cannot serve this mode should say so plainly. Never demand
@@ -144,6 +156,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     extraPrompt: options.prompt,
     providerBin: agyBin,
     grokBin,
+    allowPrivateNetwork,
     workdir: options.workdir,
     timeoutMs,
   };
@@ -201,9 +214,6 @@ export function describeMissingCapability(
 
   if (usable.length > 0) {
     return `${head} Set up here and able to: ${usable.join(', ')}. Drop -p to let modsearch route, or name one with -p <engine>.`;
-  }
-  if (mode === 'fetch') {
-    return `${head} No engine set up here can fetch a page either: that takes Antigravity CLI (agy). Search with -q instead, or add it when you want fetch: curl -fsSL https://antigravity.google/cli/install.sh | bash`;
   }
   return `${head} No other engine is set up here to do it either.`;
 }

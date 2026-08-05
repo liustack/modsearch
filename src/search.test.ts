@@ -161,12 +161,13 @@ describe('capability reporting', () => {
   });
 
   it('never demands agy when the user has not set it up', () => {
-    // A user with only a Tavily key should be told what is possible, not
-    // ordered to adopt an engine they skipped on purpose.
+    // A user with only a Tavily key gets pointed at the keyless http engine,
+    // not ordered to adopt an engine they skipped on purpose.
     const message = describeMissingCapability('tavily', 'fetch', 'agy', () => false);
     expect(message).toContain('does not support page fetch');
-    expect(message).toContain('Search with -q instead');
-    expect(message).not.toMatch(/use the default|you must|required/i);
+    expect(message).toContain('http');
+    expect(message).not.toContain('antigravity-cli');
+    expect(message).not.toMatch(/use the default|you must|required|install/i);
   });
 
   it('rejects fetch on a pinned search-only engine before spending anything', async () => {
