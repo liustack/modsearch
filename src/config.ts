@@ -55,9 +55,21 @@ const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
 /** Engines that used to be pinned globally, mapped to the role they serve. */
 const LEGACY_ENGINE_ROLES: Record<string, Role> = {
   'antigravity-cli': 'search',
+  antigravity: 'search',
+  agy: 'search',
   tavily: 'search',
   'grok-cli': 'social',
+  grok: 'social',
   http: 'fetch',
+  direct: 'fetch',
+};
+
+/** Aliases the registry accepts, mapped to the name settings are stored under. */
+const CANONICAL_ENGINE: Record<string, string> = {
+  antigravity: 'antigravity-cli',
+  agy: 'antigravity-cli',
+  grok: 'grok-cli',
+  direct: 'http',
 };
 
 interface LegacyConfig {
@@ -73,17 +85,29 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   if (!raw.providers && !raw.provider) {
     return raw;
   }
+  // Merge per engine, not per map: a new `engines.tavily.model` next to an old
+  // `providers.tavily.apiKey` used to drop the key entirely.
+  const engines: Record<string, EngineSettings> = {};
+  for (const [name, settings] of Object.entries(raw.providers ?? {})) {
+    const canonical = CANONICAL_ENGINE[name] ?? name;
+    engines[canonical] = { ...engines[canonical], ...settings };
+  }
+  for (const [name, settings] of Object.entries(raw.engines ?? {})) {
+    const canonical = CANONICAL_ENGINE[name] ?? name;
+    engines[canonical] = { ...engines[canonical], ...settings };
+  }
+
   const migrated: ModsearchConfig = {
     ...(raw.search ? { search: raw.search } : {}),
     ...(raw.fetch ? { fetch: raw.fetch } : {}),
     ...(raw.social ? { social: raw.social } : {}),
-    engines: { ...raw.providers, ...raw.engines },
+    engines,
   };
   const pinned = raw.provider?.trim();
   if (pinned) {
     const role = LEGACY_ENGINE_ROLES[pinned];
     if (role && !migrated[role]?.engine) {
-      migrated[role] = { engine: pinned };
+      migrated[role] = { engine: CANONICAL_ENGINE[pinned] ?? pinned };
     }
   }
   return migrated;
@@ -93,8 +117,16 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
   let raw: string;
   try {
     raw = fs.readFileSync(configPath, 'utf-8');
-  } catch {
-    return {};
+  } catch (error) {
+    // Only a missing file means "no config". Anything else (permissions, a
+    // directory in its place) is a real problem worth naming, not a silent
+    // downgrade to defaults.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return {};
+    }
+    throw new Error(
+      `Cannot read ${configPath}: ${(error as Error).message}. Fix the file or its permissions.`,
+    );
   }
 
   try {

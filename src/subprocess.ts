@@ -9,6 +9,8 @@ export interface CommandResult {
 // After the provider exits, how long to keep draining stdout before giving up
 // on the pipe closing. Reset whenever more output arrives.
 const DRAIN_GRACE_MS = 500;
+// How long a killed child gets before SIGKILL.
+const SIGKILL_GRACE_MS = 2_000;
 
 /**
  * Run an engine binary and collect its output.
@@ -31,6 +33,10 @@ export function runCommand(
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+    // Decoders keep state across chunks: a multi-byte character split down the
+    // middle used to come out as replacement characters.
+    const outDecoder = new TextDecoder('utf-8');
+    const errDecoder = new TextDecoder('utf-8');
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -81,12 +87,12 @@ export function runCommand(
     };
 
     child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
+      stdout += outDecoder.decode(chunk, { stream: true });
       restartDrain();
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr += errDecoder.decode(chunk, { stream: true });
       restartDrain();
     });
 

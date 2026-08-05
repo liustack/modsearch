@@ -80,7 +80,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     query,
     config,
     requestedEngine: options.engine,
-    requestedSources: options.sources ? parseSources(options.sources) : undefined,
+    requestedSources: options.sources === undefined ? undefined : parseSources(options.sources),
     env,
   });
 
@@ -117,7 +117,10 @@ async function runOneSource(
   const candidates = [plan.engine, ...plan.fallbacks].filter(Boolean);
 
   if (candidates.length === 0) {
-    throw new Error(noEngineMessage(SOURCE_ROLE[plan.source] === 'social' ? 'social' : mode));
+    const base = noEngineMessage(SOURCE_ROLE[plan.source] === 'social' ? 'social' : mode);
+    // A typo in --engine is the actual problem: do not bury it under generic
+    // setup advice.
+    throw new Error(plan.notes.length > 0 ? `${plan.notes.join(' ')}\n${base}` : base);
   }
 
   const failures: string[] = [];
@@ -154,13 +157,20 @@ async function runOneSource(
     const notes = [...plan.notes];
     if (failures.length > 0) {
       notes.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
+      // A web engine answering an X request is second-hand evidence whether the
+      // X engine was missing or died mid-run.
+      if (plan.degradeNote && !engine.roles.includes('social')) {
+        notes.push(plan.degradeNote);
+      }
     }
 
+    // Routing facts go last: an engine returning its own `source` or `engine`
+    // key must not be able to rewrite who answered.
     return {
+      ...withNotes(output.result, notes),
       source: plan.source,
       engine: engine.name,
       ...(model ? { model } : {}),
-      ...withNotes(output.result, notes),
       durationSeconds: (Date.now() - startedAt) / 1000,
     };
   }

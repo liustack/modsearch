@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.1.0 - 2026-08-05
+
+Security and correctness pass after an external review (gpt-5.6-sol) that proved every finding with a probe.
+
+**Security**
+
+- SSRF bypass: `http://[::ffff:127.0.0.1]` normalizes to `::ffff:7f00:1`, whose hex form the private-range check missed, and the probe reached a service bound to loopback. IPv4-mapped IPv6 is now decoded from the address groups.
+- Denial of service: the HTML sanitizing regexes backtracked catastrophically. 200 KB of malformed markup took 14.6 seconds and 1 MB ran past 42 seconds, while bodies can reach 2 MB and a synchronous regex cannot be interrupted by a timeout. Element stripping is now a linear scan: the same input takes about a millisecond.
+- Hang: the request timeout only covered response headers, so a slow body could wait forever. One deadline now spans DNS, every redirect hop, and the body.
+- Crash: a numeric HTML entity beyond the Unicode maximum threw out of `String.fromCodePoint` and killed the fetch. Out-of-range and surrogate code points are left as text.
+
+**Correctness**
+
+- `--source web,x` with no Grok ran the same web search twice, billing it twice. The degraded X entry now folds into the web entry it duplicates.
+- A mid-run Grok failure fell back to a web engine but kept `source: "x"` with no caveat, presenting second-hand web evidence as X coverage. The degrade note now travels with the plan.
+- An engine's own result could overwrite `source`, `engine`, and `model`. Routing facts are applied last.
+- Legacy config migration dropped fields when old and new shapes named the same engine, and ignored alias names like `agy` and `direct`. Merging is now per engine and alias-aware.
+- Tavily ignored `--timeout` and used its SDK's 60 second ceiling.
+- `--source ""` silently ran the default sources instead of erroring.
+- A typo in `--engine` was buried under generic setup advice.
+- Config files that exist but cannot be read (permissions) silently became empty configs.
+- Subprocess: a timeout only sent one SIGTERM and waited, so an engine ignoring signals hung the CLI. It now settles at once and escalates to SIGKILL. Output decoding kept no state across chunks, so a multi-byte character split across a chunk boundary became replacement characters.
+- Link extraction ignored `<base href>` and left entities undecoded in URLs.
+
 ## 3.0.1 - 2026-08-05
 
 - Docs: the README output examples still showed the v2 single-object shape. Both languages now show the v3 `results` array, and both blocks parse as valid JSON.

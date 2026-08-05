@@ -41,6 +41,8 @@ export const X_DEGRADE_NOTE =
 export interface SourcePlan {
   source: Source;
   engine: SearchEngine;
+  /** Added to the result when a fallback engine, not the first choice, answers. */
+  degradeNote?: string;
   /** Engines to try after this one fails, in order. */
   fallbacks: SearchEngine[];
   /** Problems worth telling the user about, e.g. a config typo. */
@@ -118,6 +120,13 @@ export function planRole(
   return { chain, notes };
 }
 
+/** Is an engine for X usable right now? */
+function socialAvailable(input: PlanInput, env: NodeJS.ProcessEnv): boolean {
+  return planRole('social', input.config, undefined, env).chain.some((engine) =>
+    engine.roles.includes('social'),
+  );
+}
+
 /** Full plan: which sources to run, and the engine chain for each. */
 export function planRun(input: PlanInput): SourcePlan[] {
   const env = input.env ?? process.env;
@@ -128,7 +137,10 @@ export function planRun(input: PlanInput): SourcePlan[] {
   }
 
   const sources = input.requestedSources ?? defaultSources(input.query);
-  return sources.map((source) => {
+  // When x degrades to the web and the web is already being consulted, running
+  // both plans would issue the same query twice and bill it twice.
+  const webRequested = sources.includes('web');
+  return sources.flatMap((source) => {
     const role = SOURCE_ROLE[source];
     const { chain, notes } = planRole(role, input.config, input.requestedEngine, env);
 
@@ -138,22 +150,38 @@ export function planRun(input: PlanInput): SourcePlan[] {
       const web = planRole('search', input.config, undefined, env);
       const social = chain.filter((engine) => engine.roles.includes('social'));
       if (social.length === 0) {
-        return {
-          source: 'x' as Source,
-          engine: web.chain[0],
-          fallbacks: web.chain.slice(1),
-          notes: [...notes, X_DEGRADE_NOTE],
-        };
+        if (webRequested) {
+          // The web entry already covers this ground: drop the duplicate and
+          // let that entry carry the caveat.
+          return [];
+        }
+        return [
+          {
+            source: 'x' as Source,
+            engine: web.chain[0],
+            fallbacks: web.chain.slice(1),
+            notes: [...notes, X_DEGRADE_NOTE],
+          },
+        ];
       }
-      return {
-        source: 'x' as Source,
-        engine: social[0],
-        fallbacks: [...social.slice(1), ...web.chain],
-        notes,
-      };
+      return [
+        {
+          source: 'x' as Source,
+          engine: social[0],
+          fallbacks: [...social.slice(1), ...web.chain],
+          // Falling back to a web engine mid-run is still second-hand evidence,
+          // so the caveat has to travel with the plan, not just the no-grok case.
+          degradeNote: X_DEGRADE_NOTE,
+          notes,
+        },
+      ];
     }
 
-    return { source, engine: chain[0], fallbacks: chain.slice(1), notes };
+    const webNotes = [...notes];
+    if (webRequested && sources.includes('x') && !socialAvailable(input, env)) {
+      webNotes.push(X_DEGRADE_NOTE);
+    }
+    return [{ source, engine: chain[0], fallbacks: chain.slice(1), notes: webNotes }];
   });
 }
 
