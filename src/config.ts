@@ -247,18 +247,56 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
   }
 }
 
-/** Render the effective config with API keys masked. */
-export function renderConfig(config: ModsearchConfig): string {
-  const masked: ModsearchConfig = {
-    ...config,
-    engines: Object.fromEntries(
-      Object.entries(config.engines ?? {}).map(([name, settings]) => [
-        name,
-        { ...settings, ...(settings.apiKey ? { apiKey: maskKey(settings.apiKey) } : {}) },
-      ]),
-    ),
+/**
+ * Render the effective config: what modsearch will actually use, not just what
+ * the file says. Environment variables are merged in the way `engineSettings`
+ * merges them, every value is tagged with where it came from (`file` or `env`),
+ * alias engine keys (agy, antigravity, grok, direct) are shown under their
+ * canonical name, and API keys stay masked.
+ */
+export function renderEffectiveConfig(
+  config: ModsearchConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const tag = (value: string, source: 'file' | 'env') => `${value} (${source})`;
+
+  const out: Record<string, unknown> = {};
+  out.engine = config.engine ? tag(config.engine, 'file') : '(unset: automatic)';
+
+  const engines: Record<string, Record<string, string>> = {};
+  const ensure = (name: string) => {
+    engines[name] ??= {};
+    return engines[name];
   };
-  return JSON.stringify(masked, null, 2);
+
+  // File settings first, alias keys folded onto their canonical engine.
+  for (const [rawName, settings] of Object.entries(config.engines ?? {})) {
+    const canonical = CANONICAL_ENGINE[rawName] ?? rawName;
+    const target = ensure(canonical);
+    for (const field of SETTABLE_ENGINE_FIELDS) {
+      const value = settings[field];
+      if (value === undefined) {
+        continue;
+      }
+      target[field] = tag(field === 'apiKey' ? maskKey(value) : value, 'file');
+    }
+  }
+
+  // Environment overrides, exactly the bindings engineSettings applies. An env
+  // value wins over the file, so it overwrites the tag too.
+  for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
+    const canonical = CANONICAL_ENGINE[engineName] ?? engineName;
+    for (const [field, envName] of Object.entries(bindings) as Array<[keyof EngineSettings, string]>) {
+      const value = env[envName]?.trim();
+      if (!value) {
+        continue;
+      }
+      ensure(canonical)[field] = tag(field === 'apiKey' ? maskKey(value) : value, 'env');
+    }
+  }
+
+  out.engines = engines;
+  return JSON.stringify(out, null, 2);
 }
 
 function maskKey(key: string): string {

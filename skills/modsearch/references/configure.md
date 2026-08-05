@@ -38,7 +38,7 @@ Sign-in cannot be done non-interactively: ask the user to run `agy` once themsel
 
 ```bash
 modsearch config init     # starter file, every field optional
-modsearch config show     # effective config, keys masked
+modsearch config show     # effective config: file + env merged, each value tagged (file)/(env), keys masked, alias keys shown canonical
 ```
 
 Shape:

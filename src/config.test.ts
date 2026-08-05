@@ -5,7 +5,7 @@ import {
   initConfigFile,
   loadConfigFile,
   migrateLegacyConfig,
-  renderConfig,
+  renderEffectiveConfig,
   chosenEngine,
   setConfigValue,
 } from './config.ts';
@@ -99,9 +99,51 @@ describe('config file', () => {
     initConfigFile(p, true);
   });
 
-  it('masks api keys when rendering', () => {
-    const rendered = renderConfig({ engines: { tavily: { apiKey: 'tvly-abcdefghijklmnop' } } });
+  it('masks api keys when rendering the effective config', () => {
+    const rendered = renderEffectiveConfig(
+      { engines: { tavily: { apiKey: 'tvly-abcdefghijklmnop' } } },
+      {} as NodeJS.ProcessEnv,
+    );
     expect(rendered).not.toContain('abcdefghijklmnop');
     expect(rendered).toContain('tvly-a...op');
+    expect(rendered).toContain('(file)');
+  });
+
+  it('merges env vars into the effective config and tags their source', () => {
+    // No key in the file, one in the environment: the env value shows up, is
+    // masked, and is tagged env so a reader knows where it came from.
+    const rendered = renderEffectiveConfig({}, {
+      TAVILY_API_KEY: 'tvly-envkey1234567',
+    } as NodeJS.ProcessEnv);
+    const parsed = JSON.parse(rendered);
+    expect(parsed.engines.tavily.apiKey).toMatch(/\(env\)$/);
+    expect(parsed.engines.tavily.apiKey).not.toContain('envkey1234567');
+    expect(parsed.engine).toBe('(unset: automatic)');
+  });
+
+  it('lets an env key override the file key, keeping the env tag', () => {
+    const rendered = renderEffectiveConfig({ engines: { tavily: { apiKey: 'tvly-fromfile12345' } } }, {
+      TAVILY_API_KEY: 'tvly-fromenv123456',
+    } as NodeJS.ProcessEnv);
+    const parsed = JSON.parse(rendered);
+    expect(parsed.engines.tavily.apiKey).toMatch(/\(env\)$/);
+    expect(parsed.engines.tavily.apiKey).not.toContain('fromfile');
+    expect(parsed.engines.tavily.apiKey).not.toContain('fromenv123456');
+  });
+
+  it('normalizes alias engine keys to their canonical name', () => {
+    const rendered = renderEffectiveConfig(
+      {
+        engine: 'agy',
+        engines: { agy: { bin: '/opt/agy' }, grok: { bin: '/opt/grok' }, direct: { model: 'm' } },
+      },
+      {} as NodeJS.ProcessEnv,
+    );
+    const parsed = JSON.parse(rendered);
+    expect(Object.keys(parsed.engines).sort()).toEqual(['antigravity-cli', 'grok-cli', 'http']);
+    expect(parsed.engines['antigravity-cli'].bin).toBe('/opt/agy (file)');
+    expect(parsed.engines['grok-cli'].bin).toBe('/opt/grok (file)');
+    expect(parsed.engines.http.model).toBe('m (file)');
+    expect(parsed.engine).toBe('agy (file)');
   });
 });

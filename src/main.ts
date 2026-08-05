@@ -9,7 +9,7 @@ import {
   CONFIG_PATH,
   initConfigFile,
   loadConfigFile,
-  renderConfig,
+  renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
 import { listEngines } from './providers/index.ts';
@@ -134,10 +134,10 @@ config
 
 config
   .command('show')
-  .description('Print the effective config with API keys masked')
+  .description('Print the effective config (file + env, source-tagged) with API keys masked')
   .action(() => {
     try {
-      process.stdout.write(`${renderConfig(loadConfigFile())}\n`);
+      process.stdout.write(`${renderEffectiveConfig(loadConfigFile(), process.env)}\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exit(1);
