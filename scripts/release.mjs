@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { changelogSection } from './changelog.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const run = (cmd, args, options = {}) =>
@@ -56,11 +57,10 @@ if (run('git', ['tag', '--list', `v${next}`])) {
 // The check that would have caught a real mistake: a version published with
 // nothing written about it.
 const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf-8');
-const section = changelog.match(new RegExp(`^## ${next.replace(/\\./g, '\\\\.')}[^\\n]*\\n([\\s\\S]*?)(?=^## |\\Z)`, 'm'));
-if (!section) {
+const notes = changelogSection(changelog, next);
+if (notes === null) {
   fail(`CHANGELOG.md has no "## ${next}" section. Write what changed before releasing it.`);
 }
-const notes = section[1].trim();
 if (notes.length < 20) {
   fail(`the CHANGELOG entry for ${next} is empty. Say what changed.`);
 }
