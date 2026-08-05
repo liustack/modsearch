@@ -1,23 +1,15 @@
-<!-- Keep the summary about intent: what changes and why, not a file list. -->
+<!-- Please read before opening this PR. -->
 
-## What and why
+Thanks for the effort, and sorry to catch you here: **ModSearch does not accept
+pull requests.** The tool is maintained single-handedly and every line stays
+author-owned, so PRs are closed without review as a matter of policy, not as a
+judgment on your work.
 
-Describe the change and the reason for it. Link any issue it closes
-(`Closes #123`).
+What works instead:
 
-## How it was verified
+- **[Open an issue](https://github.com/liustack/modsearch/issues)** describing
+  the bug or the idea. Issues get read and drive what gets built. If your
+  branch demonstrates the fix, link it from the issue as a reference.
+- **Keep it in your fork.** MIT means your copy is fully yours.
 
-- [ ] `pnpm typecheck` passes
-- [ ] `pnpm test` passes (and unit tests stay offline)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
-- [ ] Behavior changes come with a test in the same commit
-
-## Notes for the reviewer
-
-Anything worth calling out: a tradeoff, a follow-up, or a place you were unsure.
-
-<!--
-Commits follow docs/commit.md: Conventional Commits, atomic, imperative summary,
-no trailing period. Refactors are not mixed with behavior changes.
--->
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the whole picture.
