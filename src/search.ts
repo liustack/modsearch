@@ -331,7 +331,7 @@ async function runOneSource(
 
     // Routing and runtime warnings, kept apart from the engine's epistemic
     // uncertainty. Config typos and degrade caveats travel on the plan.
-    const warnings = [...plan.notes, ...cooldownNotes];
+    const warnings = [...plan.notes, ...cooldownNotes, ...(controller?.warnings ?? [])];
     if (failures.length > 0) {
       warnings.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
       // A web engine answering an X request is second-hand evidence whether the

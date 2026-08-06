@@ -238,3 +238,87 @@ describe('buildCooldownController switch', () => {
     expect(loadCooldownState(p).engineCooldowns.exa).toBeUndefined();
   });
 });
+
+describe('the cache never breaks the run, and clear always reaches the disk', () => {
+  it('clears an on-disk cooldown this snapshot never saw (stale-snapshot clear)', () => {
+    const p = statePath();
+    // Run A starts while the disk is empty.
+    const stale = loadCooldownState(p);
+    // Run B records exa meanwhile.
+    recordQuotaCooldown(
+      emptyCooldownState(),
+      'exa',
+      new Error('out of credits'),
+      at('2026-08-07T00:00:00Z'),
+      p,
+    );
+    expect(loadCooldownState(p).engineCooldowns.exa).toBeDefined();
+    // A's exa call succeeded, so A clears it, despite never having seen it:
+    // the engine that just answered has earned the clear.
+    clearEngineCooldown(stale, 'exa', p);
+    expect(loadCooldownState(p).engineCooldowns.exa).toBeUndefined();
+  });
+
+  it('keeps the cooldown in memory and reports, instead of throwing, when the state cannot be written', () => {
+    const dir = tempDir('modsearch-badstate-');
+    const blocker = path.join(dir, 'blocker');
+    fs.writeFileSync(blocker, 'a plain file');
+    // The parent of the state path is a file, so every mkdir/write fails.
+    const p = path.join(blocker, 'nested', 'state.json');
+    const state = emptyCooldownState();
+    const persistErrors: unknown[] = [];
+    const entry = recordQuotaCooldown(
+      state,
+      'exa',
+      new Error('out of credits'),
+      at('2026-08-07T00:00:00Z'),
+      p,
+      (persistError) => persistErrors.push(persistError),
+    );
+    expect(entry).not.toBeNull();
+    expect(state.engineCooldowns.exa).toBeDefined();
+    expect(persistErrors).toHaveLength(1);
+  });
+
+  it.skipIf(process.getuid?.() === 0)(
+    'clear survives an unwritable state dir: memory cleared, miss reported, no throw',
+    () => {
+      const dir = tempDir('modsearch-rostate-');
+      const p = path.join(dir, 'state.json');
+      recordQuotaCooldown(
+        emptyCooldownState(),
+        'exa',
+        new Error('out of credits'),
+        at('2026-08-07T00:00:00Z'),
+        p,
+      );
+      const state = loadCooldownState(p);
+      fs.chmodSync(dir, 0o500);
+      try {
+        const persistErrors: unknown[] = [];
+        expect(() =>
+          clearEngineCooldown(state, 'exa', p, (persistError) => persistErrors.push(persistError)),
+        ).not.toThrow();
+        expect(state.engineCooldowns.exa).toBeUndefined();
+        expect(persistErrors).toHaveLength(1);
+      } finally {
+        fs.chmodSync(dir, 0o700);
+      }
+    },
+  );
+
+  it('state clear surfaces a delete that failed instead of pretending success', () => {
+    const dir = tempDir('modsearch-cleardir-');
+    const p = path.join(dir, 'state-dir');
+    fs.mkdirSync(path.join(p, 'child'), { recursive: true });
+    // The path is a non-empty directory: rmSync without recursive must throw,
+    // and clearAllCooldowns must let it out so the CLI can exit non-zero.
+    expect(() => clearAllCooldowns(p)).toThrow();
+  });
+
+  it('skips the write when nothing changed, so a quiet clear touches no file', () => {
+    const p = statePath();
+    clearEngineCooldown(emptyCooldownState(), 'exa', p);
+    expect(fs.existsSync(p)).toBe(false);
+  });
+});

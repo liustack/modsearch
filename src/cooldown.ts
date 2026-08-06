@@ -107,10 +107,16 @@ function updateStateOnDisk(
   statePath: string,
   mutate: (state: CooldownState) => void,
 ): CooldownState {
+  const merged = loadCooldownState(statePath);
+  const before = JSON.stringify(merged);
+  mutate(merged);
+  if (JSON.stringify(merged) === before) {
+    // Nothing changed (e.g. clearing an engine that was not cooling), so skip
+    // the write entirely: the success path stays free of disk writes.
+    return merged;
+  }
   const dir = path.dirname(statePath);
   fs.mkdirSync(dir, { recursive: true });
-  const merged = loadCooldownState(statePath);
-  mutate(merged);
   const unique = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
   const tmp = path.join(dir, `.state.${unique}.tmp`);
   fs.writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}\n`, { mode: 0o600 });
@@ -196,6 +202,7 @@ export function recordQuotaCooldown(
   error: unknown,
   now: Date,
   statePath: string,
+  onPersistError?: (persistError: unknown) => void,
 ): CooldownEntry | null {
   const until = classifyQuota(error, now);
   if (!until) {
@@ -210,38 +217,57 @@ export function recordQuotaCooldown(
   // Merge against the latest on-disk state so a concurrent writer's record for
   // another engine is not lost. The same engine keeps whichever cooldown lasts
   // longer, so a shorter later write cannot shorten a live cooldown.
-  const merged = updateStateOnDisk(statePath, (disk) => {
-    disk.engineCooldowns[engine] = laterEntry(disk.engineCooldowns[engine], entry);
-  });
-  const persisted = merged.engineCooldowns[engine];
-  state.engineCooldowns[engine] = persisted;
-  return persisted;
+  try {
+    const merged = updateStateOnDisk(statePath, (disk) => {
+      disk.engineCooldowns[engine] = laterEntry(disk.engineCooldowns[engine], entry);
+    });
+    const persisted = merged.engineCooldowns[engine];
+    state.engineCooldowns[engine] = persisted;
+    return persisted;
+  } catch (persistError) {
+    // The store is a pure cache: a read-only dir, a full disk, or a Windows
+    // rename lock must never break failover. Keep the cooldown for this run
+    // in memory and report the miss instead of throwing.
+    state.engineCooldowns[engine] = entry;
+    onPersistError?.(persistError);
+    return entry;
+  }
 }
 
-/** Clear one engine's cooldown. Persists only when something actually changed. */
+/**
+ * Clear one engine's cooldown, in memory and on disk. The disk delete always
+ * runs against the latest on-disk state: this run's snapshot may predate a
+ * cooldown another process recorded meanwhile, and an engine that just
+ * answered has earned the clear regardless of who recorded it.
+ */
 export function clearEngineCooldown(
   state: CooldownState,
   engine: string,
   statePath: string,
+  onPersistError?: (persistError: unknown) => void,
 ): boolean {
-  if (!(engine in state.engineCooldowns)) {
-    return false;
-  }
+  const hadInMemory = engine in state.engineCooldowns;
   delete state.engineCooldowns[engine];
-  // Remove only this engine on disk, preserving any other process's records.
-  updateStateOnDisk(statePath, (disk) => {
-    delete disk.engineCooldowns[engine];
-  });
-  return true;
+  try {
+    // Remove only this engine on disk, preserving any other process's records.
+    // updateStateOnDisk skips the write when the engine was not on disk either.
+    updateStateOnDisk(statePath, (disk) => {
+      delete disk.engineCooldowns[engine];
+    });
+    return hadInMemory;
+  } catch (persistError) {
+    onPersistError?.(persistError);
+    return hadInMemory;
+  }
 }
 
-/** Wipe all cooldown state by deleting the file. Used by `modsearch state clear`. */
+/**
+ * Wipe all cooldown state by deleting the file. Used by `modsearch state clear`.
+ * Unlike the in-run cache writes, this is an explicit user command, so a delete
+ * that fails must surface as an error, not print success over a file still there.
+ */
 export function clearAllCooldowns(statePath = currentStatePath()): void {
-  try {
-    fs.rmSync(statePath, { force: true });
-  } catch {
-    // best effort: a missing file is already the desired state
-  }
+  fs.rmSync(statePath, { force: true });
 }
 
 /**
@@ -253,6 +279,8 @@ export function clearAllCooldowns(statePath = currentStatePath()): void {
 export interface CooldownController {
   readonly state: CooldownState;
   readonly now: Date;
+  /** Notices about cooldown persistence failing; the run merges them into warnings. */
+  readonly warnings: string[];
   record(engine: string, error: unknown): CooldownEntry | null;
   clear(engine: string): void;
 }
@@ -273,12 +301,20 @@ export function buildCooldownController(
   const statePath = opts.statePath ?? currentStatePath();
   const now = opts.now ?? new Date();
   const state = loadCooldownState(statePath);
+  const warnings: string[] = [];
+  const persistNote = (persistError: unknown) => {
+    const message = persistError instanceof Error ? persistError.message : String(persistError);
+    warnings.push(
+      `Cooldown state could not be saved (${message}); failover still works, but the next run will rediscover this quota wall.`,
+    );
+  };
   return {
     state,
     now,
-    record: (engine, error) => recordQuotaCooldown(state, engine, error, now, statePath),
+    warnings,
+    record: (engine, error) => recordQuotaCooldown(state, engine, error, now, statePath, persistNote),
     clear: (engine) => {
-      clearEngineCooldown(state, engine, statePath);
+      clearEngineCooldown(state, engine, statePath, persistNote);
     },
   };
 }
