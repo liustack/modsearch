@@ -202,7 +202,7 @@ function diagnoseEngine(
     };
   }
 
-  // http and anything else that needs no setup.
+  // the local engine and anything else that needs no setup.
   const ready = engine.isAvailable(settings, env);
   return {
     engine: engine.name,

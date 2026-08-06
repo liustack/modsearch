@@ -92,12 +92,12 @@ export function defaultSources(query: string | undefined): Source[] {
  * cannot, so nobody has to configure page fetch separately. Searching X has
  * one possible engine, so there is nothing to choose there either.
  *
- * Page fetch normally ends at the local HTTP engine: a wrong engine name in the
+ * Page fetch normally ends at the local engine: a wrong engine name in the
  * config, a missing binary, or a runtime failure must never leave a URL
  * unreadable. An explicit --engine is the one exception, see below.
  *
  * An explicit --engine is a hard force: the chain holds exactly that engine,
- * with no preference list appended and no http floor. If it cannot do the job
+ * with no preference list appended and no local floor. If it cannot do the job
  * it fails loudly rather than quietly spending another engine's quota. The
  * `engine` in the config file stays a soft preference (still backed by the
  * role defaults and the fetch floor), because a config choice is not a demand.

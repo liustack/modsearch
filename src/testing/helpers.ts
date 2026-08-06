@@ -78,7 +78,7 @@ export function withTempHome(): { home: string; restore: () => void } {
 
 /**
  * A throwaway HTTP server on loopback that serves one page, so a fetch test can
- * exercise the real http engine without going online. Bind is 127.0.0.1, so the
+ * exercise the real local engine without going online. Bind is 127.0.0.1, so the
  * caller must allow the private network on the fetch (allowPrivateNetwork).
  */
 export function startLocalPage(
