@@ -49,6 +49,26 @@ export interface EngineAttempt {
   error?: string;
   /** How long this attempt took, or null when nothing ran. */
   durationSeconds: number | null;
+  /** US-dollar cost this attempt reported, where the engine tracks one (exa). Absent otherwise. */
+  cost?: number;
+  /** Credits this attempt spent, where the engine tracks them (firecrawl). Absent otherwise. */
+  credits?: number;
+}
+
+/** The spend an engine reported on its usage: exa dollars, firecrawl credits. */
+function engineSpend(usage: unknown): { cost?: number; credits?: number } {
+  if (!usage || typeof usage !== 'object') {
+    return {};
+  }
+  const record = usage as Record<string, unknown>;
+  const spend: { cost?: number; credits?: number } = {};
+  if (typeof record.costDollars === 'number') {
+    spend.cost = record.costDollars;
+  }
+  if (typeof record.creditsUsed === 'number') {
+    spend.credits = record.creditsUsed;
+  }
+  return spend;
 }
 
 /** One source's answer. Engine result fields are flattened in beside them. */
@@ -298,7 +318,14 @@ async function runOneSource(
     }
 
     const durationSeconds = (Date.now() - startedAt) / 1000;
-    attempts.push({ engine: engine.name, ok: true, durationSeconds });
+    // Surface the engine's own spend (exa dollars, firecrawl credits) on the
+    // attempt, when it reported any. The orchestrator otherwise drops it.
+    attempts.push({
+      engine: engine.name,
+      ok: true,
+      durationSeconds,
+      ...engineSpend(output.meta.usage),
+    });
     // This engine answered, so clear any cooldown it was carrying from before.
     controller?.clear(engine.name);
 

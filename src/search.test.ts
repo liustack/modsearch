@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModsearchConfig } from './config.ts';
 import {
   buildCooldownController,
@@ -8,7 +8,7 @@ import {
   loadCooldownState,
   recordQuotaCooldown,
 } from './cooldown.ts';
-import { noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
+import { type EngineAttempt, noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
 import { agyQuotaEnvelope, agySearchEnvelope } from './fixtures/index.ts';
 import {
   BARE_ENV,
@@ -382,6 +382,66 @@ describe('quota cooldown records, clears, and can be switched off', () => {
     // Off means the state file is never created.
     expect(fs.existsSync(p)).toBe(false);
   }, 30_000);
+});
+
+describe('engine spend surfaces on the attempt', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    cleanupTempDirs();
+  });
+
+  /** Stub the global fetch with one JSON response, for the in-process engines. */
+  function stubFetchJson(body: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      })),
+    );
+  }
+
+  const firstAttempt = (result: Awaited<ReturnType<typeof runSearch>>) =>
+    (result.results[0].attempts as EngineAttempt[])[0];
+
+  it('carries exa dollar cost onto the attempt, and no credits', async () => {
+    stubFetchJson({
+      results: [{ title: 'A', url: 'https://a.example.com/p', highlights: ['h'] }],
+      costDollars: { total: 0.007 },
+    });
+    const result = await runSearch({
+      query: 'q',
+      engine: 'exa',
+      config: { engines: { exa: { apiKey: 'k' } } },
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+    });
+    const attempt = firstAttempt(result);
+    expect(attempt).toMatchObject({ engine: 'exa', ok: true, cost: 0.007 });
+    expect(attempt.credits).toBeUndefined();
+  });
+
+  it('carries firecrawl credits onto the attempt, and no cost', async () => {
+    stubFetchJson({
+      success: true,
+      data: { web: [{ title: 'A', url: 'https://a.example.com/p', description: 'd' }] },
+      creditsUsed: 3,
+    });
+    const result = await runSearch({
+      query: 'q',
+      engine: 'firecrawl',
+      config: { engines: { firecrawl: { apiKey: 'k' } } },
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+    });
+    const attempt = firstAttempt(result);
+    expect(attempt).toMatchObject({ engine: 'firecrawl', ok: true, credits: 3 });
+    expect(attempt.cost).toBeUndefined();
+  });
 });
 
 describe('routing facts cannot be faked by an engine', () => {

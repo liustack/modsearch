@@ -64,7 +64,7 @@ result fields in beside them:
 | `model` | the model used, where the engine has one (empty string when it does not) |
 | `status` | `ok`, `degraded`, or `unavailable` (see below) |
 | `warnings` | routing and runtime warnings for this source: a fallback, a degrade caveat, a config typo, the local engine's "no synthesis" and "private network allowed" notices. About how the answer was produced, not the facts in it. Always an array, often empty |
-| `attempts` | every engine tried for this source, in order: `{ engine, ok, error?, durationSeconds }`. `ok: false` entries carry the failure `error`. One `ok: true` entry at the end on a successful run |
+| `attempts` | every engine tried for this source, in order: `{ engine, ok, error?, durationSeconds, cost?, credits? }`. `ok: false` entries carry the failure `error`. A keyed engine that reports spend adds `cost` (exa, US dollars) or `credits` (firecrawl); both are optional and absent on engines that report neither. One `ok: true` entry at the end on a successful run |
 | `durationSeconds` | how long this one source took, or `null` when nothing ran |
 
 The remaining fields depend on the mode.
@@ -115,6 +115,25 @@ for:
   ],
   "attempts": [],
   "durationSeconds": null
+}
+```
+
+### Engine spend on an attempt
+
+Engines that meter their usage report it on the attempt that ran, so a caller can
+track what a run cost. Both fields are optional: they appear only on the engine
+that reports them, and never on engines that report neither (agy, tavily, the
+local engine).
+
+- `cost`: US dollars, from exa.
+- `credits`: firecrawl credits.
+
+```json
+{
+  "engine": "exa",
+  "ok": true,
+  "durationSeconds": 1.2,
+  "cost": 0.007
 }
 ```
 
