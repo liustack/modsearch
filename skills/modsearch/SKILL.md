@@ -57,7 +57,7 @@ modsearch -u "<url>"                   # fetch one page
 modsearch -u "<url>" -q "<focus>"      # fetch with an extraction focus
 ```
 
-Optional flags: `-o <file>` also writes the JSON, `-e <engine>` forces exactly one engine for this run (a hard override with no fallback: if that engine cannot do the job or fails, the run errors rather than switching to another engine, so leave it off unless the user wants one specific engine), `-m <model>`, `--max-results <n>`, `--prompt "<constraints>"`, `--timeout <ms>`.
+Optional flags: `-o <file>` also writes the JSON, `--timeout <ms>` raises the time budget, and `-e <engine>` forces exactly one engine with no fallback, so leave it off unless the user wants one specific engine. The full flag table, with defaults and the config commands, is in `references/cli.md`.
 
 An X-flavored query (twitter, tweet, 推特, 推文, x.com, "on X") goes to X on its own, and only to X, because a web index cannot see inside X. Pass `--source web,x` when the user wants both.
 
@@ -125,3 +125,11 @@ Every error this CLI prints is catalogued with its cause and fix in the project'
 - `Every engine for the <source> source failed`: each engine's failure is listed, and `attempts` in a returned entry carries the same per-engine errors. Act on the first fixable one.
 - Quota exhausted (agy weekly quota, or `exa`/`firecrawl` out of credits): not fatal when another search engine is set up, since search falls through on its own and cooldown moves the spent engine to the back. Otherwise relay the reset time from the message.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
+
+## References (read on demand)
+
+- `references/cli.md`: the full CLI manual, every flag with its default, config commands, `doctor`, `state`.
+- `references/configure.md`: adding keys, switching engines, config troubleshooting.
+- `references/output-schema.md`: the complete JSON schema for search and fetch.
+- `references/runtime.md`: the launcher's version pin, compatibility rule, and diagnostic fields.
+- `docs/troubleshooting.md` (in the repository and the npm package, not this skill directory): every error message with cause and fix.
