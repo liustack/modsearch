@@ -112,6 +112,10 @@ modsearch does three jobs, and only search needs setup:
   signed in. Set it up only if the user wants X. It needs no key beyond that login.
 - **Web search needs one of the engines below.** Pick the first one that fits.
 
+The README asks the user to prepare an engine before handing you this install.
+If they gave you an engine key, jump to the keyed-engine block at the end of
+this step and configure it now.
+
 The recommended default is Antigravity CLI (`agy`): it needs no API key and also
 reads pages. It requires a one-time browser sign-in that only the user can
 complete. Handle it in three idempotent steps, each safe to re-run.

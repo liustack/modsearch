@@ -22,10 +22,6 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-```text
-Send this to your AI: install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md
-```
-
 Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive questions get answered from training data, which may be out of date without the model knowing. ModSearch adds three capabilities: web search, single-page fetch, and X (Twitter) search, returning a few hundred tokens of structured evidence with sources. No model change, no prompt changes, no key required to start.
 
 ## Highlights
@@ -37,18 +33,18 @@ Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive 
 
 ## Installation
 
-Send this line to your AI. It installs, configures, and verifies the skill, then reports back:
-
-> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
-
-**The one step that needs your hands**: the default search engine, Antigravity CLI, requires a browser sign-in that only you can complete:
+**Step 1, set up a search engine (the only part that needs your hands).** The default engine, Antigravity CLI, requires a browser sign-in that only you can complete:
 
 ```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash   # install, skip if your AI already did
+curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy                                                           # sign in, then exit
 ```
 
-To skip Antigravity CLI entirely, send your AI a free key from Tavily, Exa, or Firecrawl and let it configure the engine (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
+Prefer not to install it? Register a free key with Tavily, Exa, or Firecrawl instead (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
+
+**Step 2, hand the rest to your AI.** Send it this line, along with the key if you chose one:
+
+> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
 
 ## Usage
 

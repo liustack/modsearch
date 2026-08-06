@@ -22,10 +22,6 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-```text
-把这句话发给你的 AI：按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill
-```
-
 DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问题只能依赖训练数据，答案可能过期而模型自己无从察觉。ModSearch 为它补上三种能力：搜索网页、抓取指定页面、搜索 X（推特），返回几百 token 的结构化证据，每条带来源。不更换模型，不修改提示词，起步不需要任何 key。
 
 ## 亮点
@@ -37,18 +33,18 @@ DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问�
 
 ## 安装
 
-把下面这句话发给你的 AI，它会完成安装、配置和验证，并把结果告诉你：
-
-> 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
-
-**唯一需要你亲手做的一步**：默认搜索引擎 Antigravity CLI 的浏览器登录需要本人完成：
+**第一步，准备搜索引擎（唯一需要你亲手做的）。** 默认引擎 Antigravity CLI 需要本人在浏览器完成登录：
 
 ```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash   # 安装，AI 已代装过则跳过
+curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy                                                           # 浏览器完成登录后退出
 ```
 
-不想装 Antigravity CLI 的话，把 Tavily、Exa 或 Firecrawl 任意一家的免费 key 发给你的 AI 让它配置，就不需要这一步（Tavily 每月 1,000 次，Exa 每月约 1,400 次，Firecrawl 每月 1,000 点，注册均无需绑卡）。
+不想装它就注册一个免费 key，Tavily、Exa、Firecrawl 任选一家（Tavily 每月 1,000 次，Exa 每月约 1,400 次，Firecrawl 每月 1,000 点，注册均无需绑卡）。
+
+**第二步，剩下的交给你的 AI。** 把这句话发给它，选了 key 的话把 key 一起发：
+
+> 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
 
 ## 用法
 
