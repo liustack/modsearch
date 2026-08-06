@@ -24,7 +24,7 @@ pnpm build       # vite lib build to dist/
 pnpm lint        # Biome
 ```
 
-Requires Node 18+ (macOS or Linux).
+Requires Node 22.13+ (macOS or Linux).
 
 ## Tests never go online
 

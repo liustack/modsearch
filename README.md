@@ -60,7 +60,7 @@ Or a **[Tavily](https://app.tavily.com) key** (1,000 free credits a month):
 modsearch config set tavily.apiKey <key>
 ```
 
-With neither, the command hands you both options rather than failing vaguely. Reading a page needs nothing installed. Requires Node 18+, macOS or Linux.
+With neither, the command hands you both options rather than failing vaguely. Reading a page needs nothing installed. Requires Node 22.13+, macOS or Linux.
 
 ## Usage
 

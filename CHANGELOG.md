@@ -4,6 +4,8 @@
 
 A review pass fixing stale docs, a swallowed error, brittle tests, and thin release tooling.
 
+- **BREAKING**: the minimum Node version is now 22.13. Node 18 and 20 are no longer supported, and the CI matrix drops them for Node 22 and 24 on both ubuntu and macos. The build target moves to `node22`. `undici` (kept out of the Node-18 era on `^6`) moves to `^7`: that is the newest major compatible with the 22.13 floor, since `undici@8` requires Node `>=22.19.0`, above what we promise here. The DNS-pinning fetch path is unchanged, and its IPv4/IPv6/mapped-form/redirect tests still pass on undici 7. README (both languages) and `CONTRIBUTING.md` now state Node 22.13+.
+
 - `vitest` and `@vitest/coverage-v8` are pinned to the same exact version (3.2.4). The coverage tool must match the runner, but `vitest` carried a caret while the coverage plugin was pinned, so a minor bump could have split them.
 - The npm tarball now ships `docs/`, `CHANGELOG.md`, and `SECURITY.md`. They were referenced from the README but excluded from the published package.
 - The release is published by CI alone, closing a double-publish race. `pnpm release` used to push the tag and then run `pnpm publish` locally, while the same tag also triggered the publish workflow, so two processes could publish the same version. `scripts/release.mjs` now stops after the tag and push and prints that CI takes over, and the workflow gained the GitHub-release step (with `contents: write`) it was missing, so the tag push does the whole release: npm publish with provenance plus the GitHub release, its notes pulled from the CHANGELOG.

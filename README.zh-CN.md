@@ -60,7 +60,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 浏览器
 modsearch config set tavily.apiKey <key>
 ```
 
-两个都没有时命令会把这两条路直接摆给你。读网页零依赖，本来就能用。需要 Node 18+，macOS 或 Linux。
+两个都没有时命令会把这两条路直接摆给你。读网页零依赖，本来就能用。需要 Node 22.13+，macOS 或 Linux。
 
 ## 用法
 

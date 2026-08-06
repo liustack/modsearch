@@ -47,11 +47,11 @@
   },
   "homepage": "https://github.com/liustack/modsearch#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13"
   },
   "dependencies": {
     "commander": "^13.1.0",
-    "undici": "^6.28.0"
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.7",

@@ -32,7 +32,7 @@ export default defineConfig({
         ...builtinModules.map((name) => `node:${name}`),
       ],
     },
-    target: 'node18',
+    target: 'node22',
     outDir: 'dist',
     emptyOutDir: true,
     minify: false,

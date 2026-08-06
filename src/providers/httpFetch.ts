@@ -231,7 +231,7 @@ async function fetchOnce(
         accept:
           'text/html,application/xhtml+xml,application/json,text/plain,application/xml,text/xml;q=0.9,*/*;q=0.5',
       },
-    } as RequestInit & { dispatcher: Agent });
+    } as unknown as RequestInit & { dispatcher: Agent });
 
     return {
       response,
