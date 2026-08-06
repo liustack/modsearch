@@ -31,11 +31,11 @@ Models like DeepSeek-V4-Flash are cheap, fast, capable, and frozen at their trai
 
 ## Highlights
 
-- **A few hundred tokens, not thirty thousand.** Built-in server-side search pushes whole pages into your model's context (~30k tokens for one measured answer). ModSearch keeps the reading on the engine side and returns evidence.
-- **Answers you can check.** Every result carries titles, links, and dates, plus an `uncertainty` list that names exactly what could not be pinned down.
+- **Free by default.** The default engine needs no key at all, and every fallback engine (Tavily, Exa, Firecrawl) has a real monthly free tier with no card on file. You can burn through one quota and still not owe anyone money.
+- **Fails over by itself, and remembers.** An engine that dies or runs dry is swapped out mid-run, and the cooldown store remembers who is spent, so the next query starts from an engine that works instead of re-running a slow failure. `doctor` shows who is cooling, `state clear` forgives early.
+- **Evidence, not pages.** Server-side built-in search pushes whole pages into your model's context (~30k tokens for one measured answer). ModSearch hands back a few hundred tokens your model can quote: titles, links, dates, and an `uncertainty` list naming what could not be pinned down.
 - **Reaches inside X (Twitter).** With Grok Build installed, ModSearch searches the one corpus no web index can see.
-- **Reading a page never fails.** A dependency-free local fetcher is the guaranteed floor, even with nothing installed and every quota spent.
-- **Engines fail over by themselves.** It uses whatever is on your machine and switches mid-run when an engine dies or runs dry. The output names who answered.
+- **Reading a page never fails.** A dependency-free local fetcher is the guaranteed floor, and with a Firecrawl key the fallback even renders JavaScript pages.
 - **Install once, works everywhere.** Claude Code, Codex, Pi, and OpenCode all take the same skill.
 
 <sub>The ~30,000-token figure is one 2026-08 measurement, not a benchmark: a single search-backed question answered by DeepSeek-V4-Flash through Codex's Responses API endpoint. It stands for the cost of pushing whole pages into context, not a fixed number.</sub>
