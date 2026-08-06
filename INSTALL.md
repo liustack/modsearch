@@ -171,13 +171,13 @@ social (search X)
 
 How to read it:
 
-- **`Node status: OK`** — the runtime meets the floor (22.13+). If it says
+- **`Node status: OK`** means the runtime meets the floor (22.13+). If it says
   `TOO OLD`, upgrade Node and stop here, because nothing else will work.
-- **`search resolved: <engine>`** — a web engine is ready. If it reads
+- **`search resolved: <engine>`** means a web engine is ready. If it reads
   `(none available)`, no search engine is set up: go back to Step 3. Each
   not-ready engine prints a `fix:` line with the exact command to make it ready.
-- **`fetch resolved: local`** — page fetch is ready. This is always true.
-- **`social`** — only relevant if the user wants X. `(none available)` just means
+- **`fetch resolved: local`** means page fetch is ready. This is always true.
+- **`social`** is only relevant if the user wants X. `(none available)` just means
   Grok Build is not installed.
 
 Then run one real search to confirm the whole path end to end:
