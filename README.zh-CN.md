@@ -62,29 +62,6 @@ agy                                                           # 浏览器完成�
 
 ![开放问题返回六条带来源的结果，并附可信度说明](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
-## 工作原理
-
-![纯文本模型经 modsearch skill 获得网页搜索、单页抓取、X 三条来源，返回结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
-
-四个步骤：
-
-1. 模型需要外部信息时 skill 触发：时效性问题、用户给出的 URL、涉及 X 的查询。
-2. skill 运行 `modsearch` 命令，按任务类型从本机可用引擎中选择一个。
-3. 引擎失败或额度耗尽时自动切换下一个，结果中记录实际应答的引擎与切换原因。
-4. 模型读取 JSON 证据，带来源作答。
-
-三类任务各有引擎，只有搜索需要准备条件：
-
-| 任务 | 前置条件 | 用法 |
-| :-- | :-- | :-- |
-| 搜索公共网页 | agy，或 Tavily / Exa / Firecrawl 任一 key | `-q "查询词"` |
-| 抓取一个 URL | 无，JavaScript 页面需要 Firecrawl | `-u <url>` |
-| 搜索 X（推特） | Grok Build（SuperGrok 或 X Premium 附带） | 自动触发，或 `--source x` |
-
-限制如下：agy 免费额度按周发放，重度使用会耗尽。X 搜索依赖订阅。本地抓取器不执行 JavaScript，纯前端渲染页面内容有限（Firecrawl 可覆盖）。引擎额度耗尽时记入冷却状态并移至队尾，后续查询优先使用可用引擎，冷却结束后自动恢复。
-
-作为量级参照：由服务端内置搜索承载的一次问答，实测消耗约三万 token（2026-08，DeepSeek-V4-Flash 经 Codex 的 Responses API 端点）。ModSearch 返回的证据通常在几百 token。
-
 ## 文档
 
 | 文档 | 适用场景 |

@@ -62,29 +62,6 @@ Give it no target at all, just "anything interesting in AI today?". Thirty-six s
 
 ![An open-ended question comes back as six sourced stories with a stated confidence caveat](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
-## How it works
-
-![A text-only model reaches web search, one-page reading, and X through the modsearch skill, and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.en.png)
-
-Four steps:
-
-1. The skill triggers when the model needs outside information: a time-sensitive question, a user-supplied URL, a query about X.
-2. It runs the `modsearch` CLI, which picks an engine for the task from what is available on the machine.
-3. If that engine fails or exhausts its quota, the next one takes over. The output records which engine answered and why any switch happened.
-4. The model reads the JSON evidence and answers with sources.
-
-Three tasks, each with its own engines. Only searching requires setup:
-
-| Job | What it takes | How |
-| :-- | :-- | :-- |
-| Search the public web | agy, or a Tavily, Exa, or Firecrawl key | `-q "query"` |
-| Read one URL | nothing at all, or Firecrawl for JavaScript pages | `-u <url>` |
-| Search X (Twitter) | Grok Build (SuperGrok or X Premium) | automatic, or `--source x` |
-
-The limitations: agy's free quota is issued weekly and heavy use exhausts it. The X route requires a subscription. The local fetcher does not execute JavaScript, so client-rendered pages return limited content (Firecrawl covers those). When an engine exhausts its quota, it is recorded as cooling and moved to the back of the chain, so later queries start from a working engine until it recovers.
-
-For scale: one question answered through server-side built-in search measured about 30,000 tokens of context (2026-08, DeepSeek-V4-Flash through Codex's Responses API endpoint). ModSearch's evidence is typically a few hundred tokens.
-
 ## Documentation
 
 | Doc | Read it when |
