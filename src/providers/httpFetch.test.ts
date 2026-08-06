@@ -26,22 +26,26 @@ function startServer(
   });
 }
 
-describe('http engine routing', () => {
-  it('is registered as a fetch-only engine', () => {
-    const engine = resolveEngine('http');
-    expect(engine.name).toBe('http');
+describe('local engine routing', () => {
+  it('is registered as a fetch-only engine, canonically named local', () => {
+    const engine = resolveEngine('local');
+    expect(engine.name).toBe('local');
     expect(engine.roles).toEqual(['fetch']);
     expect(engine.isAvailable({}, {})).toBe(true);
-    expect(resolveEngine('direct').name).toBe('http');
+  });
+
+  it('keeps http and direct as aliases that resolve to local', () => {
+    expect(resolveEngine('http').name).toBe('local');
+    expect(resolveEngine('direct').name).toBe('local');
   });
 
   it('takes over page fetch when agy is not installed', () => {
     const bare = planRole('fetch', {}, undefined, { PATH: '/nonexistent' } as NodeJS.ProcessEnv);
-    expect(bare.chain[0].name).toBe('http');
+    expect(bare.chain[0].name).toBe('local');
   });
 
   it('never takes over search', () => {
-    expect(resolveEngine('http').roles).not.toContain('search');
+    expect(resolveEngine('local').roles).not.toContain('search');
   });
 });
 

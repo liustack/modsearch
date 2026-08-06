@@ -3,12 +3,12 @@
 // AbortController that cancels on timeout. Search maps ranked results in the
 // same shape as the other keyed engines. Fetch is the point of this engine: it
 // runs a real browser in the cloud, so JavaScript-rendered pages come back with
-// content the local http engine cannot see.
+// content the local engine cannot see.
 //
 // The fetch path validates the target with the network module first: a private
 // or reserved address is meaningless to a cloud crawler, so firecrawl declines
-// it and the local http engine reads it instead. The --allow-private-network
-// waiver carries through, matching the http engine.
+// it and the local engine reads it instead. The --allow-private-network
+// waiver carries through, matching the local engine.
 import { isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 
@@ -175,10 +175,10 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   const allowPrivate = options.settings.allowPrivateNetwork === 'true';
 
   // A cloud crawler cannot reach a private or reserved address, so decline it
-  // and let the run fall through to the local http engine, which can.
+  // and let the run fall through to the local engine, which can.
   if (await isReservedTarget(target, allowPrivate)) {
     throw new Error(
-      `firecrawl does not fetch the private or reserved target ${target.hostname}. The local http engine will read it instead.`,
+      `firecrawl does not fetch the private or reserved target ${target.hostname}. The local engine will read it instead.`,
     );
   }
 

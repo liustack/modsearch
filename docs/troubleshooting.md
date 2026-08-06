@@ -81,7 +81,7 @@ To turn the behavior off entirely, so routing is exactly as it was before: `mods
 Read `results[].engine` in the output. Engines are chosen per run from what is installed, so this is usually correct rather than broken:
 
 - Expected agy, got `tavily`: agy failed or is unavailable, and Tavily picked up the work. The `warnings` list names the fallback and `attempts` carries agy's exact failure.
-- Expected agy, got `http` on a fetch: same story, and the page came back as served with no summary or focus narrowing (`warnings` says so).
+- Expected agy, got `local` on a fetch: same story, and the page came back as served with no summary or focus narrowing (`warnings` says so).
 - Asked about X, got `antigravity-cli` or `tavily`: Grok Build is missing or signed out, so this is second-hand web evidence. The `warnings` list says so explicitly.
 
 Force one engine with `-e <name>` when you need to be sure.
@@ -101,7 +101,7 @@ The SSRF guard refused an address in a reserved range. Two very different causes
 
 ## Page came back nearly empty
 
-The local `http` engine runs no JavaScript. A page rendered entirely client-side has almost nothing in its HTML, and the result says so in `uncertainty`. Options: fetch it through agy instead (`-e antigravity-cli`), or find a server-rendered URL for the same content.
+The local engine runs no JavaScript. A page rendered entirely client-side has almost nothing in its HTML, and the result says so in `uncertainty`. Options: fetch it through agy instead (`-e antigravity-cli`), or find a server-rendered URL for the same content.
 
 ## A forced engine that cannot run
 

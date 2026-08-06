@@ -1,5 +1,5 @@
 // Single-page fetch against this project's own README on GitHub. Uses the
-// dependency-free http engine, so it spends no quota. Needs network.
+// dependency-free local engine, so it spends no quota. Needs network.
 export default {
   id: 'fetch-readme',
   title: 'Single-page fetch: the project README reads back with content',

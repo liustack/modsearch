@@ -125,7 +125,7 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
     items,
     uncertainty: items.length === 0 ? ['No results found for this query.'] : [],
     // Exa ranks and links but writes no synthesis, so the summary above is
-    // mechanical. Same shape as the http engine's "read it yourself" notice.
+    // mechanical. Same shape as the local engine's "read it yourself" notice.
     warnings: [
       'Exa returns ranked results without an LLM summary, so the summary is mechanical: read items directly for the evidence.',
     ],

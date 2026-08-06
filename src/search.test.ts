@@ -63,18 +63,18 @@ describe('zero-config machine', () => {
   });
 
   it('still fetches a page with nothing installed', async () => {
-    // The http engine needs no setup, so -u works out of the box. Point it at a
+    // The local engine needs no setup, so -u works out of the box. Point it at a
     // local server rather than the internet: unit tests stay offline.
     const page = await startLocalPage('<html><body><h1>Example Domain</h1></body></html>');
     try {
       const result = await runSearch({
         url: page.url,
-        config: { engines: { http: { allowPrivateNetwork: 'true' } } },
+        config: { engines: { local: { allowPrivateNetwork: 'true' } } },
         env: BARE_ENV,
         timeoutMs: 30_000,
       });
       expect(result.results).toHaveLength(1);
-      expect(result.results[0].engine).toBe('http');
+      expect(result.results[0].engine).toBe('local');
       expect(String(result.results[0].content)).toContain('Example Domain');
     } finally {
       await page.close();
@@ -96,15 +96,15 @@ describe('zero-config machine', () => {
   it('falls through to the next engine and says so', async () => {
     const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
     try {
-      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
       const result = await runSearch({
         url: page.url,
         config,
         env: BARE_ENV,
         timeoutMs: 30_000,
       });
-      expect(result.results[0].engine).toBe('http');
-      expect((result.results[0].warnings as string[]).join(' ')).toContain('Fell back to http');
+      expect(result.results[0].engine).toBe('local');
+      expect((result.results[0].warnings as string[]).join(' ')).toContain('Fell back to local');
     } finally {
       await page.close();
     }
@@ -271,7 +271,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
     try {
       // agy fails on the first (config) engine, http answers the fetch.
-      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
       const result = await runSearch({
         url: page.url,
         config,
@@ -279,12 +279,12 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
         timeoutMs: 30_000,
       });
       const entry = result.results[0];
-      expect(entry.engine).toBe('http');
-      // http's own uncertainty is epistemic only (nothing about routing here).
+      expect(entry.engine).toBe('local');
+      // the local engine's own uncertainty is epistemic only (nothing about routing here).
       expect((entry.uncertainty as string[]).join(' ')).not.toContain('Fell back');
       // Routing + runtime notices live in warnings.
       const warnings = (entry.warnings as string[]).join(' ');
-      expect(warnings).toContain('Fell back to http');
+      expect(warnings).toContain('Fell back to local');
       expect(warnings).toContain('no LLM synthesis');
     } finally {
       await page.close();
@@ -295,14 +295,14 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     // agy fails, http answers: two attempts, first not ok, second ok.
     const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
     try {
-      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
       const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
       const attempts = result.results[0].attempts as Array<{
         engine: string;
         ok: boolean;
         error?: string;
       }>;
-      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'http']);
+      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'local']);
       expect(attempts[0].ok).toBe(false);
       expect(typeof attempts[0].error).toBe('string');
       expect(attempts[1].ok).toBe(true);
@@ -317,7 +317,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     try {
       const result = await runSearch({
         url: page.url,
-        config: { engines: { http: { allowPrivateNetwork: 'true' } } },
+        config: { engines: { local: { allowPrivateNetwork: 'true' } } },
         env: BARE_ENV,
         timeoutMs: 30_000,
       });

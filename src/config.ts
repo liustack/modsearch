@@ -80,7 +80,8 @@ const CANONICAL_ENGINE: Record<string, string> = {
   antigravity: 'antigravity-cli',
   agy: 'antigravity-cli',
   grok: 'grok-cli',
-  direct: 'http',
+  http: 'local',
+  direct: 'local',
 };
 
 interface LegacyConfig {

@@ -23,7 +23,7 @@ export interface RunSearchOptions {
   timeoutMs?: number;
   maxResults?: number;
   workdir?: string;
-  /** One-off override for the http engine's private network guard. */
+  /** One-off override for the local engine's private network guard. */
   allowPrivateNetwork?: boolean;
   /** Injected config, for tests. Loaded from ~/.modsearch/config.json otherwise. */
   config?: ModsearchConfig;
@@ -68,7 +68,7 @@ export interface SourceResult {
   status: SourceStatus;
   /**
    * Routing and runtime warnings for this source: an engine that failed and was
-   * replaced, a degrade to a stand-in corpus, a config typo, the http engine's
+   * replaced, a degrade to a stand-in corpus, a config typo, the local engine's
    * "no synthesis" and "private network allowed" notices. These are about how
    * the answer was produced, not about the facts in it.
    */
@@ -330,7 +330,7 @@ async function runOneSource(
         ? ({ ...output.result } as Record<string, unknown>)
         : ({ result: output.result } as Record<string, unknown>);
 
-    // The http engine hands its own runtime notices back as `warnings`; merge
+    // The local engine hands its own runtime notices back as `warnings`; merge
     // those in after the routing ones. Other engines emit no warnings key.
     const engineWarnings = Array.isArray(body.warnings)
       ? (body.warnings as unknown[]).filter((line): line is string => typeof line === 'string')

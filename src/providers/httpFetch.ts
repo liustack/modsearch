@@ -1,8 +1,8 @@
-// Direct HTTP page fetch, ported from the retired modfetch project. No LLM,
-// no browser, no key, no quota: it opens the URL, strips the markup, and hands
-// back the visible text. Quality is below the agy route (no synthesis, no
-// focus extraction, and JS-rendered pages come back thin), but it is the only
-// fetch engine that works with nothing installed.
+// The `local` engine: direct HTTP page fetch, ported from the retired modfetch
+// project. No LLM, no browser, no key, no quota: it opens the URL, strips the
+// markup, and hands back the visible text. Quality is below the agy route (no
+// synthesis, no focus extraction, and JS-rendered pages come back thin), but it
+// is the only fetch engine that works with nothing installed.
 //
 // This module is the transport and the engine adapter: it drives one fetch
 // (with every redirect hop re-validated), reads the body under caps, and maps
@@ -399,7 +399,9 @@ function formatErrorWithCause(error: unknown): string {
 
 export async function executeHttpFetch(options: EngineRequest): Promise<EngineOutput> {
   if (options.mode !== 'fetch' || !options.url) {
-    throw new Error('The http engine does not support search (-q). It fetches one page at a time.');
+    throw new Error(
+      'The local engine does not support search (-q). It fetches one page at a time.',
+    );
   }
 
   const startedAt = Date.now();
@@ -413,7 +415,7 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
   // How the page was fetched (method, truncation, redirects, private-network
   // override) is a runtime warning, not a fact the page was unsure about.
   const warnings: string[] = [
-    'Fetched directly over HTTP with no LLM synthesis: this is the page text as served, not a restructured summary.',
+    'Fetched directly by the local engine with no LLM synthesis: this is the page text as served, not a restructured summary.',
   ];
   if (result.meta.truncated) {
     warnings.push(`Content truncated at ${result.meta.maxChars} characters.`);
@@ -443,7 +445,7 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
 
   return {
     result: {
-      summary: `${result.title ?? result.finalUrl} (direct HTTP fetch, ${result.status} ${result.statusText})`,
+      summary: `${result.title ?? result.finalUrl} (local fetch, ${result.status} ${result.statusText})`,
       content: result.text,
       links: result.rawHtml ? extractLinks(result.rawHtml, result.finalUrl) : [],
       uncertainty,
@@ -458,7 +460,7 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
 }
 
 export const httpFetchProvider: SearchEngine = {
-  name: 'http',
+  name: 'local',
   roles: ['fetch'],
   requirement: 'nothing, it always works',
   isAvailable: () => true,

@@ -140,7 +140,7 @@ export async function assertSafeRemoteTarget(
  * Advisory check for cloud-fetch engines (firecrawl): is this target definitely
  * a private or reserved address, so sending it to a remote crawler is pointless?
  *
- * This is not a security boundary. The http engine's assertSafeRemoteTarget
+ * This is not a security boundary. The local engine's assertSafeRemoteTarget
  * stays the SSRF guard: it pins the connection and refuses on any doubt. This
  * one only decides whether a cloud engine should bother, so it is the opposite
  * bias: it never connects or pins, and a DNS failure returns false (let the

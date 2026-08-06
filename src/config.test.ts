@@ -153,10 +153,10 @@ describe('config file', () => {
       {} as NodeJS.ProcessEnv,
     );
     const parsed = JSON.parse(rendered);
-    expect(Object.keys(parsed.engines).sort()).toEqual(['antigravity-cli', 'grok-cli', 'http']);
+    expect(Object.keys(parsed.engines).sort()).toEqual(['antigravity-cli', 'grok-cli', 'local']);
     expect(parsed.engines['antigravity-cli'].bin).toBe('/opt/agy (file)');
     expect(parsed.engines['grok-cli'].bin).toBe('/opt/grok (file)');
-    expect(parsed.engines.http.model).toBe('m (file)');
+    expect(parsed.engines.local.model).toBe('m (file)');
     expect(parsed.engine).toBe('agy (file)');
   });
 });

@@ -87,10 +87,10 @@ describe('doctor: search engines', () => {
 describe('doctor: fetch and X', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('always resolves fetch to the built-in http engine', () => {
+  it('always resolves fetch to the built-in local engine', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
-    expect(engine(report, 'fetch', 'http')?.ready).toBe(true);
-    expect(role(report, 'fetch')?.resolved).toBe('http');
+    expect(engine(report, 'fetch', 'local')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.resolved).toBe('local');
   });
 
   it('reports grok not ready when the login file is missing', () => {

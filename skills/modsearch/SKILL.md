@@ -51,12 +51,12 @@ Three jobs, each with its own engines:
 | Role | Engines (best first) | Notes |
 | :-- | :-- | :-- |
 | search the web | `antigravity-cli`, `tavily`, `exa`, `firecrawl` | agy is free with no key. Tavily, Exa, and Firecrawl each need a key and each have a free budget, none needs a card. |
-| fetch a page | `antigravity-cli`, `firecrawl`, `http` | Firecrawl, when keyed, runs a cloud browser that reads JavaScript pages. `http` needs nothing and always works. |
+| fetch a page | `antigravity-cli`, `firecrawl`, `local` | Firecrawl, when keyed, runs a cloud browser that reads JavaScript pages. `local` needs nothing and always works. |
 | search X | `grok-cli` | Needs Grok Build with SuperGrok or X Premium. |
 
 modsearch picks per role from what is installed and falls through on failure, so do not probe first: run the command and read `results[].engine` to see who answered.
 
-- Page fetch never fails for want of an engine, because the local `http` engine is the floor (unless you force a specific engine with `-e`, which turns off that fallback). It returns the page as served, with no summary and no focus narrowing, so pick out the relevant parts yourself. Very little text back means the page is JavaScript-rendered, which that engine does not run: it says so in `uncertainty`, so say the same rather than claiming the page is empty.
+- Page fetch never fails for want of an engine, because the built-in `local` engine is the floor (unless you force a specific engine with `-e`, which turns off that fallback). It returns the page as served, with no summary and no focus narrowing, so pick out the relevant parts yourself. Very little text back means the page is JavaScript-rendered, which that engine does not run: it says so in `uncertainty`, so say the same rather than claiming the page is empty.
 - An X question answered by a web engine means Grok Build is not set up. That entry reads `status: "degraded"`, `requestedSource: "x"`, `source: "web"`, with the reason in `warnings`. Relay that caveat instead of presenting it as X coverage. On a `--source web,x` run where X is unreachable, the X slot comes back as a separate entry with `status: "unavailable"` and empty `items`, so the gap is explicit: report that X could not be reached rather than treating the web entry as if it covered X.
 - Quota cooldown failover is on by default. When an engine hits its quota, modsearch moves it to the back of the chain until it recovers and fails over to a healthy engine, noting who is cooling and until when in `warnings`. A cooling engine is never dropped, only tried last, so it still answers when everything else fails. `modsearch state clear` forgets the cooldowns, `modsearch config set cooldown off` disables the behavior, and `modsearch doctor` shows what is cooling.
 - Setup and key questions: follow `references/configure.md` and run the commands for the user.

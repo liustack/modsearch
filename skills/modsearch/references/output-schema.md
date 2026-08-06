@@ -60,10 +60,10 @@ result fields in beside them:
 | :-- | :-- |
 | `source` | `web` or `x`, the corpus this entry's evidence actually came from |
 | `requestedSource` | `web` or `x`, the corpus that was asked for. Differs from `source` when the run degraded |
-| `engine` | which engine actually answered (`antigravity-cli`, `tavily`, `grok-cli`, `http`), or `null` when the source was unreachable |
+| `engine` | which engine actually answered (`antigravity-cli`, `tavily`, `grok-cli`, `local`), or `null` when the source was unreachable |
 | `model` | the model used, where the engine has one (empty string when it does not) |
 | `status` | `ok`, `degraded`, or `unavailable` (see below) |
-| `warnings` | routing and runtime warnings for this source: a fallback, a degrade caveat, a config typo, the http engine's "no synthesis" and "private network allowed" notices. About how the answer was produced, not the facts in it. Always an array, often empty |
+| `warnings` | routing and runtime warnings for this source: a fallback, a degrade caveat, a config typo, the local engine's "no synthesis" and "private network allowed" notices. About how the answer was produced, not the facts in it. Always an array, often empty |
 | `attempts` | every engine tried for this source, in order: `{ engine, ok, error?, durationSeconds }`. `ok: false` entries carry the failure `error`. One `ok: true` entry at the end on a successful run |
 | `durationSeconds` | how long this one source took, or `null` when nothing ran |
 
@@ -180,7 +180,7 @@ The engine result flattened into the entry:
 ```
 
 - `content` is the page's main content as markdown (agy) or as served text (the
-  local `http` engine, which runs no JavaScript and adds no synthesis).
+  local engine, which runs no JavaScript and adds no synthesis).
 - `links` is the useful outbound links, at most 20. It can be empty.
 
 ## Notes

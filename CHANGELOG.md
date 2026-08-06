@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **BREAKING**: the built-in direct fetcher is renamed from `http` to `local`. Its identity is the local direct fetcher, and the docs always called it that. `http` and `direct` stay as aliases, so `-e http`, `-e direct`, and old config keys keep resolving to it, and the cooldown state file reads the old keys too. The output `engine` field, `doctor`, error messages, both READMEs, `SKILL.md`, `references/output-schema.md` (with its drift test), `references/configure.md`, and `docs/troubleshooting.md` now all say `local`. The fetch order is now `antigravity-cli`, `firecrawl`, `local` (still the unconditional floor).
+
 ## 4.1.0 - 2026-08-06
 
 - New **Exa** search engine (`src/providers/exa.ts`). A keyed, in-process engine in the same shape as tavily: one POST to `https://api.exa.ai/search` with an `x-api-key` header and an AbortController that cancels on timeout. It joins the search order after Tavily, maps highlight snippets and `publishedDate` into the shared item shape, and writes a mechanical summary because Exa ranks and links without synthesizing an answer, with a warning that says to read `items` directly. A 401 or 403 reads as a key problem with a `config set` fix, a spent balance reads as a quota error. The key comes from `EXA_API_KEY` or `engines.exa.apiKey`. Free budget: $10 of recurring monthly credit, about 1,400 searches, no card.

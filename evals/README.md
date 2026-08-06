@@ -44,7 +44,7 @@ Each file in `cases/` default-exports one object:
 `requirement` semantics:
 
 - `none` — no engine, no network, no quota. Always runs (SSRF).
-- `fetch` — uses the built-in http engine, so it always runs, but it needs
+- `fetch` — uses the built-in local engine, so it always runs, but it needs
   network. A network failure is recorded as a fail with the error.
 - `search` — runs only when a search engine (agy or a Tavily key) is set up.
 - `search-no-social` — runs only when search is set up **and** Grok is not, since

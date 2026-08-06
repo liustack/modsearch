@@ -9,14 +9,14 @@ Three jobs, called roles. Each role has engines that can do it:
 | Job | Engines | Configurable? |
 | :-- | :-- | :-- |
 | search the public web | `antigravity-cli`, `tavily`, `exa`, `firecrawl` | yes, this is the one `engine` setting |
-| read one URL | the chosen engine if it can fetch, then `firecrawl` when keyed, else `http` | no, it follows the choice above |
+| read one URL | the chosen engine if it can fetch, then `firecrawl` when keyed, else `local` | no, it follows the choice above |
 | search X (Twitter) | `grok-cli` | no, nothing else can see inside X |
 
-The search order is fixed at `antigravity-cli` then `tavily` then `exa` then `firecrawl`, best first, and fetch is `antigravity-cli` then `firecrawl` then `http`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change.
+The search order is fixed at `antigravity-cli` then `tavily` then `exa` then `firecrawl`, best first, and fetch is `antigravity-cli` then `firecrawl` then `local`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change.
 
 Two facts follow from this table, and they answer most questions:
 
-- **Page fetch always works.** The `http` engine needs nothing installed, and it is the last resort for `fetch` no matter what else is configured or broken.
+- **Page fetch always works.** The `local` engine needs nothing installed, and it is the last resort for `fetch` no matter what else is configured or broken.
 - **Web search needs one engine.** Antigravity CLI (free, no key), or a Tavily, Exa, or Firecrawl key. With none of them, `-q` explains the options instead of failing silently.
 
 X is a separate corpus, not a competing search engine, so it never replaces web search. `--source` chooses corpora, `--engine` chooses the tool.
@@ -55,7 +55,7 @@ Shape:
     "exa":             { "apiKey": "" },
     "firecrawl":       { "apiKey": "" },
     "grok-cli":        { "bin": "grok" },
-    "http":            { "allowPrivateNetwork": "false" }
+    "local":           { "allowPrivateNetwork": "false" }
   }
 }
 ```
@@ -115,7 +115,7 @@ modsearch config set firecrawl.apiKey <key>
 # or environment: export FIRECRAWL_API_KEY=<key>
 ```
 
-Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local `http` engine cannot. On a fetch it sits between agy and the `http` floor. A private or reserved target is skipped, because a cloud crawler cannot reach it, and the local `http` engine reads it instead (the `--allow-private-network` waiver carries through). On search it sits last.
+Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. A private or reserved target is skipped, because a cloud crawler cannot reach it, and the local engine reads it instead (the `--allow-private-network` waiver carries through). On search it sits last.
 
 ### grok-cli (X, rides a SuperGrok or X Premium subscription)
 
@@ -126,9 +126,9 @@ grok    # the user signs in with SuperGrok or X Premium
 
 Nothing else to turn on. An X-flavored query goes to X automatically once `grok` is installed and signed in. Without it, an X question is answered from the public web, and the result says so in `warnings`.
 
-### http (fetch, nothing to install)
+### local (fetch, nothing to install)
 
-No setup. It carries SSRF guards (private ranges, cloud metadata, per-hop redirect checks, size caps) and pins each connection to the validated IP, so DNS rebinding cannot slip past. It runs no JavaScript, so it is not a full browser sandbox: still run untrusted URLs in a sandboxed working directory.
+The built-in direct fetcher (`http` and `direct` still work as aliases). No setup. It carries SSRF guards (private ranges, cloud metadata, per-hop redirect checks, size caps) and pins each connection to the validated IP, so DNS rebinding cannot slip past. It runs no JavaScript, so it is not a full browser sandbox: still run untrusted URLs in a sandboxed working directory.
 
 A VPN that maps public hosts into reserved ranges will trip those guards:
 

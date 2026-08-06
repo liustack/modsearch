@@ -1,4 +1,4 @@
-// JS-rendered page: the local http engine runs no JavaScript, so a client-
+// JS-rendered page: the local engine runs no JavaScript, so a client-
 // rendered page comes back thin and the result should flag that. Needs network.
 // The target is a known single-page app whose initial HTML is a near-empty
 // shell. If it ever ships server-side content, this case will fail loudly.

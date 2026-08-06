@@ -79,6 +79,9 @@ const ENGINES: Record<string, SearchEngine> = {
   firecrawl: firecrawlProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
+  // The built-in direct fetcher. Canonically `local`; `http` and `direct` stay
+  // as aliases so old flags and configs keep resolving to it.
+  local: httpFetchProvider,
   http: httpFetchProvider,
   direct: httpFetchProvider,
 };
@@ -92,15 +95,15 @@ export const ROLE_PREFERENCE: Record<Role, string[]> = {
   // backups when agy is spent, each with its own free budget.
   search: ['antigravity-cli', 'tavily', 'exa', 'firecrawl'],
   // agy extracts to a focus. firecrawl runs a cloud browser for JS-heavy pages
-  // when it is keyed. http always works and returns the page as served, so it
-  // stays the floor.
-  fetch: ['antigravity-cli', 'firecrawl', 'http'],
+  // when it is keyed. The local engine always works and returns the page as
+  // served, so it stays the floor.
+  fetch: ['antigravity-cli', 'firecrawl', 'local'],
   // Only xAI can see inside X.
   social: ['grok-cli'],
 };
 
 /** Engine that never needs setup, so page fetch can always fall back to it. */
-export const FETCH_FLOOR = 'http';
+export const FETCH_FLOOR = 'local';
 
 export function resolveEngine(engineName: string): SearchEngine {
   const engine = ENGINES[engineName.trim().toLowerCase()];
