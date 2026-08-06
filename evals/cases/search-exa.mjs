@@ -1,8 +1,7 @@
 // Exa search: force the exa engine and assert the ranked-results shape (an
 // http(s) link, and that exa itself answered). Needs an exa key. When exa is not
-// configured here, the forced run errors on the missing key, which the check
-// treats as "not exercised" rather than a failure, so a normal eval run on a
-// machine without an exa key is not polluted with a red.
+// configured here, the forced run errors on the missing key, which reports as
+// SKIP. A spent quota reports as BLOCKED. A rejected key is a real FAIL.
 export default {
   id: 'search-exa',
   title: 'Exa search: a forced -e exa run returns ranked results with links',
@@ -13,10 +12,14 @@ export default {
   check(result, run) {
     if (run.code !== 0) {
       const stderr = run.stderr || '';
-      if (/exa.*(API key|out of credits)|config set exa/i.test(stderr)) {
-        return { pass: true, detail: 'exa not configured here, nothing to exercise' };
+      if (/needs an API key/i.test(stderr)) {
+        return { outcome: 'skip', detail: 'no exa key on this machine' };
       }
-      return { pass: false, detail: (stderr.split('\n')[0] || 'run failed').trim() };
+      if (/out of credits/i.test(stderr)) {
+        return { outcome: 'blocked', detail: 'exa quota is spent' };
+      }
+      // A rejected key or any other error is a real failure.
+      return { outcome: 'fail', detail: (stderr.split('\n')[0] || 'run failed').trim() };
     }
     const entry = result.results?.[0] ?? {};
     const items = Array.isArray(entry.items) ? entry.items : [];

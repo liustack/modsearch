@@ -14,10 +14,14 @@ export default {
   check(result, run) {
     if (run.code !== 0) {
       const stderr = run.stderr || '';
-      if (/firecrawl.*(API key|out of credits|rejected)|config set firecrawl/i.test(stderr)) {
-        return { pass: true, detail: 'firecrawl not configured here, nothing to exercise' };
+      if (/needs an API key/i.test(stderr)) {
+        return { outcome: 'skip', detail: 'no firecrawl key on this machine' };
       }
-      return { pass: false, detail: (stderr.split('\n')[0] || 'run failed').trim() };
+      if (/out of credits/i.test(stderr)) {
+        return { outcome: 'blocked', detail: 'firecrawl quota is spent' };
+      }
+      // A rejected key or any other error is a real failure.
+      return { outcome: 'fail', detail: (stderr.split('\n')[0] || 'run failed').trim() };
     }
     const entry = result.results?.[0] ?? {};
     const content = String(entry.content ?? '');

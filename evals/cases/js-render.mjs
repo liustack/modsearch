@@ -6,7 +6,7 @@ export default {
   id: 'js-render',
   title: 'JS-rendered page: the local fetcher flags a client-rendered page as thin',
   requirement: 'fetch',
-  args: ['-u', 'https://play.tailwindcss.com/'],
+  args: ['-e', 'local', '-u', 'https://play.tailwindcss.com/'],
   expectation:
     'uncertainty (or warnings) notes the page is likely JavaScript-rendered / read thin.',
   check(result) {

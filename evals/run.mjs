@@ -162,11 +162,18 @@ async function main() {
       }
     }
 
-    let verdict = { pass: false, detail: 'check threw' };
+    // A check reports one of four outcomes. PASS/FAIL judge the behavior.
+    // SKIP means the case had nothing to exercise here (no key configured).
+    // BLOCKED means the provider is configured but its quota is spent: not a
+    // defect, but never presented as a pass either. Older checks that return
+    // { pass } are normalized.
+    let verdict = { outcome: 'FAIL', detail: 'check threw' };
     try {
-      verdict = testCase.expectError ? testCase.check(run) : testCase.check(result ?? {}, run);
+      const raw = testCase.expectError ? testCase.check(run) : testCase.check(result ?? {}, run);
+      const outcome = raw.outcome ?? (raw.pass ? 'PASS' : 'FAIL');
+      verdict = { outcome: String(outcome).toUpperCase(), detail: raw.detail ?? null };
     } catch (error) {
-      verdict = { pass: false, detail: `check error: ${error?.message ?? error}` };
+      verdict = { outcome: 'FAIL', detail: `check error: ${error?.message ?? error}` };
     }
 
     const entry = result?.results?.[0] ?? null;
@@ -175,7 +182,8 @@ async function main() {
       skipped: false,
       query: result?.query ?? null,
       url: result?.url ?? null,
-      pass: verdict.pass,
+      pass: verdict.outcome === 'PASS',
+      outcome: verdict.outcome,
       detail: verdict.detail ?? null,
       exitCode: run.code,
       latencyMs: run.latencyMs,
@@ -196,15 +204,17 @@ async function main() {
     );
     summary.push({
       id: testCase.id,
-      status: verdict.pass ? 'PASS' : 'FAIL',
+      status: verdict.outcome,
       latencyMs: run.latencyMs,
       detail: verdict.detail ?? '',
     });
   }
 
   // Summary
-  const ran = summary.filter((s) => s.status !== 'SKIP');
+  const ran = summary.filter((s) => s.status === 'PASS' || s.status === 'FAIL');
   const passed = ran.filter((s) => s.status === 'PASS').length;
+  const blocked = summary.filter((s) => s.status === 'BLOCKED').length;
+  const skipped = summary.filter((s) => s.status === 'SKIP').length;
   const latencies = ran.map((s) => s.latencyMs).filter((n) => typeof n === 'number');
   const avg = latencies.length
     ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
@@ -218,11 +228,13 @@ async function main() {
   }
   process.stdout.write(
     `\n  ${passed}/${ran.length} passed` +
-      (summary.length - ran.length ? `, ${summary.length - ran.length} skipped` : '') +
+      (skipped ? `, ${skipped} skipped` : '') +
+      (blocked ? `, ${blocked} blocked on spent quota` : '') +
       (latencies.length ? `. latency avg ${avg}ms, max ${max}ms` : '') +
       `\n  artifacts: ${path.relative(repoRoot, resultsDir)}/\n`,
   );
 
+  // Only a FAIL is a defect. SKIP and BLOCKED are stated, never counted green.
   process.exit(ran.length > 0 && passed < ran.length ? 1 : 0);
 }
 

@@ -1,10 +1,11 @@
-// Single-page fetch against this project's own README on GitHub. Uses the
-// dependency-free local engine, so it spends no quota. Needs network.
+// Single-page fetch against this project's own README on GitHub. Forces the
+// dependency-free local engine (-e local), so it spends no quota no matter
+// which keyed engines are configured. Needs network.
 export default {
   id: 'fetch-readme',
   title: 'Single-page fetch: the project README reads back with content',
   requirement: 'fetch',
-  args: ['-u', 'https://raw.githubusercontent.com/liustack/modsearch/main/README.md'],
+  args: ['-e', 'local', '-u', 'https://raw.githubusercontent.com/liustack/modsearch/main/README.md'],
   expectation: 'content is non-empty and mentions "ModSearch".',
   check(result) {
     const entry = result.results?.[0] ?? {};
