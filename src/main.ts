@@ -12,6 +12,7 @@ import {
   renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
+import { buildCooldownController } from './cooldown.ts';
 import { formatDoctorReport, runDoctor } from './doctor.ts';
 import { listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
@@ -60,6 +61,9 @@ program
         throw new Error('Invalid --max-results. Use a positive integer.');
       }
 
+      // Load the config once so the cooldown controller reads the same switch
+      // the run does. Off returns no controller, and the run touches no state.
+      const config = loadConfigFile();
       const result = await runSearch({
         query: options.query,
         url: options.url,
@@ -71,6 +75,8 @@ program
         maxResults,
         workdir: options.workdir,
         allowPrivateNetwork: options.allowPrivateNetwork,
+        config,
+        cooldown: buildCooldownController(config),
       });
 
       const output = JSON.stringify(result, null, 2);

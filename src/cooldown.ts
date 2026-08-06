@@ -12,6 +12,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { cooldownEnabled, type ModsearchConfig } from './config.ts';
 
 export interface CooldownEntry {
   /** ISO time the engine may be worth trying again. */
@@ -189,4 +190,43 @@ export function clearAllCooldowns(statePath = currentStatePath()): void {
   } catch {
     // best effort: a missing file is already the desired state
   }
+}
+
+/**
+ * One run's view of the cooldown store: a state snapshot and clock for routing
+ * to order by, plus record/clear side effects for the run to report outcomes.
+ * The router reads `state`/`now`, search.ts calls `record` on a failure and
+ * `clear` on a success.
+ */
+export interface CooldownController {
+  readonly state: CooldownState;
+  readonly now: Date;
+  record(engine: string, error: unknown): CooldownEntry | null;
+  clear(engine: string): void;
+}
+
+/**
+ * Build a controller for a run, or undefined when the switch is off. Off means
+ * off: no state file is read here and none is written, so routing is byte-for-
+ * byte what it was before cooldowns existed. On, the state is read once and the
+ * side effects persist against the same path and clock.
+ */
+export function buildCooldownController(
+  config: ModsearchConfig,
+  opts: { now?: Date; statePath?: string } = {},
+): CooldownController | undefined {
+  if (!cooldownEnabled(config)) {
+    return undefined;
+  }
+  const statePath = opts.statePath ?? currentStatePath();
+  const now = opts.now ?? new Date();
+  const state = loadCooldownState(statePath);
+  return {
+    state,
+    now,
+    record: (engine, error) => recordQuotaCooldown(state, engine, error, now, statePath),
+    clear: (engine) => {
+      clearEngineCooldown(state, engine, statePath);
+    },
+  };
 }

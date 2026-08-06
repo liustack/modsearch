@@ -29,6 +29,12 @@ export interface ModsearchConfig {
   /** Engine for searching. Empty means: use the best one available here. */
   engine?: string;
   engines?: Record<string, EngineSettings>;
+  /**
+   * Quota cooldown switch: 'on' (default) or 'off'. On, a quota-spent engine is
+   * remembered and moved to the back of the fallback chain until it recovers.
+   * Off, nothing is read from or written to state.json and routing is unchanged.
+   */
+  cooldown?: string;
 }
 
 /** Shapes older configs used before this collapsed to one knob. */
@@ -118,7 +124,11 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
       : undefined;
   const engine = raw.engine?.trim() || legacySearch || fromPin;
 
-  return { ...(engine ? { engine } : {}), engines };
+  return {
+    ...(engine ? { engine } : {}),
+    ...(raw.cooldown ? { cooldown: raw.cooldown } : {}),
+    engines,
+  };
 }
 
 export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfig {
@@ -153,6 +163,11 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
 /** The engine the user asked for, if any. */
 export function chosenEngine(config: ModsearchConfig): string | undefined {
   return config.engine?.trim() || undefined;
+}
+
+/** Whether the quota cooldown is active. On by default, off only when set to 'off'. */
+export function cooldownEnabled(config: ModsearchConfig): boolean {
+  return config.cooldown?.trim().toLowerCase() !== 'off';
 }
 
 /** Settings for one engine, with env vars overriding the file. */
@@ -196,6 +211,12 @@ export function setConfigValue(
     config.engine = value;
   } else if (parts.length === 2 && parts[0] === 'search' && parts[1] === 'engine') {
     config.engine = value;
+  } else if (parts.length === 1 && parts[0] === 'cooldown') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized !== 'on' && normalized !== 'off') {
+      throw new Error(`Invalid cooldown value: ${value}. Use on or off.`);
+    }
+    config.cooldown = normalized;
   } else {
     const [engineName, field] =
       parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
@@ -264,6 +285,7 @@ export function renderEffectiveConfig(
 
   const out: Record<string, unknown> = {};
   out.engine = config.engine ? tag(config.engine, 'file') : '(unset: automatic)';
+  out.cooldown = config.cooldown ? tag(config.cooldown, 'file') : 'on (default)';
 
   const engines: Record<string, Record<string, string>> = {};
   const ensure = (name: string) => {

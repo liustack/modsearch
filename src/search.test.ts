@@ -1,12 +1,21 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ModsearchConfig } from './config.ts';
+import {
+  buildCooldownController,
+  emptyCooldownState,
+  loadCooldownState,
+  recordQuotaCooldown,
+} from './cooldown.ts';
 import { noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
-import { agySearchEnvelope } from './fixtures/index.ts';
+import { agyQuotaEnvelope, agySearchEnvelope } from './fixtures/index.ts';
 import {
   BARE_ENV,
   cleanupTempDirs,
   fakeEngine,
   startLocalPage,
+  tempDir,
   withSignedInGrok,
 } from './testing/helpers.ts';
 
@@ -321,6 +330,58 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
       await page.close();
     }
   }, 40_000);
+});
+
+describe('quota cooldown records, clears, and can be switched off', () => {
+  afterEach(() => cleanupTempDirs());
+  const now = new Date('2026-08-06T00:00:00.000Z');
+  const statePath = () => path.join(tempDir('modsearch-state-'), 'state.json');
+
+  it('records a cooling engine when it fails with a quota error', async () => {
+    const p = statePath();
+    const config = agyConfig({ stdout: agyQuotaEnvelope() });
+    const controller = buildCooldownController({}, { now, statePath: p });
+    await expect(
+      runSearch({ query: 'q', config, env: BARE_ENV, timeoutMs: 20_000, cooldown: controller }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
+    // agy hit its quota, so it is remembered for the next run.
+    const recorded = loadCooldownState(p).engineCooldowns['antigravity-cli'];
+    expect(recorded).toBeDefined();
+    expect(recorded.until).toBe(new Date(now.getTime() + (94 * 3600 + 19 * 60 + 9) * 1000).toISOString());
+  }, 30_000);
+
+  it('still tries a cooling engine, clears it on success, and warns', async () => {
+    const p = statePath();
+    // Seed: agy is already cooling from a prior run, so it is demoted this run.
+    recordQuotaCooldown(emptyCooldownState(), 'antigravity-cli', new Error('out of credits'), now, p);
+    const config = agyConfig({ stdout: agySearchEnvelope('back') });
+    const controller = buildCooldownController({}, { now, statePath: p });
+    const result = await runSearch({
+      query: 'q',
+      config,
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+      cooldown: controller,
+    });
+    // It was the only engine, so demoted-not-removed means it is still tried and
+    // answers. A successful answer clears its cooldown.
+    expect(result.results[0].engine).toBe('antigravity-cli');
+    expect(result.results[0].summary).toBe('back');
+    expect(loadCooldownState(p).engineCooldowns['antigravity-cli']).toBeUndefined();
+    expect((result.results[0].warnings as string[]).join(' ')).toMatch(/cooling until/);
+  }, 30_000);
+
+  it('reads and writes nothing when the switch is off', async () => {
+    const p = statePath();
+    const config = agyConfig({ stdout: agyQuotaEnvelope() }, { cooldown: 'off' });
+    const controller = buildCooldownController(config, { now, statePath: p });
+    expect(controller).toBeUndefined();
+    await expect(
+      runSearch({ query: 'q', config, env: BARE_ENV, timeoutMs: 20_000, cooldown: controller }),
+    ).rejects.toThrow(/Every engine/);
+    // Off means the state file is never created.
+    expect(fs.existsSync(p)).toBe(false);
+  }, 30_000);
 });
 
 describe('routing facts cannot be faked by an engine', () => {

@@ -1,4 +1,5 @@
 import { engineSettings, loadConfigFile, type ModsearchConfig } from './config.ts';
+import type { CooldownController } from './cooldown.ts';
 import {
   enginesForRole,
   type EngineOutput,
@@ -27,6 +28,13 @@ export interface RunSearchOptions {
   /** Injected config, for tests. Loaded from ~/.modsearch/config.json otherwise. */
   config?: ModsearchConfig;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Quota cooldown for this run: orders the chain away from spent engines and
+   * records or clears their state as the run plays out. Absent means the
+   * cooldown is off (the switch, or a caller that does not use it), and routing
+   * is exactly as it was before cooldowns existed.
+   */
+  cooldown?: CooldownController;
 }
 
 /** How well this entry served the source that was requested. */
@@ -155,6 +163,9 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     requestedEngine: options.engine,
     requestedSources: options.sources === undefined ? undefined : parseSources(options.sources),
     env,
+    cooldown: options.cooldown
+      ? { state: options.cooldown.state, now: options.cooldown.now }
+      : undefined,
   });
 
   const context = { mode, query, url, timeoutMs, config, env, options };
@@ -232,8 +243,12 @@ async function runOneSource(
     throw new SourceRunError(plan.notes.length > 0 ? `${plan.notes.join(' ')}\n${base}` : base, []);
   }
 
+  const controller = options.cooldown;
   const failures: string[] = [];
   const attempts: EngineAttempt[] = [];
+  // Notes about engines that hit a quota wall this run, surfaced on the entry
+  // that finally answers so the reader sees who is now cooling and until when.
+  const cooldownNotes: string[] = [];
   for (const engine of candidates) {
     const settings = engineSettings(engine.name, config, env);
     if (options.allowPrivateNetwork) {
@@ -268,15 +283,27 @@ async function runOneSource(
         error: message,
         durationSeconds: (Date.now() - startedAt) / 1000,
       });
+      // A quota-class failure is remembered so a later run fails over first. A
+      // transient failure (rate limit, timeout) records nothing.
+      if (controller) {
+        const entry = controller.record(engine.name, error);
+        if (entry) {
+          cooldownNotes.push(
+            `The ${engine.name} engine hit its quota and is now cooling until ${entry.until}.`,
+          );
+        }
+      }
       continue;
     }
 
     const durationSeconds = (Date.now() - startedAt) / 1000;
     attempts.push({ engine: engine.name, ok: true, durationSeconds });
+    // This engine answered, so clear any cooldown it was carrying from before.
+    controller?.clear(engine.name);
 
     // Routing and runtime warnings, kept apart from the engine's epistemic
     // uncertainty. Config typos and degrade caveats travel on the plan.
-    const warnings = [...plan.notes];
+    const warnings = [...plan.notes, ...cooldownNotes];
     if (failures.length > 0) {
       warnings.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
       // A web engine answering an X request is second-hand evidence whether the

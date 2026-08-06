@@ -1,4 +1,5 @@
 import { chosenEngine, engineSettings, type ModsearchConfig, type Role } from './config.ts';
+import { coolingEntry, type CooldownState } from './cooldown.ts';
 import {
   FETCH_FLOOR,
   findEngine,
@@ -9,6 +10,12 @@ import {
   type SearchEngine,
   type Source,
 } from './providers/index.ts';
+
+/** One run's cooldown snapshot: which engines are cooling, judged against `now`. */
+export interface CooldownView {
+  state: CooldownState;
+  now: Date;
+}
 
 // Every decision about which sources run and which engine serves each one
 // lives here. Nothing else in the codebase picks an engine.
@@ -66,6 +73,8 @@ export interface PlanInput {
   /** Explicit --source list. Undefined means decide from the query. */
   requestedSources?: Source[];
   env?: NodeJS.ProcessEnv;
+  /** Cooldown snapshot to order the chain by. Absent means cooldown is off. */
+  cooldown?: CooldownView;
 }
 
 /** Which sources a search should consult when the user did not say. */
@@ -98,6 +107,7 @@ export function planRole(
   config: ModsearchConfig,
   requestedEngine: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  cooldown?: CooldownView,
 ): { chain: SearchEngine[]; notes: string[] } {
   const notes: string[] = [];
   const settingsFor = (name: string) => engineSettings(name, config, env);
@@ -156,7 +166,41 @@ export function planRole(
     add(resolveEngine(FETCH_FLOOR));
   }
 
+  // Cooldown only reshuffles this base order, it never changes it: a cooling
+  // engine is moved to the back so a healthy one is tried first, but it stays
+  // in the chain so it is still reached when everything else fails.
+  if (cooldown) {
+    return { chain: reorderByCooldown(chain, cooldown, notes), notes };
+  }
+
   return { chain, notes };
+}
+
+/**
+ * Stable-partition the chain into healthy engines then cooling ones, preserving
+ * the base order within each group. Each demoted engine leaves a note so the
+ * result can say who is cooling and until when.
+ */
+function reorderByCooldown(
+  chain: SearchEngine[],
+  cooldown: CooldownView,
+  notes: string[],
+): SearchEngine[] {
+  const active: SearchEngine[] = [];
+  const cooling: SearchEngine[] = [];
+  for (const engine of chain) {
+    const entry = coolingEntry(cooldown.state, engine.name, cooldown.now);
+    if (entry) {
+      cooling.push(engine);
+      const reason = entry.reason.split('\n')[0].slice(0, 140);
+      notes.push(
+        `The ${engine.name} engine is cooling until ${entry.until}, so it moves to the back of the fallback chain.${reason ? ` Reason: ${reason}` : ''}`,
+      );
+    } else {
+      active.push(engine);
+    }
+  }
+  return [...active, ...cooling];
 }
 
 /** Full plan: which sources to run, and the engine chain for each. */
@@ -164,7 +208,13 @@ export function planRun(input: PlanInput): SourcePlan[] {
   const env = input.env ?? process.env;
 
   if (input.mode === 'fetch') {
-    const { chain, notes } = planRole('fetch', input.config, input.requestedEngine, env);
+    const { chain, notes } = planRole(
+      'fetch',
+      input.config,
+      input.requestedEngine,
+      env,
+      input.cooldown,
+    );
     return [{ source: 'web', engine: chain[0], fallbacks: chain.slice(1), notes }];
   }
 
@@ -174,13 +224,13 @@ export function planRun(input: PlanInput): SourcePlan[] {
   const webRequested = sources.includes('web');
   return sources.flatMap((source): SourcePlan[] => {
     const role = SOURCE_ROLE[source];
-    const { chain, notes } = planRole(role, input.config, input.requestedEngine, env);
+    const { chain, notes } = planRole(role, input.config, input.requestedEngine, env, input.cooldown);
 
     if (source === 'x') {
       // X has one engine. When it is unusable, the web is the only thing left,
       // and the answer must say it is second-hand. An explicit --engine carries
       // into that fallback too, so a hard force stays a hard force.
-      const web = planRole('search', input.config, input.requestedEngine, env);
+      const web = planRole('search', input.config, input.requestedEngine, env, input.cooldown);
       const social = chain.filter((engine) => engine.roles.includes('social'));
       if (social.length === 0) {
         if (webRequested) {

@@ -244,3 +244,55 @@ describe('fetch follows the chosen engine without being configured', () => {
     expect(chain.notes[0]).toContain('cannot fetch');
   });
 });
+
+describe('cooldown reorders the chain without changing the base order', () => {
+  const now = new Date('2026-08-06T00:00:00.000Z');
+  const keyed = config({
+    engines: { tavily: { apiKey: 't' }, exa: { apiKey: 'e' }, firecrawl: { apiKey: 'f' } },
+  });
+
+  /** A cooldown view where each named engine is cooling until the given time. */
+  function cooling(engines: Record<string, string>) {
+    const engineCooldowns = Object.fromEntries(
+      Object.entries(engines).map(([engine, until]) => [
+        engine,
+        { until, reason: `${engine} spent`, observedAt: '2026-01-01T00:00:00.000Z' },
+      ]),
+    );
+    return { state: { engineCooldowns }, now };
+  }
+
+  const FUTURE = '2999-01-01T00:00:00.000Z';
+  const PAST = '2000-01-01T00:00:00.000Z';
+
+  it('moves a cooling engine to the back and notes it, keeping the rest in order', () => {
+    const { chain, notes } = planRole('search', keyed, undefined, WITH_AGY, cooling({ tavily: FUTURE }));
+    expect(names(chain)).toEqual(['antigravity-cli', 'exa', 'firecrawl', 'tavily']);
+    expect(notes.join(' ')).toMatch(/tavily engine is cooling until 2999/);
+  });
+
+  it('keeps every cooling engine in the chain and preserves the base order', () => {
+    const cd = cooling({ 'antigravity-cli': FUTURE, tavily: FUTURE, exa: FUTURE, firecrawl: FUTURE });
+    const { chain } = planRole('search', keyed, undefined, WITH_AGY, cd);
+    // All cooling means the base order is unchanged, and nothing is dropped.
+    expect(names(chain)).toEqual(['antigravity-cli', 'tavily', 'exa', 'firecrawl']);
+  });
+
+  it('demotes a cooling firecrawl below the http floor on fetch', () => {
+    const keyedFetch = config({ engines: { firecrawl: { apiKey: 'f' } } });
+    const { chain } = planRole('fetch', keyedFetch, undefined, WITH_AGY, cooling({ firecrawl: FUTURE }));
+    expect(names(chain)).toEqual(['antigravity-cli', 'http', 'firecrawl']);
+  });
+
+  it('ignores cooldown entirely under a forced --engine', () => {
+    const { chain, notes } = planRole('search', keyed, 'tavily', WITH_AGY, cooling({ tavily: FUTURE }));
+    expect(names(chain)).toEqual(['tavily']);
+    expect(notes).toEqual([]);
+  });
+
+  it('does not demote an engine whose cooldown has already expired', () => {
+    const { chain, notes } = planRole('search', keyed, undefined, WITH_AGY, cooling({ tavily: PAST }));
+    expect(names(chain)).toEqual(['antigravity-cli', 'tavily', 'exa', 'firecrawl']);
+    expect(notes).toEqual([]);
+  });
+});

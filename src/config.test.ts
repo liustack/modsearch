@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  chosenEngine,
+  cooldownEnabled,
   engineSettings,
   initConfigFile,
   loadConfigFile,
   migrateLegacyConfig,
   renderEffectiveConfig,
-  chosenEngine,
   setConfigValue,
 } from './config.ts';
 import { cleanupTempDirs, tempConfigPath } from './testing/helpers.ts';
@@ -75,6 +76,18 @@ describe('config file', () => {
     const p = tempConfigPath();
     setConfigValue('search.engine', 'tavily', p);
     expect(chosenEngine(loadConfigFile(p))).toBe('tavily');
+  });
+
+  it('sets and reads the cooldown switch, on by default, rejecting other values', () => {
+    const p = tempConfigPath();
+    // Missing file and unset key both read as on.
+    expect(cooldownEnabled(loadConfigFile(p))).toBe(true);
+    setConfigValue('cooldown', 'off', p);
+    expect(loadConfigFile(p).cooldown).toBe('off');
+    expect(cooldownEnabled(loadConfigFile(p))).toBe(false);
+    setConfigValue('cooldown', 'ON', p);
+    expect(cooldownEnabled(loadConfigFile(p))).toBe(true);
+    expect(() => setConfigValue('cooldown', 'maybe', p)).toThrow('Use on or off');
   });
 
   it('lets env vars override the file', () => {

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildCooldownController,
   classifyQuota,
   clearAllCooldowns,
   clearEngineCooldown,
@@ -151,5 +152,27 @@ describe('recording and clearing', () => {
     clearAllCooldowns(p);
     expect(fs.existsSync(p)).toBe(false);
     expect(loadCooldownState(p)).toEqual(emptyCooldownState());
+  });
+});
+
+describe('buildCooldownController switch', () => {
+  const now = at('2026-08-06T00:00:00.000Z');
+
+  it('returns nothing and touches no file when the switch is off', () => {
+    const p = statePath();
+    const controller = buildCooldownController({ cooldown: 'off' }, { now, statePath: p });
+    expect(controller).toBeUndefined();
+    expect(fs.existsSync(p)).toBe(false);
+  });
+
+  it('builds a working controller when the switch is on (the default)', () => {
+    const p = statePath();
+    const controller = buildCooldownController({}, { now, statePath: p });
+    expect(controller).toBeDefined();
+    const entry = controller?.record('exa', new Error('out of credits'));
+    expect(entry).not.toBeNull();
+    expect(loadCooldownState(p).engineCooldowns.exa).toBeDefined();
+    controller?.clear('exa');
+    expect(loadCooldownState(p).engineCooldowns.exa).toBeUndefined();
   });
 });
