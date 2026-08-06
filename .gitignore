@@ -6,6 +6,9 @@ dist/
 # coverage output
 coverage/
 
+# eval evidence artifacts (run locally, on demand)
+evals/results/
+
 # dependencies
 node_modules/
 

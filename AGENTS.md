@@ -67,6 +67,22 @@ The Antigravity CLI search path requires `agy` installed and signed in. A run ta
 - `pnpm typecheck && pnpm test` for unit-level checks (mode resolution, invocation building, output parsing).
 - Real end-to-end runs consume the user's agy quota. Ask before running them in bulk.
 
+## Evals (`evals/`)
+
+Unit tests stay offline and prove the logic. Evals run the built CLI end to end
+against real engines and the network, and leave an evidence trail. They are run
+locally, on demand, and are **not** in CI (most cases spend quota).
+
+- `pnpm build && pnpm eval` runs the seed cases. The runner reads
+  `modsearch doctor --json` first and skips any case whose engine is not set up
+  here; the SSRF case needs nothing and always runs.
+- Each case is a file in `evals/cases/` default-exporting `{ id, title,
+  requirement, args, expectError?, expectation, check }`. Keep assertions
+  structural (shape, links, dates, a status, a warning), never an exact-string
+  match on a synthesized summary.
+- Evidence artifacts land in `evals/results/<date>/` (gitignored). Format and
+  field meanings are in `evals/README.md`.
+
 ## Operational Docs (`docs/`)
 
 1. Operational docs use front-matter metadata (`summary`, `read_when`).
