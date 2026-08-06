@@ -76,6 +76,15 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
 
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).trim();
+    // Tavily returns 432 (plan usage cap) and 433 (PAYGO cap) for a spent monthly
+    // budget. Carry the status code into the message so the cooldown layer reads
+    // it as the monthly quota class and holds the engine for a day, not the
+    // 45-minute default, instead of re-hitting the same wall every run.
+    if (response.status === 432 || response.status === 433) {
+      throw new Error(
+        `tavily is out of monthly quota (HTTP ${response.status}).${detail ? ` ${detail}` : ''} Add credit at https://app.tavily.com, or search with another engine.`,
+      );
+    }
     throw new Error(
       `tavily returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`,
     );

@@ -35,6 +35,12 @@ export function currentStatePath(): string {
 /** A quota error with no reset time cools for this long before a retry. */
 export const DEFAULT_COOLDOWN_MS = 45 * 60 * 1000;
 
+/**
+ * A monthly-budget quota (a spent plan or PAYGO cap) with no reset time cools
+ * for a day, not 45 minutes: retrying inside the hour just re-hits the same wall.
+ */
+export const MONTHLY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export function emptyCooldownState(): CooldownState {
   return { engineCooldowns: {} };
 }
@@ -128,7 +134,11 @@ export function parseResetDuration(message: string): number | null {
 export function classifyQuota(error: unknown, now: Date): Date | null {
   const message = error instanceof Error ? error.message : String(error);
   const looksRateLimited = /rate.?limit|too many requests|\b429\b/i.test(message);
+  // Tavily's monthly plan cap (432) and PAYGO cap (433) are a spent monthly
+  // budget carried in the status code, not a per-second blip.
+  const monthlyQuota = /\bhttp 43[23]\b/i.test(message);
   const looksQuota =
+    monthlyQuota ||
     /quota|out of credit|insufficient (?:balance|credit)|credits? (?:exhausted|used up)|balance|Resets? in/i.test(
       message,
     );
@@ -139,7 +149,8 @@ export function classifyQuota(error: unknown, now: Date): Date | null {
     return null;
   }
   const resetMs = parseResetDuration(message);
-  return new Date(now.getTime() + (resetMs ?? DEFAULT_COOLDOWN_MS));
+  const fallbackMs = monthlyQuota ? MONTHLY_COOLDOWN_MS : DEFAULT_COOLDOWN_MS;
+  return new Date(now.getTime() + (resetMs ?? fallbackMs));
 }
 
 /**

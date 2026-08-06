@@ -122,6 +122,21 @@ describe('tavily provider', () => {
     ).rejects.toThrow(/tavily returned 401/);
   });
 
+  it.each([432, 433])(
+    'maps a %i plan-cap response to a monthly quota message the cooldown layer reads',
+    async (status) => {
+      mockFetchJson({ error: 'usage limit reached' }, { ok: false, status });
+      await expect(
+        executeTavilySearch({
+          mode: 'search',
+          query: 'q',
+          timeoutMs: 1000,
+          settings: { apiKey: 'tvly-test' },
+        }),
+      ).rejects.toThrow(new RegExp(`monthly quota.*HTTP ${status}`, 'i'));
+    },
+  );
+
   it('aborts the underlying request on timeout and reports it', async () => {
     let sawAbort = false;
     // A fetch that never resolves on its own: only the abort signal ends it,

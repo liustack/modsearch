@@ -11,6 +11,7 @@ import {
   emptyCooldownState,
   isEngineCooling,
   loadCooldownState,
+  MONTHLY_COOLDOWN_MS,
   parseResetDuration,
   recordQuotaCooldown,
 } from './cooldown.ts';
@@ -93,6 +94,11 @@ describe('classifyQuota', () => {
   it('falls back to a 45-minute TTL for a quota error with no reset time', () => {
     const until = classifyQuota(new Error('exa is out of credits: insufficient balance'), now);
     expect((until as Date).getTime() - now.getTime()).toBe(DEFAULT_COOLDOWN_MS);
+  });
+
+  it.each([432, 433])('holds a Tavily monthly-cap %i for 24 hours, not 45 minutes', (status) => {
+    const until = classifyQuota(new Error(`tavily is out of monthly quota (HTTP ${status}).`), now);
+    expect((until as Date).getTime() - now.getTime()).toBe(MONTHLY_COOLDOWN_MS);
   });
 
   it('does not persist a per-second rate limit', () => {

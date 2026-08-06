@@ -66,6 +66,14 @@ firecrawl is out of credits: ...
 
 The engine's free budget for the period is spent. Another keyed search engine picks up the work on its own, and with cooldown on the spent engine is moved to the back of the chain until it recovers, so you stop hitting it. Add credit, switch engines, or wait for the monthly reset.
 
+## Tavily out of monthly quota (432/433)
+
+```
+tavily is out of monthly quota (HTTP 432). ...
+```
+
+Tavily returns 432 (plan usage cap) and 433 (PAYGO cap) when the monthly budget is spent. modsearch reads these as the monthly quota class, so with cooldown on the engine is held for a full day rather than the 45-minute default, since retrying inside the hour just re-hits the same wall. Another search engine picks up the work meanwhile. Add credit at https://app.tavily.com or wait for the monthly reset.
+
 ## An engine keeps getting skipped
 
 modsearch is failing over around a cooldown. When an engine hit a quota wall, it is remembered in `~/.modsearch/state.json` and tried last until it recovers, and the result's `warnings` name which engine and until when. Run `modsearch doctor` to see what is cooling and how much time is left. To clear it by hand:
