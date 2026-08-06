@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.0.0 - 2026-08-06
 
 - `references/configure.md` now gives the full `~/.modsearch/config.json` structure: a complete example plus a field-by-field table covering the top-level `engine`, `cooldown`, and `allowPrivateNetwork`, and the per-engine `apiKey` / `bin` / `model`. Both READMEs' configuration sections point at it.
 - Two eval cases added: `search-exa` (a forced `-e exa` search returns ranked results with links) and `fetch-firecrawl` (a forced `-e firecrawl` fetch reads a page as markdown). The runner is unchanged. Since it has no per-engine skip, each case's check treats a missing-key run as "not exercised" rather than a red, so `pnpm eval` stays green on a machine without those keys and only exercises the engine when it is keyed.
