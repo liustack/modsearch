@@ -41,10 +41,11 @@ Send this line to your AI. It installs, configures, and verifies the skill, then
 
 > Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
 
-**The one step that needs your hands**: the default search engine, Antigravity CLI, requires a browser sign-in that only you can complete. After your AI installs it, run it once and sign in:
+**The one step that needs your hands**: the default search engine, Antigravity CLI, requires a browser sign-in that only you can complete:
 
 ```bash
-agy    # sign in, then exit
+curl -fsSL https://antigravity.google/cli/install.sh | bash   # install, skip if your AI already did
+agy                                                           # sign in, then exit
 ```
 
 To skip Antigravity CLI entirely, send your AI a free key from Tavily, Exa, or Firecrawl and let it configure the engine (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).

@@ -41,10 +41,11 @@ DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问�
 
 > 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
 
-**唯一需要你亲手做的一步**：默认搜索引擎 Antigravity CLI 的浏览器登录需要本人完成。你的 AI 装好它之后，运行一次并完成登录：
+**唯一需要你亲手做的一步**：默认搜索引擎 Antigravity CLI 的浏览器登录需要本人完成：
 
 ```bash
-agy    # 浏览器完成登录后退出
+curl -fsSL https://antigravity.google/cli/install.sh | bash   # 安装，AI 已代装过则跳过
+agy                                                           # 浏览器完成登录后退出
 ```
 
 不想装 Antigravity CLI 的话，把 Tavily、Exa 或 Firecrawl 任意一家的免费 key 发给你的 AI 让它配置，就不需要这一步（Tavily 每月 1,000 次，Exa 每月约 1,400 次，Firecrawl 每月 1,000 点，注册均无需绑卡）。
