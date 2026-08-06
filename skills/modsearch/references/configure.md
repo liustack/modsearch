@@ -116,7 +116,7 @@ modsearch config set firecrawl.apiKey <key>
 # or environment: export FIRECRAWL_API_KEY=<key>
 ```
 
-Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. A private or reserved target is skipped, because a cloud crawler cannot reach it, and the local engine reads it instead (the `--allow-private-network` waiver carries through). On search it sits last.
+Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. A literal private or reserved target (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) is always skipped and read by the local engine instead, even with `--allow-private-network` on, so an internal address never leaks to the cloud. Only a public-looking host that resolves to a reserved IP follows the switch: a VPN fake-ip goes up when you waive the guard, and is skipped otherwise. On search it sits last.
 
 ### grok-cli (X, rides a SuperGrok or X Premium subscription)
 

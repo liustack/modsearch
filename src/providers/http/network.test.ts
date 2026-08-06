@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertSafeRemoteTarget,
   isBlockedHostname,
+  isLiteralReservedTarget,
   isPrivateIpAddress,
   isReservedTarget,
   normalizeFetchUrl,
@@ -88,6 +89,28 @@ describe('assertSafeRemoteTarget returns the pinned IP', () => {
     await expect(assertSafeRemoteTarget(u('http://localhost/'), true)).rejects.toThrow(
       /Blocked hostname/,
     );
+  });
+});
+
+describe('isLiteralReservedTarget: names and IPs that never go to the cloud', () => {
+  const u = (spec: string) => new URL(spec);
+
+  it('flags literal reserved IPs, loopback, and inherently local names', () => {
+    expect(isLiteralReservedTarget(u('http://10.0.0.5/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://192.168.1.1/admin'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://127.0.0.1/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://[::1]/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://localhost/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://app.localhost/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://printer.local/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://db.internal/'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://metadata.google.internal/'))).toBe(true);
+  });
+
+  it('does not flag ordinary public literals or hostnames (DNS is never read)', () => {
+    expect(isLiteralReservedTarget(u('http://93.184.216.34/'))).toBe(false);
+    expect(isLiteralReservedTarget(u('http://[2606:4700:4700::1111]/'))).toBe(false);
+    expect(isLiteralReservedTarget(u('http://example.com/'))).toBe(false);
   });
 });
 

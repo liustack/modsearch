@@ -137,6 +137,30 @@ export async function assertSafeRemoteTarget(
 }
 
 /**
+ * Is this target a *literal* private or reserved destination: a hostname that is
+ * inherently local (localhost and `*.localhost`, `*.local`, `*.internal`, the
+ * cloud metadata blacklist) or an IP written straight into the URL that lands in
+ * a reserved range? These never make sense to hand to a cloud crawler, so a
+ * cloud-fetch engine (firecrawl) skips them regardless of the allowPrivateNetwork
+ * switch: forwarding one would leak an internal address to the cloud. It reads
+ * nothing from DNS. A public-looking hostname that only *resolves* to a reserved
+ * IP is the separate, switch-governed case handled by isReservedTarget below.
+ */
+export function isLiteralReservedTarget(url: URL): boolean {
+  if (isBlockedHostname(url.hostname)) {
+    return true;
+  }
+  const hostname = stripIpv6Brackets(url.hostname).trim().toLowerCase();
+  if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return true;
+  }
+  if (isIP(hostname) > 0) {
+    return isPrivateIpAddress(hostname);
+  }
+  return false;
+}
+
+/**
  * Advisory check for cloud-fetch engines (firecrawl): is this target definitely
  * a private or reserved address, so sending it to a remote crawler is pointless?
  *

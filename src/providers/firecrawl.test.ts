@@ -1,6 +1,18 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeFirecrawl } from './firecrawl.ts';
 import { resolveEngine } from './index.ts';
+
+// Mock DNS so the fake-ip case (a public-looking host that resolves to a
+// reserved IP) is testable offline. Literal-IP targets never reach it.
+const { lookupMock } = vi.hoisted(() => ({ lookupMock: vi.fn() }));
+vi.mock('dns/promises', () => ({ lookup: lookupMock }));
+
+beforeEach(() => {
+  lookupMock.mockReset();
+  // Default: an incidental lookup resolves to a public IP. Only the tests that
+  // opt in resolve to a reserved one.
+  lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -188,7 +200,7 @@ describe('firecrawl fetch path', () => {
     ).rejects.toThrow(/404/);
   });
 
-  it('skips a private or reserved target without calling the API', async () => {
+  it('skips a literal private target without calling the API', async () => {
     const calls = mockFetchJson({ success: true, data: {} });
     await expect(
       executeFirecrawl({
@@ -202,20 +214,55 @@ describe('firecrawl fetch path', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('sends a private target to the API when the private network is allowed', async () => {
+  it('still skips a literal private target even when the private network is allowed', async () => {
+    // The leak fix: a private IP written straight into the URL is never handed to
+    // the cloud, switch or not, so an internal address cannot leak to Firecrawl.
+    const calls = mockFetchJson({ success: true, data: {} });
+    await expect(
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'http://10.0.0.5/admin',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+        allowPrivateNetwork: true,
+      }),
+    ).rejects.toThrow(/private|reserved/i);
+    expect(calls).toHaveLength(0);
+    expect(lookupMock).not.toHaveBeenCalled();
+  });
+
+  it('sends a public host that resolves to a reserved IP up when the switch is on', async () => {
+    // VPN fake-ip: a public-looking name resolves into a reserved range, but the
+    // user waived the guard, so firecrawl still tries the cloud.
+    lookupMock.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
     const calls = mockFetchJson({
       success: true,
       data: { markdown: 'ok content here that is long enough', links: [], metadata: { statusCode: 200 } },
     });
     await executeFirecrawl({
       mode: 'fetch',
-      url: 'http://192.168.1.10/admin',
+      url: 'http://internal.example.com/admin',
       timeoutMs: 30000,
       settings: { apiKey: 'fc-test' },
       allowPrivateNetwork: true,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.firecrawl.dev/v2/scrape');
+  });
+
+  it('skips a public host that resolves to a reserved IP when the switch is off', async () => {
+    lookupMock.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
+    const calls = mockFetchJson({ success: true, data: {} });
+    await expect(
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'http://internal.example.com/admin',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+      }),
+    ).rejects.toThrow(/private|reserved/i);
+    expect(calls).toHaveLength(0);
+    expect(lookupMock).toHaveBeenCalled();
   });
 });
 

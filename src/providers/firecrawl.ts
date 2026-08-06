@@ -9,7 +9,7 @@
 // or reserved address is meaningless to a cloud crawler, so firecrawl declines
 // it and the local engine reads it instead. The --allow-private-network
 // waiver carries through, matching the local engine.
-import { isReservedTarget, normalizeFetchUrl } from './http/network.ts';
+import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 
 const DEFAULT_LIMIT = 10;
@@ -174,9 +174,14 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   const target = normalizeFetchUrl(options.url);
   const allowPrivate = options.allowPrivateNetwork === true;
 
-  // A cloud crawler cannot reach a private or reserved address, so decline it
-  // and let the run fall through to the local engine, which can.
-  if (await isReservedTarget(target, allowPrivate)) {
+  // Two layers, because the private-network switch must not blind the first one.
+  // A literal private or reserved target (an IP in a reserved range, or an
+  // inherently local name) never goes to the cloud crawler, switch or not:
+  // forwarding it would leak an internal address to Firecrawl. A public-looking
+  // host that only resolves to a reserved IP (a VPN fake-ip) is the switch's
+  // call: skipped when the switch is off, sent up when the user waived the guard.
+  // Either way the run falls through to the local engine, which can reach it.
+  if (isLiteralReservedTarget(target) || (await isReservedTarget(target, allowPrivate))) {
     throw new Error(
       `firecrawl does not fetch the private or reserved target ${target.hostname}. The local engine will read it instead.`,
     );
