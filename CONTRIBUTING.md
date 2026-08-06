@@ -24,15 +24,17 @@ pnpm build       # vite lib build to dist/
 pnpm lint        # Biome
 ```
 
-Requires Node 22.13+ (macOS or Linux).
+Requires Node 22.13+. CI runs the full gate on macOS, Linux, and Windows (Node 22 and 24). The README's "Platform support" section covers what each platform includes.
 
 ## Tests never go online
 
-Unit tests must not touch the network. Tavily is mocked, the `agy` and `grok`
-binaries are replaced with tiny shell scripts that echo canned envelopes, and a
-page fetch runs against a loopback server from `startLocalPage` in
-`src/testing/helpers.ts`. Real `agy`/`grok` calls spend quota and are
-end-to-end checks, not unit tests, so they stay out of `pnpm test`. See
+Unit tests must not touch the network. The keyed HTTP engines (Tavily, Exa,
+Firecrawl) are exercised with a stubbed `fetch`, a page fetch runs against the
+loopback server from `startLocalPage` in `src/testing/helpers.ts`, and the
+`agy`/`grok` subprocess engines are replaced with fake CLIs that echo canned
+envelopes. A fake CLI is a POSIX shell script, so the suites that spawn one run
+on Unix only and are skipped on Windows. Real `agy`/`grok` calls spend quota and
+are end-to-end checks, not unit tests, so they stay out of `pnpm test`. See
 `docs/testing.md`.
 
 Tests are co-located: modules have an adjacent `*.test.ts`. Add or update a

@@ -34,4 +34,6 @@ web_search = "disabled"
 | Codex | `~/.codex/skills/` |
 | Pi, OpenCode | `~/.agents/skills/` |
 
+On Windows, `~` is the user profile, so these are `%USERPROFILE%\.claude\skills\` and the like.
+
 Symlinks work in all of them, so linking the skill folder once keeps every agent on the latest version.

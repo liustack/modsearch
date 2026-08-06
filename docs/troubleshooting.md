@@ -133,7 +133,7 @@ You forced a search-only engine to read a page. Drop `-e` and let modsearch rout
 Cannot read /Users/you/.modsearch/config.json: EACCES ... Fix the file or its permissions.
 ```
 
-The file exists but cannot be read. A missing file is fine (that is the zero-config path), so this is a real permissions or file-type problem worth fixing rather than something to ignore.
+The file exists but cannot be read. A missing file is fine (that is the zero-config path), so this is a real permissions or file-type problem worth fixing rather than something to ignore. On Windows the file lives at `%USERPROFILE%\.modsearch\config.json`.
 
 ```
 Failed to parse ... Fix or delete the file.
