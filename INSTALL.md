@@ -25,6 +25,10 @@ fixed location:
 | Codex | `~/.codex/skills/` |
 | Pi, OpenCode | `~/.agents/skills/` |
 
+Install into this global directory in the user's home, so the skill is available
+in every project. Do not install into a project-local `.claude/skills` unless the
+user explicitly asks to scope it to the current project.
+
 Pick the row for the harness you are running in. If you cannot tell which harness
 you are, decide by which config directory already exists:
 
@@ -109,23 +113,52 @@ modsearch does three jobs, and only search needs setup:
 - **Web search needs one of the engines below.** Pick the first one that fits.
 
 The recommended default is Antigravity CLI (`agy`): it needs no API key and also
-reads pages. It requires a one-time browser sign-in that only a human can complete.
+reads pages. It requires a one-time browser sign-in that only the user can
+complete. Handle it in three idempotent steps, each safe to re-run.
 
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy
-```
+1. **Probe.** Is `agy` already installed?
 
-Running `agy` opens a browser. **Ask the user to sign in**, then have them exit
-`agy`. You cannot complete the sign-in yourself. Stop and hand this one action to the user.
+   ```bash
+   command -v agy
+   ```
+
+   If it prints a path, skip the install. If it prints nothing, install it (you
+   run this, no user action needed):
+
+   ```bash
+   curl -fsSL https://antigravity.google/cli/install.sh | bash
+   ```
+
+2. **Confirm it runs.** This spends no quota and needs no login:
+
+   ```bash
+   agy --version
+   ```
+
+   `agy: command not found` here means the installer did not add `agy` to this
+   shell's PATH: open a new shell, or have the user do so, then probe again.
+
+3. **Sign-in.** `agy` has no offline way to report whether it is already signed
+   in, so decide from what you just saw. If `agy` was **already installed** before
+   this run, the user most likely signed in earlier: go on to Step 4, whose real
+   search is the definitive login check, and only come back here if that search
+   reports a sign-in or auth error. If you **just installed** `agy`, it is not
+   signed in yet: run it once, then **ask the user to complete the Google sign-in
+   in the browser it opens, and wait for them to confirm before you continue.**
+   Have them exit `agy` once signed in. You cannot do this sign-in yourself.
+
+   ```bash
+   agy   # opens the browser for the user's one-time sign-in, then they exit
+   ```
 
 If a browser sign-in is not possible, use a keyed engine instead. All three have a
-monthly free tier and need no card. One line each, pick one:
+monthly free tier and need no card. Run one through the launcher (replace the path
+with your TARGET from Step 1), so it works even on a host without npx:
 
 ```bash
-npx @liustack/modsearch config set tavily.apiKey <key>       # 1,000 credits/month
-npx @liustack/modsearch config set exa.apiKey <key>          # $10/month credit, ~1,400 searches
-npx @liustack/modsearch config set firecrawl.apiKey <key>    # 1,000 credits/month, reads JavaScript pages
+bash ~/.claude/skills/modsearch/scripts/run.sh config set tavily.apiKey <key>       # 1,000 credits/month
+bash ~/.claude/skills/modsearch/scripts/run.sh config set exa.apiKey <key>          # $10/month credit, ~1,400 searches
+bash ~/.claude/skills/modsearch/scripts/run.sh config set firecrawl.apiKey <key>    # 1,000 credits/month, reads JavaScript pages
 ```
 
 **If it fails:**
@@ -194,6 +227,12 @@ Expect JSON on stdout: a `results` array whose first entry has an `engine` namin
 who answered and an `items` list with `url`s. That is a working install.
 
 **If it fails:**
+- The launcher printed a JSON diagnosis and exited 78 -> no runtime could run
+  modsearch: no compatible `modsearch` on PATH, no `npx`, and no `bunx`. Read the
+  `nextSteps` field in that JSON and relay it. The manual path in phase A is to
+  install Node 22.13+ (https://nodejs.org) or Bun (https://bun.sh), then re-run
+  this step, since no native artifact is published yet. Do not report modsearch
+  as broken.
 - `No engine on this machine can search the web` -> Step 3 was skipped or did not
   take. The message lists every way to enable search. Run `doctor` again to see
   which engines it now sees.
