@@ -1,5 +1,6 @@
 import type { EngineSettings, Role } from '../config.ts';
 import { antigravityCliProvider } from './antigravity.ts';
+import { exaProvider } from './exa.ts';
 import { grokCliProvider } from './grok.ts';
 import { httpFetchProvider } from './httpFetch.ts';
 import { tavilyProvider } from './tavily.ts';
@@ -73,6 +74,7 @@ const ENGINES: Record<string, SearchEngine> = {
   antigravity: antigravityCliProvider,
   agy: antigravityCliProvider,
   tavily: tavilyProvider,
+  exa: exaProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
   http: httpFetchProvider,
@@ -84,8 +86,9 @@ const ENGINES: Record<string, SearchEngine> = {
  * machine with nothing installed still lands on something that works.
  */
 export const ROLE_PREFERENCE: Record<Role, string[]> = {
-  // agy synthesizes and cites. tavily is the keyed backup when agy is spent.
-  search: ['antigravity-cli', 'tavily'],
+  // agy synthesizes and cites. tavily, then exa, are the keyed backups when agy
+  // is spent, each with its own free budget.
+  search: ['antigravity-cli', 'tavily', 'exa'],
   // agy extracts to a focus. http always works and returns the page as served.
   fetch: ['antigravity-cli', 'http'],
   // Only xAI can see inside X.

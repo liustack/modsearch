@@ -71,6 +71,15 @@ describe('engine chains per role', () => {
     ]);
   });
 
+  it('adds exa to the search chain after tavily when an exa key exists', () => {
+    const withKeys = config({ engines: { tavily: { apiKey: 't' }, exa: { apiKey: 'e' } } });
+    expect(names(planRole('search', withKeys, undefined, WITH_AGY).chain)).toEqual([
+      'antigravity-cli',
+      'tavily',
+      'exa',
+    ]);
+  });
+
   it('leaves the search chain empty on a bare machine', () => {
     expect(planRole('search', config(), undefined, BARE).chain).toEqual([]);
   });

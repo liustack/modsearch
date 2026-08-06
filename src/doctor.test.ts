@@ -56,10 +56,21 @@ describe('doctor: search engines', () => {
     expect(tavily?.keySource).toBe('env');
   });
 
+  it('reports exa ready from an env key and tags the source', () => {
+    const report = runDoctor({
+      config: {},
+      env: { PATH: '/nonexistent', EXA_API_KEY: 'k' } as NodeJS.ProcessEnv,
+    });
+    const exa = engine(report, 'search', 'exa');
+    expect(exa?.ready).toBe(true);
+    expect(exa?.keySource).toBe('env');
+  });
+
   it('gives a copyable fix for a missing key and missing agy', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
     expect(role(report, 'search')?.resolved).toBeNull();
     expect(engine(report, 'search', 'tavily')?.fix).toContain('modsearch config set tavily.apiKey');
+    expect(engine(report, 'search', 'exa')?.fix).toContain('modsearch config set exa.apiKey');
     expect(engine(report, 'search', 'antigravity-cli')?.fix).toContain('antigravity.google');
   });
 });

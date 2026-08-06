@@ -134,6 +134,22 @@ function diagnoseEngine(
     };
   }
 
+  if (engine.name === 'exa') {
+    const fromEnv = env.EXA_API_KEY?.trim();
+    const fromFile = config.engines?.exa?.apiKey?.trim();
+    const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
+    const ready = Boolean(keySource);
+    return {
+      engine: engine.name,
+      ready,
+      keySource,
+      reason: ready
+        ? `API key present (from ${keySource})`
+        : 'no API key (not in EXA_API_KEY or the config file)',
+      ...(ready ? {} : { fix: 'modsearch config set exa.apiKey <key>' }),
+    };
+  }
+
   if (engine.name === 'grok-cli') {
     const bin = settings.bin || 'grok';
     const binPresent = commandOnPath(bin, env);
