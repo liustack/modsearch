@@ -61,5 +61,3 @@ The CI matrix also includes `windows-latest` on Node 22 and 24, running the same
 - **agy and grok are external CLIs.** modsearch runs them by name with no shell, so a native Windows executable on PATH works, while an npm-style `.cmd` shim does not. Whether a Windows build exists is each tool's own decision, not modsearch's.
 - **The cooldown state file** is written through a temp file and an atomic rename. On Windows that rename replaces the target, but the OS cannot replace a file another process holds open, so a rare simultaneous-writer race can drop one write. The store is a best-effort cache that merges on read, so a later run rediscovers anything lost.
 
-The Unix-only tests (spawned CLIs, SIGTERM/SIGKILL escalation, POSIX permission bits) are skipped on Windows, with the reasons recorded in [docs/testing.md](docs/testing.md).
-
