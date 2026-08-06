@@ -161,6 +161,47 @@ describe('recording and clearing', () => {
   });
 });
 
+describe('concurrent writes merge instead of clobbering', () => {
+  const now = at('2026-08-06T00:00:00.000Z');
+
+  it('keeps both engines when two processes record different ones', () => {
+    const p = statePath();
+    // Two independent in-memory snapshots, as two processes would each hold.
+    const procA = emptyCooldownState();
+    const procB = emptyCooldownState();
+    recordQuotaCooldown(procA, 'exa', new Error('out of credits'), now, p);
+    // procB's snapshot is still empty when it writes. The old whole-file write
+    // put just {tavily} on disk, dropping exa. The merge keeps both.
+    recordQuotaCooldown(procB, 'tavily', new Error('out of credits'), now, p);
+    const disk = loadCooldownState(p);
+    expect(Object.keys(disk.engineCooldowns).sort()).toEqual(['exa', 'tavily']);
+  });
+
+  it('keeps the later until when the same engine is recorded twice', () => {
+    const p = statePath();
+    recordQuotaCooldown(emptyCooldownState(), 'exa', new Error('out of credits'), now, p);
+    const short = loadCooldownState(p).engineCooldowns.exa.until;
+    // A fresh snapshot records a far-future reset for the same engine.
+    recordQuotaCooldown(emptyCooldownState(), 'exa', new Error('quota. Resets in 94h19m9s'), now, p);
+    const long = loadCooldownState(p).engineCooldowns.exa.until;
+    expect(Date.parse(long)).toBeGreaterThan(Date.parse(short));
+    // A later shorter record must not shorten the live cooldown.
+    recordQuotaCooldown(emptyCooldownState(), 'exa', new Error('out of credits'), now, p);
+    expect(loadCooldownState(p).engineCooldowns.exa.until).toBe(long);
+  });
+
+  it("clearing one engine leaves another process's record intact", () => {
+    const p = statePath();
+    const procA = emptyCooldownState();
+    const procB = emptyCooldownState();
+    recordQuotaCooldown(procA, 'exa', new Error('out of credits'), now, p);
+    recordQuotaCooldown(procB, 'tavily', new Error('out of credits'), now, p);
+    // procA only knows about exa; clearing it must not wipe tavily off disk.
+    expect(clearEngineCooldown(procA, 'exa', p)).toBe(true);
+    expect(Object.keys(loadCooldownState(p).engineCooldowns)).toEqual(['tavily']);
+  });
+});
+
 describe('buildCooldownController switch', () => {
   const now = at('2026-08-06T00:00:00.000Z');
 

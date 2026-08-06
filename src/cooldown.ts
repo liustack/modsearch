@@ -78,17 +78,44 @@ export function loadCooldownState(statePath = currentStatePath()): CooldownState
   }
 }
 
-function writeCooldownState(state: CooldownState, statePath: string): void {
+/** The entry with the later `until`, so a concurrent writer's fresher cooldown wins. */
+function laterEntry(existing: CooldownEntry | undefined, incoming: CooldownEntry): CooldownEntry {
+  if (!existing) {
+    return incoming;
+  }
+  const existingUntil = Date.parse(existing.until);
+  const incomingUntil = Date.parse(incoming.until);
+  // Prefer the incoming record on a tie or an unparseable existing `until`.
+  return Number.isFinite(existingUntil) && existingUntil > incomingUntil ? existing : incoming;
+}
+
+/**
+ * Read-modify-write the state file under an atomic rename. Two processes writing
+ * at once used to clobber each other, because each wrote its whole in-memory
+ * snapshot over the file, so the second write dropped whatever the first had
+ * recorded. We re-read the latest on-disk state, apply the caller's change to
+ * that (set or replace one engine, or delete one), and write the union, so a
+ * cooldown another process recorded meanwhile survives. Still a temp file plus
+ * rename, so a crash mid-write cannot leave a partial file behind.
+ */
+function updateStateOnDisk(
+  statePath: string,
+  mutate: (state: CooldownState) => void,
+): CooldownState {
   const dir = path.dirname(statePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmp = path.join(dir, `.state.${process.pid}.${Date.now()}.tmp`);
-  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  const merged = loadCooldownState(statePath);
+  mutate(merged);
+  const unique = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  const tmp = path.join(dir, `.state.${unique}.tmp`);
+  fs.writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(tmp, statePath);
   try {
     fs.chmodSync(statePath, 0o600);
   } catch {
     // best effort on platforms without chmod
   }
+  return merged;
 }
 
 /** The active cooldown entry for an engine, or undefined if it is not cooling now. */
@@ -175,9 +202,15 @@ export function recordQuotaCooldown(
     reason,
     observedAt: now.toISOString(),
   };
-  state.engineCooldowns[engine] = entry;
-  writeCooldownState(state, statePath);
-  return entry;
+  // Merge against the latest on-disk state so a concurrent writer's record for
+  // another engine is not lost. The same engine keeps whichever cooldown lasts
+  // longer, so a shorter later write cannot shorten a live cooldown.
+  const merged = updateStateOnDisk(statePath, (disk) => {
+    disk.engineCooldowns[engine] = laterEntry(disk.engineCooldowns[engine], entry);
+  });
+  const persisted = merged.engineCooldowns[engine];
+  state.engineCooldowns[engine] = persisted;
+  return persisted;
 }
 
 /** Clear one engine's cooldown. Persists only when something actually changed. */
@@ -190,7 +223,10 @@ export function clearEngineCooldown(
     return false;
   }
   delete state.engineCooldowns[engine];
-  writeCooldownState(state, statePath);
+  // Remove only this engine on disk, preserving any other process's records.
+  updateStateOnDisk(statePath, (disk) => {
+    delete disk.engineCooldowns[engine];
+  });
   return true;
 }
 
