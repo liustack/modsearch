@@ -11,6 +11,7 @@
 // waiver carries through, matching the local engine.
 import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { MAX_CONTENT_CHARS } from './limits.ts';
 
 const DEFAULT_LIMIT = 10;
 const FIRECRAWL_SEARCH_URL = 'https://api.firecrawl.dev/v2/search';
@@ -215,7 +216,11 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
     );
   }
 
-  const content = data.data?.markdown ?? '';
+  // Cap the markdown at the same ceiling the local engine uses, so a huge page
+  // cannot flood a model's context no matter which fetch engine served it.
+  const rawContent = data.data?.markdown ?? '';
+  const truncated = rawContent.length > MAX_CONTENT_CHARS;
+  const content = truncated ? rawContent.slice(0, MAX_CONTENT_CHARS) : rawContent;
   const links = normalizeLinks(data.data?.links);
   const summary =
     metadata.title ||
@@ -231,15 +236,20 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
     );
   }
 
+  const warnings = [
+    'Fetched through Firecrawl in the cloud, which runs JavaScript. The content is Firecrawl markdown extraction, not the raw page as served.',
+  ];
+  if (truncated) {
+    warnings.push(`Content truncated at ${MAX_CONTENT_CHARS} characters.`);
+  }
+
   return {
     result: {
       summary,
       content,
       links,
       uncertainty,
-      warnings: [
-        'Fetched through Firecrawl in the cloud, which runs JavaScript. The content is Firecrawl markdown extraction, not the raw page as served.',
-      ],
+      warnings,
     },
     meta: {
       conversationId: null,

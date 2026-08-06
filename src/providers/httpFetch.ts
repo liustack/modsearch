@@ -16,6 +16,7 @@ import {
   normalizeWhitespace,
 } from './http/htmlExtract.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { MAX_CONTENT_CHARS } from './limits.ts';
 
 export interface FetchOptions {
   url: string;
@@ -61,7 +62,7 @@ interface ReadBodyResult {
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_BYTES = 2_000_000;
-const DEFAULT_MAX_CHARS = 50_000;
+const DEFAULT_MAX_CHARS = MAX_CONTENT_CHARS;
 const DEFAULT_MAX_REDIRECTS = 4;
 
 export async function runFetch(options: FetchOptions): Promise<FetchResult> {

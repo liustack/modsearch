@@ -185,6 +185,25 @@ describe('firecrawl fetch path', () => {
     expect(result.links[0]).toEqual({ text: 'https://a.example.com/l0', url: 'https://a.example.com/l0' });
     expect(result.summary).toContain('Title');
     expect(result.warnings.join(' ')).toMatch(/Firecrawl|JavaScript|cloud/i);
+    // Content under the cap is never flagged as truncated.
+    expect(result.warnings.join(' ')).not.toMatch(/truncated/i);
+  });
+
+  it('caps oversized markdown at the shared 50000-char limit and warns', async () => {
+    const huge = 'x'.repeat(60_000);
+    mockFetchJson({
+      success: true,
+      data: { markdown: huge, links: [], metadata: { statusCode: 200 } },
+    });
+    const parsed = await executeFirecrawl({
+      mode: 'fetch',
+      url: 'http://93.184.216.34/big',
+      timeoutMs: 30000,
+      settings: { apiKey: 'fc-test' },
+    });
+    const result = parsed.result as { content: string; warnings: string[] };
+    expect(result.content).toHaveLength(50_000);
+    expect(result.warnings.join(' ')).toMatch(/truncated at 50000 characters/i);
   });
 
   it('treats a non-2xx page statusCode as a failure', async () => {
