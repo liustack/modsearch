@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>Give a text-only model the web: search, X, and any page, returned as citable evidence.</b></p>
+<p align="center"><b>Give a text-only model the web: search, X, and any page.</b></p>
 
 <p align="center">
   <a href="./README.zh-CN.md">简体中文</a> ·
@@ -22,12 +22,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive questions get answered from training data, which may be out of date without the model knowing. ModSearch adds three capabilities: web search, single-page fetch, and X (Twitter) search, returning a few hundred tokens of structured evidence with sources. No model change, no prompt changes, no key required to start.
+Models like DeepSeek-V4-Flash have no web access, or a weak one. ModSearch is a plug-in that greatly strengthens the model's web search, X search, and single-page fetch.
 
-## Highlights
+## Features
 
-- **Free to start.** The default engine needs no API key. All three fallback engines (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
-- **Automatic failover.** When an engine fails or exhausts its quota, the next one takes over. Exhausted engines are recorded as cooling, so later queries start from a working engine instead of repeating a failed request.
+- **Completely free.** The default channel is Antigravity CLI, no API key needed. All three fallback channels (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
+- **Automatic failover.** When a channel fails or exhausts its quota, the next one takes over.
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
 - **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
@@ -74,7 +74,6 @@ Give it no target at all, just "anything interesting in AI today?". Thirty-six s
 | [Harness setup](docs/harness-setup.md) | Wiring it into Codex, Claude Code, OpenCode, or Pi |
 | [Security](docs/security.md) | SSRF guards, DNS-rebinding protection, untrusted input |
 | [CHANGELOG](CHANGELOG.md) | Finding what changed in a version |
-| [AGENTS.md](AGENTS.md) | Working on this codebase |
 
 ## Contributing
 

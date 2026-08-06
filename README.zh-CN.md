@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>为纯文本模型补上联网能力：网页搜索、X 搜索、单页抓取，返回可引用的结构化证据。</b></p>
+<p align="center"><b>为纯文本模型补上联网能力：网页搜索、X 搜索、单页抓取。</b></p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
@@ -22,12 +22,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问题只能依赖训练数据，答案可能过期而模型自己无从察觉。ModSearch 为它补上三种能力：搜索网页、抓取指定页面、搜索 X（推特），返回几百 token 的结构化证据，每条带来源。不更换模型，不修改提示词，起步不需要任何 key。
+DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模网页搜索、X 搜索、单页抓取能力。
 
-## 亮点
+## 特性
 
-- **免费起步。** 默认引擎无需 API key。三个备用引擎（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
-- **自动故障转移。** 引擎失败或额度耗尽时自动切换下一个，并记录冷却状态，后续查询直接从可用引擎开始，不重复失败请求。
+- **完全免费。** 默认走 Antigravity CLI 通道，无需 API key。三个备用通道（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
+- **自动故障转移。** 一个通道失败或额度耗尽时自动切换下一个。
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
 - **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
 
@@ -64,17 +64,16 @@ agy                                                           # 浏览器完成�
 
 ## 文档
 
-| 文档 | 适用场景 |
-| :-- | :-- |
-| [INSTALL.md](INSTALL.md) | 一步步安装 skill（为 agent 编写） |
-| [CLI 手册](skills/modsearch/references/cli.md) | skill 所驱动的 CLI：参数、配置与体检 |
-| [故障排查](docs/troubleshooting.md) | 命令报错，查成因和解法 |
-| [配置手册](skills/modsearch/references/configure.md) | 配置 key、切换引擎、排查配置 |
-| [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具 |
-| [宿主接入](docs/harness-setup.md) | 在 Codex、Claude Code、OpenCode、Pi 中配置 |
-| [安全说明](docs/security.md) | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
-| [更新日志](CHANGELOG.md) | 查询版本变更 |
-| [AGENTS.md](AGENTS.md) | 修改本项目代码 |
+| 文档                                                     | 适用场景                                    |
+| :------------------------------------------------------- | :------------------------------------------ |
+| [INSTALL.md](INSTALL.md)                                 | 一步步安装 skill（为 agent 编写）           |
+| [CLI 手册](skills/modsearch/references/cli.md)           | skill 所驱动的 CLI：参数、配置与体检        |
+| [故障排查](docs/troubleshooting.md)                      | 命令报错，查成因和解法                      |
+| [配置手册](skills/modsearch/references/configure.md)     | 配置 key、切换引擎、排查配置                |
+| [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具                    |
+| [宿主接入](docs/harness-setup.md)                        | 在 Codex、Claude Code、OpenCode、Pi 中配置  |
+| [安全说明](docs/security.md)                             | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
+| [更新日志](CHANGELOG.md)                                 | 查询版本变更                                |
 
 ## 参与方式
 
