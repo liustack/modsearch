@@ -166,9 +166,9 @@ CI 矩阵同样包含 `windows-latest`（Node 22 和 24），运行相同的 typ
 - **[提交 issue](https://github.com/liustack/modsearch/issues)。** bug、建议、难以理解的报错或文档都欢迎。issue 会被认真阅读，并影响后续开发方向。
 - **Fork。** MIT 协议下你的副本完全归你，修改和发布不受限制。
 
-## 关注公众号
+## 插入硬广一条
 
-AI 工具、实践与想法，第一时间推送。微信扫码，或搜索「liustack」关注：
+关注微信公众号「liustack」：AI 工具、实践与想法，第一时间推送。微信扫码，或搜一搜「liustack」：
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/liustack/modsearch/main/assets/wechat-qrcode.png" width="420" alt="微信公众号 liustack" />
