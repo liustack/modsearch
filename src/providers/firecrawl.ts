@@ -17,8 +17,14 @@ const DEFAULT_LIMIT = 10;
 const FIRECRAWL_SEARCH_URL = 'https://api.firecrawl.dev/v2/search';
 const FIRECRAWL_SCRAPE_URL = 'https://api.firecrawl.dev/v2/scrape';
 const MAX_LINKS = 20;
-// Firecrawl caps a scrape timeout at 300000 ms; keep our request under it.
+// Firecrawl's documented timeout contract is 1000-300000 ms; clamp both ends
+// so a caller's tighter --timeout cannot produce a request Firecrawl rejects.
 const TIMEOUT_CEILING_MS = 300_000;
+const TIMEOUT_FLOOR_MS = 1_000;
+
+function clampTimeout(timeoutMs: number): number {
+  return Math.min(Math.max(timeoutMs, TIMEOUT_FLOOR_MS), TIMEOUT_CEILING_MS);
+}
 
 interface FirecrawlWebResult {
   title?: string;
@@ -131,7 +137,7 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
       query: options.query,
       limit,
       sources: ['web'],
-      timeout: Math.min(options.timeoutMs, TIMEOUT_CEILING_MS),
+      timeout: clampTimeout(options.timeoutMs),
     },
     options.timeoutMs,
   );
@@ -196,12 +202,16 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
       url: target.toString(),
       formats: ['markdown', 'links'],
       onlyMainContent: true,
-      // Force a fresh scrape. Firecrawl defaults maxAge to a multi-day cache and
-      // will return stale content within it, which is fatal for a tool whose
-      // whole point is current information. maxAge: 0 disables the cache and
-      // always re-crawls, at the cost of a credit per fetch.
+      // Always scrape fresh, and leave nothing behind. maxAge: 0 only refuses
+      // to READ Firecrawl's multi-day cache (stale content is fatal for a tool
+      // whose whole point is current information); storeInCache: false keeps
+      // the scraped page from being WRITTEN into Firecrawl's cache and index,
+      // which its API defaults to doing. And skipTlsVerification defaults to
+      // true upstream, so certificate checks are explicitly switched back on.
       maxAge: 0,
-      timeout: Math.min(options.timeoutMs, TIMEOUT_CEILING_MS),
+      storeInCache: false,
+      skipTlsVerification: false,
+      timeout: clampTimeout(options.timeoutMs),
     },
     options.timeoutMs,
   );

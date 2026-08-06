@@ -171,6 +171,11 @@ describe('firecrawl fetch path', () => {
     expect(sent.timeout).toBeGreaterThan(0);
     // Force fresh: no Firecrawl cache, so stale content can never come back.
     expect(sent.maxAge).toBe(0);
+    // The API defaults storeInCache and skipTlsVerification to true, so both
+    // must be sent explicitly: scraped pages stay out of Firecrawl's index,
+    // and certificate checks stay on.
+    expect(sent.storeInCache).toBe(false);
+    expect(sent.skipTlsVerification).toBe(false);
 
     const result = parsed.result as {
       summary: string;
@@ -303,5 +308,19 @@ describe('firecrawl error classification', () => {
     await expect(
       executeFirecrawl({ mode: 'search', query: 'q', timeoutMs: 30000, settings: { apiKey: 'bad' } }),
     ).rejects.toThrow(/config set firecrawl\.apiKey/);
+  });
+});
+
+describe('timeout clamping', () => {
+  it('clamps the requested timeout to the documented 1000-300000 ms contract', async () => {
+    const calls = mockFetchJson({ success: true, data: { web: [] } });
+    await executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 200,
+      settings: { apiKey: 'fc-test' },
+    });
+    const sent = JSON.parse(calls[0].init.body as string);
+    expect(sent.timeout).toBe(1000);
   });
 });
