@@ -79,6 +79,10 @@ A skipped case writes a short artifact with `skipped: true` and the reason.
 | `search-timely` | A time-sensitive answer carries a date and a source link |
 | `x-degrade` | With no Grok, an X query is answered by the web and says so |
 | `js-render` | A client-rendered page comes back thin and the result flags it |
+| `search-exa` | A forced `-e exa` search returns ranked results with links (when exa is keyed) |
+| `fetch-firecrawl` | A forced `-e firecrawl` fetch reads a page as markdown (when firecrawl is keyed) |
+
+`search-exa` and `fetch-firecrawl` force one specific engine. The runner has no per-engine skip, so when that engine is not keyed on the machine the forced run errors on the missing key, and the case's own check treats that as "not exercised" (a pass with a note) rather than a red, so a normal `pnpm eval` run stays green. They only exercise the engine when its key is present.
 
 ## Adding a case
 
