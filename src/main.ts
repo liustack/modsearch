@@ -12,7 +12,7 @@ import {
   renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
-import { buildCooldownController } from './cooldown.ts';
+import { buildCooldownController, clearAllCooldowns, currentStatePath } from './cooldown.ts';
 import { formatDoctorReport, runDoctor } from './doctor.ts';
 import { listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
@@ -131,9 +131,10 @@ config
       process.stdout.write(
         [
           `Created ${CONFIG_PATH}`,
-          'Everything is optional. Two things you can set:',
-          '  modsearch config set engine <antigravity-cli|tavily>   which engine searches',
+          'Everything is optional. Things you can set:',
+          '  modsearch config set engine <antigravity-cli|tavily|exa|firecrawl>   which engine searches',
           '  modsearch config set <engine>.<apiKey|bin|model|allowPrivateNetwork> <value>   engine settings',
+          '  modsearch config set cooldown <on|off>   quota cooldown failover (default on)',
           'Page fetch and X need no settings at all.',
           '',
         ].join('\n'),
@@ -163,6 +164,24 @@ config
   .action(() => {
     try {
       process.stdout.write(`${renderEffectiveConfig(loadConfigFile(), process.env)}\n`);
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+const state = program
+  .command('state')
+  .description('Manage the quota cooldown state at ~/.modsearch/state.json');
+
+state
+  .command('clear')
+  .description('Forget every engine cooldown, so all engines are tried at full priority again')
+  .action(() => {
+    try {
+      const statePath = currentStatePath();
+      clearAllCooldowns(statePath);
+      process.stdout.write(`Cleared cooldown state (${statePath}).\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exit(1);

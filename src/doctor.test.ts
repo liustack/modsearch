@@ -183,11 +183,61 @@ describe('doctor: rendering', () => {
   afterEach(() => cleanupTempDirs());
 
   it('renders a readable text report covering every section', () => {
-    const text = formatDoctorReport(runDoctor({ config: {}, env: BARE_ENV }));
+    const text = formatDoctorReport(
+      runDoctor({ config: {}, env: BARE_ENV, statePath: tempConfigPath() }),
+    );
     expect(text).toContain('Node');
     expect(text).toContain('search (search the web)');
     expect(text).toContain('fetch (fetch a page)');
     expect(text).toContain('social (search X)');
     expect(text).toContain('allowPrivateNetwork');
+    expect(text).toContain('Cooldown');
+  });
+});
+
+describe('doctor: cooldown', () => {
+  afterEach(() => cleanupTempDirs());
+
+  const now = new Date('2026-08-06T00:00:00.000Z');
+
+  it('reports the switch off and consults no state when cooldown is disabled', () => {
+    const report = runDoctor({
+      config: { cooldown: 'off' },
+      env: BARE_ENV,
+      statePath: tempConfigPath(),
+      now,
+    });
+    expect(report.cooldown.enabled).toBe(false);
+    expect(report.cooldown.engines).toEqual([]);
+    expect(formatDoctorReport(report)).toContain('switch: off');
+  });
+
+  it('lists a cooling engine with its remaining time', () => {
+    const p = tempConfigPath();
+    const until = new Date(now.getTime() + 90 * 60_000).toISOString();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: { exa: { until, reason: 'out of credits', observedAt: now.toISOString() } },
+      }),
+    );
+    const report = runDoctor({ config: {}, env: BARE_ENV, statePath: p, now });
+    expect(report.cooldown.enabled).toBe(true);
+    expect(report.cooldown.engines).toHaveLength(1);
+    expect(report.cooldown.engines[0]).toMatchObject({ engine: 'exa', remaining: '1h 30m' });
+    expect(formatDoctorReport(report)).toContain('cooling, 1h 30m left');
+  });
+
+  it('omits an already-expired cooldown from the active list', () => {
+    const p = tempConfigPath();
+    const until = new Date(now.getTime() - 60_000).toISOString();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: { exa: { until, reason: 'x', observedAt: now.toISOString() } },
+      }),
+    );
+    const report = runDoctor({ config: {}, env: BARE_ENV, statePath: p, now });
+    expect(report.cooldown.engines).toEqual([]);
   });
 });

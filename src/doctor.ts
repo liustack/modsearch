@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import {
   chosenEngine,
+  cooldownEnabled,
   currentConfigPath,
   engineSettings,
   loadConfigFile,
@@ -13,6 +14,7 @@ import {
   type Role,
   ROLES,
 } from './config.ts';
+import { coolingEntry, currentStatePath, loadCooldownState } from './cooldown.ts';
 import { grokAuthFile } from './providers/grok.ts';
 import {
   findEngine,
@@ -45,6 +47,16 @@ export interface RoleDiagnosis {
   resolved: string | null;
 }
 
+/** One engine that is currently cooling, with how long is left. */
+export interface CooldownDiagnosis {
+  engine: string;
+  /** ISO time it may recover. */
+  until: string;
+  /** Human remaining time, e.g. "1h 30m" or "45m". */
+  remaining: string;
+  reason: string;
+}
+
 export interface DoctorReport {
   node: { version: string; minimum: string; ok: boolean; fix?: string };
   engineChoice: {
@@ -64,6 +76,8 @@ export interface DoctorReport {
     problem?: string;
   };
   allowPrivateNetwork: { enabled: boolean; source: 'file' | 'default' };
+  /** Quota cooldown: the switch state and every engine cooling right now. */
+  cooldown: { enabled: boolean; statePath: string; engines: CooldownDiagnosis[] };
   roles: RoleDiagnosis[];
 }
 
@@ -73,6 +87,10 @@ export interface DoctorOptions {
   /** Defaults to the running Node version. Injectable for tests. */
   nodeVersion?: string;
   configPath?: string;
+  /** Cooldown state file. Injectable for tests. */
+  statePath?: string;
+  /** Clock for remaining-time math. Injectable for tests. */
+  now?: Date;
 }
 
 const ROLE_JOB: Record<Role, string> = {
@@ -218,10 +236,48 @@ function candidatesForRole(role: Role, config: ModsearchConfig): SearchEngine[] 
   return engines;
 }
 
+/** The engines cooling right now, plus whether the switch is even on. */
+function diagnoseCooldown(
+  config: ModsearchConfig,
+  statePath: string,
+  now: Date,
+): DoctorReport['cooldown'] {
+  if (!cooldownEnabled(config)) {
+    return { enabled: false, statePath, engines: [] };
+  }
+  const state = loadCooldownState(statePath);
+  const engines: CooldownDiagnosis[] = [];
+  for (const engine of Object.keys(state.engineCooldowns)) {
+    const entry = coolingEntry(state, engine, now);
+    if (entry) {
+      engines.push({
+        engine,
+        until: entry.until,
+        remaining: formatRemaining(Date.parse(entry.until) - now.getTime()),
+        reason: entry.reason.split('\n')[0].slice(0, 120),
+      });
+    }
+  }
+  engines.sort((a, b) => a.engine.localeCompare(b.engine));
+  return { enabled: true, statePath, engines };
+}
+
+function formatRemaining(ms: number): string {
+  if (ms <= 0) {
+    return '0m';
+  }
+  const totalMinutes = Math.round(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 export function runDoctor(options: DoctorOptions = {}): DoctorReport {
   const env = options.env ?? process.env;
   const nodeVersion = options.nodeVersion ?? process.versions.node;
   const configPath = options.configPath ?? currentConfigPath();
+  const statePath = options.statePath ?? currentStatePath();
+  const now = options.now ?? new Date();
 
   // Read the config, but never let a broken file abort the diagnosis: a broken
   // file is one of the things doctor exists to point at.
@@ -284,6 +340,7 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
       enabled: allowPrivate,
       source: allowPrivate ? 'file' : 'default',
     },
+    cooldown: diagnoseCooldown(config, statePath, now),
     roles,
   };
 }
@@ -321,6 +378,23 @@ export function formatDoctorReport(report: DoctorReport): string {
   lines.push(
     `  allowPrivateNetwork: ${report.allowPrivateNetwork.enabled ? 'on' : 'off'} (${report.allowPrivateNetwork.source})`,
   );
+  lines.push('');
+
+  lines.push('Cooldown');
+  if (!report.cooldown.enabled) {
+    lines.push('  switch: off (state not consulted)');
+  } else if (report.cooldown.engines.length === 0) {
+    lines.push('  switch: on');
+    lines.push('  no engines are cooling right now');
+  } else {
+    lines.push('  switch: on');
+    for (const c of report.cooldown.engines) {
+      lines.push(`  - ${c.engine.padEnd(16)} cooling, ${c.remaining} left (until ${c.until})`);
+      if (c.reason) {
+        lines.push(`      reason: ${c.reason}`);
+      }
+    }
+  }
   lines.push('');
 
   for (const role of report.roles) {
