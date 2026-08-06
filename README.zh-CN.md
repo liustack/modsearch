@@ -40,19 +40,37 @@ DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问�
 
 ## 安装
 
+### 快速开始
+
+约一分钟，无需做任何选择。按顺序执行下面三段命令。
+
+安装 skill：
+
 ```bash
 npx -y skills add liustack/modsearch
 ```
 
-也可以直接告诉你的 agent：「安装这个 skill https://github.com/liustack/modsearch」。
-
-然后配置一个搜索引擎。**Antigravity CLI** 无需 key，同时覆盖搜索与网页抓取：
+给搜索配一个免费引擎。Antigravity CLI 无需 key，也能抓取网页，首次运行会打开浏览器登录：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 浏览器登录后退出
 ```
 
-或者配置一个带 key 的引擎，三家均有月度免费额度且无需绑卡：
+检查配置并运行一次真实搜索：
+
+```bash
+npx @liustack/modsearch doctor
+npx @liustack/modsearch -q "Node.js 现在的 LTS 版本"
+```
+
+`doctor` 应显示搜索 `resolved: antigravity-cli`，且搜索返回带来源的 JSON。这就说明安装成功。
+
+想让 agent 代劳？告诉它：「安装这个 skill https://github.com/liustack/modsearch」。它会照着 [INSTALL.md](INSTALL.md)（专为 agent 编写的分步指南）执行。
+
+<details>
+<summary><b>用带 key 的搜索引擎替代 agy</b></summary>
+
+Antigravity CLI 作为默认是因为它无需 key。若不想安装它，下面三个带 key 的引擎任选其一即可启用搜索。三家均有月度免费额度且无需绑卡：
 
 ```bash
 modsearch config set tavily.apiKey <key>       # Tavily：每月 1,000 credits
@@ -60,7 +78,29 @@ modsearch config set exa.apiKey <key>          # Exa：每月 10 美元额度，
 modsearch config set firecrawl.apiKey <key>    # Firecrawl：每月 1,000 credits，支持 JavaScript 页面
 ```
 
-一个引擎都没有时，报错信息会列出以上选项。网页抓取零依赖，无需任何配置即可使用。要求 Node 22.13+，macOS 或 Linux。
+一个引擎都没有配置时，任何搜索都会在报错里列出以上选项。网页抓取始终无需安装任何东西。
+</details>
+
+<details>
+<summary><b>手动安装，以及各 agent 从哪里读取 skill</b></summary>
+
+skills CLI 不可用时，自己复制这个目录即可。克隆仓库，把 `skills/modsearch` 放进你所用宿主的 skill 目录：
+
+| 宿主 | skill 目录 |
+| :-- | :-- |
+| Claude Code | `~/.claude/skills/` |
+| Codex | `~/.codex/skills/` |
+| Pi、OpenCode | `~/.agents/skills/` |
+
+```bash
+git clone --depth 1 https://github.com/liustack/modsearch.git
+cp -R modsearch/skills/modsearch ~/.claude/skills/    # 换成你宿主对应的那一行
+```
+
+[INSTALL.md](INSTALL.md) 给出了每一步都带失败分支的完整流程。
+</details>
+
+要求 Node 22.13+。macOS、Linux 与 Windows 的支持情况见[平台支持](#平台支持)。
 
 ## 用法
 
@@ -146,10 +186,23 @@ modsearch -q "推特上怎么评价" --source x       # 搜索 X，涉及 X 的�
 
 `modsearch doctor` 输出本机诊断：Node 版本、各任务的引擎就绪状态及原因、配置来源、私网放行状态、当前冷却中的引擎。不消耗额度，不发起网络请求，`--json` 输出可供程序消费。路由行为不符合预期时先运行它。
 
+## 平台支持
+
+macOS 与 Linux 完整支持，并在 CI 上以 Node 22 和 24 运行完整测试套件。
+
+CI 矩阵同样包含 `windows-latest`（Node 22 和 24），运行相同的 typecheck、测试与构建。Windows 上能用什么，取决于各部分依赖什么：
+
+- **CLI、路由与配置逻辑，以及各 HTTP 引擎**（`local` 抓取、Tavily、Exa、Firecrawl）是纯 Node 实现，只用到 `fetch` 和文件系统，因此跨平台。
+- **agy 与 grok 是外部 CLI。** modsearch 以命令名、无 shell 的方式调用它们，所以 PATH 上有原生 Windows 可执行文件时可用，而 npm 那种 `.cmd` 包装则不行。是否存在 Windows 版本由这些工具自己决定，与 modsearch 无关。
+- **冷却状态文件**通过临时文件加原子改名写入。Windows 上该改名会替换目标文件，但系统无法替换被其他进程打开的文件，因此极少见的同时写入竞争可能丢掉一次写入。该存储是尽力而为的缓存，读取时会合并，后续运行可重新发现丢失的内容。
+
+仅限 Unix 的测试（调用假 CLI、SIGTERM/SIGKILL 升级、POSIX 权限位）在 Windows 上跳过，原因记录在 [docs/testing.md](docs/testing.md)。
+
 ## 文档
 
 | 文档 | 适用场景 |
 | :-- | :-- |
+| [INSTALL.md](INSTALL.md) | 一步步安装 skill（为 agent 编写） |
 | [故障排查](docs/troubleshooting.md) | 命令报错，查成因和解法 |
 | [配置手册](skills/modsearch/references/configure.md) | 配置 key、切换引擎、排查配置 |
 | [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具 |

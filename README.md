@@ -40,19 +40,37 @@ Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive 
 
 ## Installation
 
+### Quick start
+
+About a minute, and no decisions to make. Run these three blocks in order.
+
+Install the skill:
+
 ```bash
 npx -y skills add liustack/modsearch
 ```
 
-Or tell your agent: "Install the skill from https://github.com/liustack/modsearch".
-
-Then give it a search engine. **Antigravity CLI** (no key, covers searching and page reading):
+Give search a free engine. Antigravity CLI needs no key and also reads pages. It opens a browser once to sign in:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # sign in, then exit
 ```
 
-Or configure a keyed engine. All three have monthly free tiers and require no card:
+Check the setup and run a real search:
+
+```bash
+npx @liustack/modsearch doctor
+npx @liustack/modsearch -q "current Node.js LTS version"
+```
+
+`doctor` should show search `resolved: antigravity-cli`, and the search should return JSON with sources. That is a working install.
+
+Prefer to let your agent do it? Tell it: "Install the skill from https://github.com/liustack/modsearch." It follows [INSTALL.md](INSTALL.md), the step-by-step guide written for an agent.
+
+<details>
+<summary><b>Use a keyed search engine instead of agy</b></summary>
+
+Antigravity CLI is the default because it needs no key. To skip it, any one of these keyed engines enables search on its own. All three have a monthly free tier and need no card:
 
 ```bash
 modsearch config set tavily.apiKey <key>       # Tavily: 1,000 credits a month
@@ -60,7 +78,29 @@ modsearch config set exa.apiKey <key>          # Exa: $10 of recurring monthly c
 modsearch config set firecrawl.apiKey <key>    # Firecrawl: 1,000 credits a month, supports JavaScript pages
 ```
 
-With none configured, the error message lists these options. Page fetching needs nothing installed. Requires Node 22.13+, macOS or Linux.
+With no engine configured at all, any search prints these options in its error. Page fetching still needs nothing installed.
+</details>
+
+<details>
+<summary><b>Install by hand, and where each agent reads skills</b></summary>
+
+If the skills CLI is unavailable, copy the folder yourself. Clone the repo and place `skills/modsearch` in your harness's skill directory:
+
+| Harness | Skill directory |
+| :-- | :-- |
+| Claude Code | `~/.claude/skills/` |
+| Codex | `~/.codex/skills/` |
+| Pi, OpenCode | `~/.agents/skills/` |
+
+```bash
+git clone --depth 1 https://github.com/liustack/modsearch.git
+cp -R modsearch/skills/modsearch ~/.claude/skills/    # use the row for your harness
+```
+
+[INSTALL.md](INSTALL.md) has the full procedure with a failure branch at every step.
+</details>
+
+Requires Node 22.13+. See [Platform support](#platform-support) for macOS, Linux, and Windows.
 
 ## Usage
 
@@ -146,10 +186,23 @@ Configuration is optional. `~/.modsearch/config.json` holds one main decision: w
 
 `modsearch doctor` prints a local diagnosis: Node version, each task's engines with their readiness and reasons, where each config value comes from, the private-network setting, and any engines currently cooling. It spends no quota and makes no network request, and `--json` makes the output machine-readable. Run it first when routing does not behave as expected.
 
+## Platform support
+
+macOS and Linux are fully supported and run the whole test suite in CI on Node 22 and 24.
+
+The CI matrix also includes `windows-latest` on Node 22 and 24, running the same typecheck, test, and build gate. What works on Windows follows from what each part depends on:
+
+- **The CLI, its routing and config logic, and the HTTP engines** (`local` fetch, Tavily, Exa, Firecrawl) are pure Node: they use `fetch` and the filesystem alone, so they are cross-platform.
+- **agy and grok are external CLIs.** modsearch runs them by name with no shell, so a native Windows executable on PATH works, while an npm-style `.cmd` shim does not. Whether a Windows build exists is each tool's own decision, not modsearch's.
+- **The cooldown state file** is written through a temp file and an atomic rename. On Windows that rename replaces the target, but the OS cannot replace a file another process holds open, so a rare simultaneous-writer race can drop one write. The store is a best-effort cache that merges on read, so a later run rediscovers anything lost.
+
+The Unix-only tests (spawned CLIs, SIGTERM/SIGKILL escalation, POSIX permission bits) are skipped on Windows, with the reasons recorded in [docs/testing.md](docs/testing.md).
+
 ## Documentation
 
 | Doc | Read it when |
 | :-- | :-- |
+| [INSTALL.md](INSTALL.md) | Installing the skill step by step (written for an agent) |
 | [Troubleshooting](docs/troubleshooting.md) | A command failed and the message needs decoding |
 | [Configuration](skills/modsearch/references/configure.md) | Setting a key, switching engines, fixing config |
 | [Output contract](skills/modsearch/references/output-schema.md) | Parsing the JSON or building on it |
