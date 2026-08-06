@@ -21,9 +21,14 @@ import type { EngineRequest, ProviderInvocation, EngineOutput, SearchEngine } fr
 // behave the same, rather than quietly capping X at a different number.
 export const DEFAULT_MAX_POSTS = 8;
 
+/** The sign-in file Grok Build writes. Resolved at call time so a faked HOME redirects it. */
+export function grokAuthFile(): string {
+  return path.join(os.homedir(), '.grok', 'auth.json');
+}
+
 /** Installed and signed in: binary reachable plus ~/.grok/auth.json present. */
 export function grokAvailable(bin = 'grok', env: NodeJS.ProcessEnv = process.env): boolean {
-  return fs.existsSync(path.join(os.homedir(), '.grok', 'auth.json')) && commandOnPath(bin, env);
+  return fs.existsSync(grokAuthFile()) && commandOnPath(bin, env);
 }
 
 export function buildXSearchPrompt(query: string, maxResults: number): string {

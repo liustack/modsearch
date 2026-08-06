@@ -12,6 +12,7 @@ import {
   renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
+import { formatDoctorReport, runDoctor } from './doctor.ts';
 import { listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
 
@@ -88,6 +89,24 @@ program
           `Known engines: ${listEngines().join(', ')}`,
         ].join('\n') + '\n',
       );
+      process.exit(1);
+    }
+  });
+
+program
+  .command('doctor')
+  .description('Diagnose config and routing on this machine (no quota, no network)')
+  .option('--json', 'Print the report as JSON')
+  .action((options: { json?: boolean }) => {
+    try {
+      const report = runDoctor();
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+      } else {
+        process.stdout.write(`${formatDoctorReport(report)}\n`);
+      }
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exit(1);
     }
   });

@@ -142,6 +142,8 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 
 配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。
 
+跑 `modsearch doctor` 看本机现状：Node 版本、每个角色的引擎各自就绪与否及原因、配置来自哪层、私网放行开没开。它不花额度、不发网络请求，加 `--json` 可喂给工具。路由不如预期时先跑它。
+
 ## 文档
 
 | 文档 | 什么时候看 |

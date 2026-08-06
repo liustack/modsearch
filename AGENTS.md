@@ -20,8 +20,9 @@ pnpm install
 
 ```
 src/
-├── main.ts       # CLI entry: search/fetch command + config subcommands
+├── main.ts       # CLI entry: search/fetch command + doctor + config subcommands
 ├── search.ts     # orchestration: mode, plan, run each source concurrently, envelope
+├── doctor.ts     # `modsearch doctor`: diagnose config + routing, no quota, no network
 ├── router.ts     # every routing decision: sources, role to engine, fallbacks
 ├── config.ts     # layered config by role: flags > env > ~/.modsearch/config.json
 ├── subprocess.ts # running an engine binary and draining its output

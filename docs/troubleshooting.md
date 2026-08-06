@@ -10,6 +10,10 @@ read_when:
 
 Every message below is one modsearch actually prints. Search this file for the words you saw.
 
+## First: run `modsearch doctor`
+
+Before decoding a message, run `modsearch doctor`. It reports your Node version, every engine's readiness per role and why (binary on PATH, key from env or file, Grok login file present), where your config comes from, its file permissions, and the private-network state, all without spending quota or making a request. Missing pieces come with a copyable fix command. Most setup problems are visible there at a glance. Add `--json` to feed the report to a tool.
+
 ## Nothing can search
 
 ```

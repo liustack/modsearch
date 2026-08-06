@@ -99,7 +99,7 @@ Fetch mode replaces `items` with `content` (the page as text or markdown) and `l
 
 ## Failure Handling
 
-Every error this CLI prints is catalogued with its cause and fix in the project's `docs/troubleshooting.md`. Read the message first: most of them already name the fix.
+Every error this CLI prints is catalogued with its cause and fix in the project's `docs/troubleshooting.md`. Read the message first: most of them already name the fix. When setup is the suspect, run `modsearch doctor` (no quota, no network): it reports each engine's readiness per role and the config in effect, with a fix command for anything missing. `--json` gives a machine-readable report.
 
 - `No engine on this machine can search the web`: the message lists the two ways to fix it. Offer them, do not insist on one.
 - `Every engine for the <source> source failed`: each engine's failure is listed, and `attempts` in a returned entry carries the same per-engine errors. Act on the first fixable one.

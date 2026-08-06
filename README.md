@@ -142,6 +142,8 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 
 Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings.
 
+Run `modsearch doctor` to see what is set up here: your Node version, each role's engines with why they are or are not ready, where the config comes from, and the private-network state. It spends no quota and makes no request, and `--json` feeds it to a tool. Reach for it first when routing surprises you.
+
 ## Documentation
 
 | Doc | Read it when |
