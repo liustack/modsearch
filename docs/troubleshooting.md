@@ -91,7 +91,7 @@ Force one engine with `-e <name>` when you need to be sure.
 ```
 Blocked private network target: example.com -> 198.18.91.58. If a VPN or proxy on
 this machine maps public hosts into reserved ranges, allow it with
---allow-private-network, or: modsearch config set http.allowPrivateNetwork true
+--allow-private-network, or: modsearch config set allowPrivateNetwork true
 ```
 
 The SSRF guard refused an address in a reserved range. Two very different causes:

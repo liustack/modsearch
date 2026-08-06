@@ -5,6 +5,7 @@
 // reports is a local fact, so it is safe to run anywhere, any number of times.
 import * as fs from 'fs';
 import {
+  allowsPrivateNetwork,
   chosenEngine,
   cooldownEnabled,
   currentConfigPath,
@@ -315,7 +316,7 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
     return { role, job: ROLE_JOB[role], candidates, resolved };
   });
 
-  const allowPrivate = config.engines?.http?.allowPrivateNetwork === 'true';
+  const allowPrivate = allowsPrivateNetwork(config);
 
   return {
     node: {

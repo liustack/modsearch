@@ -211,7 +211,8 @@ describe('firecrawl fetch path', () => {
       mode: 'fetch',
       url: 'http://192.168.1.10/admin',
       timeoutMs: 30000,
-      settings: { apiKey: 'fc-test', allowPrivateNetwork: 'true' },
+      settings: { apiKey: 'fc-test' },
+      allowPrivateNetwork: true,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.firecrawl.dev/v2/scrape');

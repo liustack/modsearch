@@ -52,13 +52,15 @@ describe('local engine routing', () => {
 describe('private network escape hatch', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('is off by default and settable from the config file', async () => {
-    const { loadConfigFile, setConfigValue } = await import('../config.ts');
+  it('is off by default and set from the top-level allowPrivateNetwork key', async () => {
+    const { allowsPrivateNetwork, loadConfigFile, setConfigValue } = await import('../config.ts');
     const p = tempConfigPath();
 
-    expect(loadConfigFile(p).engines?.http?.allowPrivateNetwork).toBeUndefined();
-    setConfigValue('http.allowPrivateNetwork', 'true', p);
-    expect(loadConfigFile(p).engines?.http?.allowPrivateNetwork).toBe('true');
+    expect(allowsPrivateNetwork(loadConfigFile(p))).toBe(false);
+    setConfigValue('allowPrivateNetwork', 'true', p);
+    const config = loadConfigFile(p);
+    expect(config.allowPrivateNetwork).toBe(true);
+    expect(allowsPrivateNetwork(config)).toBe(true);
   });
 
   it('blocks a private target by default and names the VPN case', async () => {

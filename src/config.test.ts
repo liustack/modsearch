@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  allowsPrivateNetwork,
   chosenEngine,
   cooldownEnabled,
   engineSettings,
@@ -88,6 +89,45 @@ describe('config file', () => {
     setConfigValue('cooldown', 'ON', p);
     expect(cooldownEnabled(loadConfigFile(p))).toBe(true);
     expect(() => setConfigValue('cooldown', 'maybe', p)).toThrow('Use on or off');
+  });
+
+  it('sets and reads the top-level allowPrivateNetwork flag, rejecting other values', () => {
+    const p = tempConfigPath();
+    // Missing file and unset key both read as off.
+    expect(allowsPrivateNetwork(loadConfigFile(p))).toBe(false);
+    setConfigValue('allowPrivateNetwork', 'true', p);
+    expect(loadConfigFile(p).allowPrivateNetwork).toBe(true);
+    expect(allowsPrivateNetwork(loadConfigFile(p))).toBe(true);
+    setConfigValue('allowPrivateNetwork', 'false', p);
+    expect(loadConfigFile(p).allowPrivateNetwork).toBe(false);
+    expect(() => setConfigValue('allowPrivateNetwork', 'maybe', p)).toThrow('Use true or false');
+  });
+
+  it('migrates the retired per-engine allowPrivateNetwork string to the top-level boolean', () => {
+    // Old files stored it as engines.http.allowPrivateNetwork ("true"/"false").
+    // Reading promotes it to a top-level boolean and drops the hollow entry.
+    const p = tempConfigPath();
+    fs.writeFileSync(p, JSON.stringify({ engines: { http: { allowPrivateNetwork: 'true' } } }));
+    const migrated = loadConfigFile(p);
+    expect(migrated.allowPrivateNetwork).toBe(true);
+    expect(migrated.engines).toEqual({});
+
+    // The alias key `local` and a real per-engine "false" both migrate too.
+    fs.writeFileSync(p, JSON.stringify({ engines: { local: { allowPrivateNetwork: 'false' } } }));
+    expect(loadConfigFile(p).allowPrivateNetwork).toBe(false);
+  });
+
+  it('coerces a legacy top-level allowPrivateNetwork string form to a boolean', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(p, JSON.stringify({ allowPrivateNetwork: 'true', engines: {} }));
+    expect(loadConfigFile(p).allowPrivateNetwork).toBe(true);
+  });
+
+  it('renders the top-level allowPrivateNetwork with its source', () => {
+    expect(JSON.parse(renderEffectiveConfig({ allowPrivateNetwork: true }, {})).allowPrivateNetwork).toBe(
+      'true (file)',
+    );
+    expect(JSON.parse(renderEffectiveConfig({}, {})).allowPrivateNetwork).toBe('false (default)');
   });
 
   it('lets env vars override the file', () => {

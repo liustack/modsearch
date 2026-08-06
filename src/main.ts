@@ -47,7 +47,7 @@ program
   .option('--workdir <path>', 'Working directory for engines that run a command')
   .option(
     '--allow-private-network',
-    'Let the http engine reach reserved address ranges, for VPNs that map public hosts into them',
+    'Allow reserved address ranges for this run, for VPNs that map public hosts into them',
   )
   .action(async (options) => {
     try {
@@ -133,8 +133,9 @@ config
           `Created ${CONFIG_PATH}`,
           'Everything is optional. Things you can set:',
           '  modsearch config set engine <antigravity-cli|tavily|exa|firecrawl>   which engine searches',
-          '  modsearch config set <engine>.<apiKey|bin|model|allowPrivateNetwork> <value>   engine settings',
+          '  modsearch config set <engine>.<apiKey|bin|model> <value>   engine settings',
           '  modsearch config set cooldown <on|off>   quota cooldown failover (default on)',
+          '  modsearch config set allowPrivateNetwork <true|false>   reach reserved/private ranges (default false)',
           'Page fetch and X need no settings at all.',
           '',
         ].join('\n'),

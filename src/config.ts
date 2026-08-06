@@ -21,8 +21,6 @@ export interface EngineSettings {
   apiKey?: string;
   model?: string;
   bin?: string;
-  /** 'true' | 'false' as a string so `config set` stays uniform. */
-  allowPrivateNetwork?: string;
 }
 
 export interface ModsearchConfig {
@@ -35,6 +33,13 @@ export interface ModsearchConfig {
    * Off, nothing is read from or written to state.json and routing is unchanged.
    */
   cooldown?: string;
+  /**
+   * Global network policy, not an engine setting: allow reserved and private
+   * address ranges. It governs both the local fetcher (whether it reaches such a
+   * target) and firecrawl (whether a public host that resolves to a reserved IP
+   * is still sent to the cloud). Off by default.
+   */
+  allowPrivateNetwork?: boolean;
 }
 
 /** Shapes older configs used before this collapsed to one knob. */
@@ -56,12 +61,7 @@ const ENV_BINDINGS: Record<string, Partial<Record<keyof EngineSettings, string>>
   firecrawl: { apiKey: 'FIRECRAWL_API_KEY' },
 };
 
-const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
-  'apiKey',
-  'model',
-  'bin',
-  'allowPrivateNetwork',
-];
+const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = ['apiKey', 'model', 'bin'];
 
 /** Engines that used to be pinned globally, mapped to the role they serve. */
 const LEGACY_ENGINE_ROLES: Record<string, Role> = {
@@ -94,42 +94,88 @@ interface LegacyConfig {
   social?: LegacyRoleConfig;
 }
 
+/** 'true'/'false' (any case) or a real boolean to a boolean, else undefined. */
+export function coerceBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 /**
- * Configs written before roles existed had one global `provider` plus a
- * `providers` map. Read those rather than making the user start over.
+ * Read a config file into the current shape. Two migrations run here, always,
+ * so an older file keeps working without the user touching it:
+ *
+ * - Alias engine keys (agy, antigravity, grok, http, direct) fold onto their
+ *   canonical name, and configs written before roles existed (a global
+ *   `provider` plus a `providers` map, or a per-role search/fetch/social block)
+ *   collapse to the one `engine` knob.
+ * - `allowPrivateNetwork` moved from a per-engine string to a top-level boolean.
+ *   The old `engines.<name>.allowPrivateNetwork` position and the old `"true"`/
+ *   `"false"` string form are both read and promoted to the new top-level key.
  */
 export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): ModsearchConfig {
   const hasLegacy = Boolean(raw.providers || raw.provider || raw.search || raw.fetch || raw.social);
-  if (!hasLegacy) {
-    return raw;
-  }
+
+  // A top-level string form ("true"/"false") is coerced here too.
+  let allowPrivateNetwork = coerceBoolean((raw as { allowPrivateNetwork?: unknown }).allowPrivateNetwork);
+
   // Merge per engine, not per map: a new `engines.tavily.model` next to an old
-  // `providers.tavily.apiKey` used to drop the key entirely.
+  // `providers.tavily.apiKey` used to drop the key entirely. The retired
+  // per-engine allowPrivateNetwork flag is lifted out to the top level.
   const engines: Record<string, EngineSettings> = {};
-  for (const [name, settings] of Object.entries(raw.providers ?? {})) {
-    const canonical = CANONICAL_ENGINE[name] ?? name;
-    engines[canonical] = { ...engines[canonical], ...settings };
-  }
-  for (const [name, settings] of Object.entries(raw.engines ?? {})) {
-    const canonical = CANONICAL_ENGINE[name] ?? name;
-    engines[canonical] = { ...engines[canonical], ...settings };
+  const fold = (source: Record<string, Record<string, unknown>> | undefined) => {
+    for (const [name, rawSettings] of Object.entries(source ?? {})) {
+      const canonical = CANONICAL_ENGINE[name] ?? name;
+      const { allowPrivateNetwork: legacyFlag, ...rest } = rawSettings;
+      if (legacyFlag !== undefined) {
+        allowPrivateNetwork ??= coerceBoolean(legacyFlag);
+      }
+      engines[canonical] = { ...engines[canonical], ...(rest as EngineSettings) };
+    }
+  };
+  fold(raw.providers as Record<string, Record<string, unknown>> | undefined);
+  fold(raw.engines as Record<string, Record<string, unknown>> | undefined);
+
+  // An engine entry that held nothing but the migrated flag is now empty: drop
+  // it so the effective config does not show a hollow `local: {}`.
+  for (const [name, settings] of Object.entries(engines)) {
+    if (Object.keys(settings).length === 0) {
+      delete engines[name];
+    }
   }
 
   // Any older shape collapses to the one knob: a per-role search engine, or a
-  // v2 global provider that happened to be a search engine.
+  // v2 global provider that happened to be a search engine. A current config
+  // keeps its `engine` verbatim, empty string included.
   const legacySearch = raw.search?.engine?.trim();
   const pinned = raw.provider?.trim();
   const fromPin =
     pinned && LEGACY_ENGINE_ROLES[pinned] === 'search'
       ? (CANONICAL_ENGINE[pinned] ?? pinned)
       : undefined;
-  const engine = raw.engine?.trim() || legacySearch || fromPin;
+  const engine = hasLegacy ? raw.engine?.trim() || legacySearch || fromPin : raw.engine;
 
-  return {
-    ...(engine ? { engine } : {}),
-    ...(raw.cooldown ? { cooldown: raw.cooldown } : {}),
-    engines,
-  };
+  const config: ModsearchConfig = { engines };
+  if (engine !== undefined) {
+    config.engine = engine;
+  }
+  if (raw.cooldown !== undefined) {
+    config.cooldown = raw.cooldown;
+  }
+  if (allowPrivateNetwork !== undefined) {
+    config.allowPrivateNetwork = allowPrivateNetwork;
+  }
+  return config;
 }
 
 export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfig {
@@ -169,6 +215,11 @@ export function chosenEngine(config: ModsearchConfig): string | undefined {
 /** Whether the quota cooldown is active. On by default, off only when set to 'off'. */
 export function cooldownEnabled(config: ModsearchConfig): boolean {
   return config.cooldown?.trim().toLowerCase() !== 'off';
+}
+
+/** Whether reserved and private address ranges are allowed. Off by default. */
+export function allowsPrivateNetwork(config: ModsearchConfig): boolean {
+  return config.allowPrivateNetwork === true;
 }
 
 /** Settings for one engine, with env vars overriding the file. */
@@ -218,6 +269,12 @@ export function setConfigValue(
       throw new Error(`Invalid cooldown value: ${value}. Use on or off.`);
     }
     config.cooldown = normalized;
+  } else if (parts.length === 1 && parts[0] === 'allowPrivateNetwork') {
+    const parsed = coerceBoolean(value);
+    if (parsed === undefined) {
+      throw new Error(`Invalid allowPrivateNetwork value: ${value}. Use true or false.`);
+    }
+    config.allowPrivateNetwork = parsed;
   } else {
     const [engineName, field] =
       parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
@@ -287,6 +344,10 @@ export function renderEffectiveConfig(
   const out: Record<string, unknown> = {};
   out.engine = config.engine ? tag(config.engine, 'file') : '(unset: automatic)';
   out.cooldown = config.cooldown ? tag(config.cooldown, 'file') : 'on (default)';
+  out.allowPrivateNetwork =
+    config.allowPrivateNetwork === undefined
+      ? 'false (default)'
+      : tag(String(config.allowPrivateNetwork), 'file');
 
   const engines: Record<string, Record<string, string>> = {};
   const ensure = (name: string) => {

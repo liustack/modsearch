@@ -172,7 +172,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   }
   const apiKey = requireKey(options);
   const target = normalizeFetchUrl(options.url);
-  const allowPrivate = options.settings.allowPrivateNetwork === 'true';
+  const allowPrivate = options.allowPrivateNetwork === true;
 
   // A cloud crawler cannot reach a private or reserved address, so decline it
   // and let the run fall through to the local engine, which can.

@@ -69,7 +69,7 @@ describe('zero-config machine', () => {
     try {
       const result = await runSearch({
         url: page.url,
-        config: { engines: { local: { allowPrivateNetwork: 'true' } } },
+        config: { allowPrivateNetwork: true },
         env: BARE_ENV,
         timeoutMs: 30_000,
       });
@@ -96,7 +96,7 @@ describe('zero-config machine', () => {
   it('falls through to the next engine and says so', async () => {
     const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
     try {
-      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
       const result = await runSearch({
         url: page.url,
         config,
@@ -271,7 +271,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
     try {
       // agy fails on the first (config) engine, http answers the fetch.
-      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
       const result = await runSearch({
         url: page.url,
         config,
@@ -295,7 +295,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     // agy fails, http answers: two attempts, first not ok, second ok.
     const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
     try {
-      const config = agyConfig({ code: 1 }, { engines: { local: { allowPrivateNetwork: 'true' } } });
+      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
       const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
       const attempts = result.results[0].attempts as Array<{
         engine: string;
@@ -317,7 +317,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     try {
       const result = await runSearch({
         url: page.url,
-        config: { engines: { local: { allowPrivateNetwork: 'true' } } },
+        config: { allowPrivateNetwork: true },
         env: BARE_ENV,
         timeoutMs: 30_000,
       });

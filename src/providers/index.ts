@@ -33,6 +33,13 @@ export interface EngineRequest {
   workdir?: string;
   timeoutMs: number;
   settings: EngineSettings;
+  /**
+   * Global network policy for this run: allow reserved and private ranges. Not
+   * an engine setting, since it constrains both the local fetcher and firecrawl.
+   * Resolved by the orchestrator from the config and the --allow-private-network
+   * flag. Off when absent.
+   */
+  allowPrivateNetwork?: boolean;
 }
 
 export interface EngineOutput {

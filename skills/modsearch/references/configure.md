@@ -49,24 +49,25 @@ Shape:
 {
   "engine": "",
   "cooldown": "on",
+  "allowPrivateNetwork": false,
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "" },
     "exa":             { "apiKey": "" },
     "firecrawl":       { "apiKey": "" },
-    "grok-cli":        { "bin": "grok" },
-    "local":           { "allowPrivateNetwork": "false" }
+    "grok-cli":        { "bin": "grok" }
   }
 }
 ```
 
-An empty `engine` means "use the best available one". `cooldown` is `on` unless you set it to `off`.
+An empty `engine` means "use the best available one". `cooldown` is `on` unless you set it to `off`. `allowPrivateNetwork` is a top-level boolean (default `false`): it is a global network policy, not an engine setting, so it governs both the local fetcher and firecrawl. An old file that stored it under `engines.http.allowPrivateNetwork` (or as the string `"true"`/`"false"`) is read and promoted automatically.
 
 ```bash
 modsearch config set engine tavily            # choose the search engine
 modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
 modsearch config set cooldown off             # turn off quota cooldown failover
+modsearch config set allowPrivateNetwork true # reach reserved/private ranges
 ```
 
 Nothing configures page fetch or X, on purpose. Fetching uses the chosen engine when that engine can fetch, and the built-in local fetcher otherwise. X has exactly one possible engine, so there is no choice to store.
@@ -134,7 +135,7 @@ A VPN that maps public hosts into reserved ranges will trip those guards:
 
 ```bash
 modsearch -u <url> --allow-private-network
-modsearch config set http.allowPrivateNetwork true   # make it permanent
+modsearch config set allowPrivateNetwork true   # make it permanent (top-level, global)
 ```
 
 ## Quota cooldown failover

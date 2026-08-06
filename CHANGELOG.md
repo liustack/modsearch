@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **BREAKING**: `allowPrivateNetwork` is promoted from `engines.http.allowPrivateNetwork` to a top-level config key, and its type is a real boolean (`true`/`false`) instead of the string `"true"`/`"false"`. It is a global network policy, not an engine setting: it governs both the local fetcher and firecrawl's private-network skip, so it does not belong to any one engine. The old per-engine position and the old string form are both read and promoted automatically on load, so existing files keep working. `modsearch config set allowPrivateNetwork true` sets it, and `config init`'s guidance, `config show`, and `doctor` all report the top-level key. The `--allow-private-network` flag is unchanged: still a one-off override for the current run.
 - **BREAKING**: the built-in direct fetcher is renamed from `http` to `local`. Its identity is the local direct fetcher, and the docs always called it that. `http` and `direct` stay as aliases, so `-e http`, `-e direct`, and old config keys keep resolving to it, and the cooldown state file reads the old keys too. The output `engine` field, `doctor`, error messages, both READMEs, `SKILL.md`, `references/output-schema.md` (with its drift test), `references/configure.md`, and `docs/troubleshooting.md` now all say `local`. The fetch order is now `antigravity-cli`, `firecrawl`, `local` (still the unconditional floor).
 
 ## 4.1.0 - 2026-08-06

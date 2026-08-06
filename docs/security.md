@@ -26,7 +26,7 @@ The pin is IP-level, not port-level, and only the local engine is affected. The 
 
 ## VPNs and reserved ranges
 
-Split-tunnel VPN clients often map public hostnames into reserved ranges such as `198.18.0.0/15`, which trips the guard on ordinary sites. `--allow-private-network` (or `modsearch config set http.allowPrivateNetwork true`) opens it. Do not use it to reach genuinely internal addresses.
+Split-tunnel VPN clients often map public hostnames into reserved ranges such as `198.18.0.0/15`, which trips the guard on ordinary sites. `--allow-private-network` (or the top-level `modsearch config set allowPrivateNetwork true`) opens it. Do not use it to reach genuinely internal addresses.
 
 ## Untrusted page content
 

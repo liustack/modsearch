@@ -125,7 +125,7 @@ export async function assertSafeRemoteTarget(
       // VPN and proxy clients routinely map public hosts into reserved ranges
       // (198.18/15 especially), so a real site can look private from here.
       throw new Error(
-        `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set http.allowPrivateNetwork true`,
+        `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set allowPrivateNetwork true`,
       );
     }
   }

@@ -246,14 +246,14 @@ async function runOneSource(
   const controller = options.cooldown;
   const failures: string[] = [];
   const attempts: EngineAttempt[] = [];
+  // Global network policy for the run: the config's top-level switch, or the
+  // --allow-private-network flag as a one-off override for this run.
+  const allowPrivateNetwork = options.allowPrivateNetwork === true || config.allowPrivateNetwork === true;
   // Notes about engines that hit a quota wall this run, surfaced on the entry
   // that finally answers so the reader sees who is now cooling and until when.
   const cooldownNotes: string[] = [];
   for (const engine of candidates) {
     const settings = engineSettings(engine.name, config, env);
-    if (options.allowPrivateNetwork) {
-      settings.allowPrivateNetwork = 'true';
-    }
     const model = options.model || settings.model || engine.defaultModel;
     const startedAt = Date.now();
 
@@ -271,6 +271,7 @@ async function runOneSource(
           workdir: options.workdir,
           timeoutMs,
           settings,
+          allowPrivateNetwork,
         },
         timeoutMs,
       );

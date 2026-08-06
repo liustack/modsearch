@@ -405,7 +405,7 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
   }
 
   const startedAt = Date.now();
-  const allowPrivate = options.settings.allowPrivateNetwork === 'true';
+  const allowPrivate = options.allowPrivateNetwork === true;
   const result = await runFetch({
     url: options.url,
     timeoutMs: Math.min(options.timeoutMs, 60_000),

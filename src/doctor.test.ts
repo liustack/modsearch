@@ -138,16 +138,14 @@ describe('doctor: config layer', () => {
     expect(report.engineChoice.source).toBe('default');
   });
 
-  it('reports allowPrivateNetwork when set in the file', () => {
-    const on = runDoctor({
-      config: { engines: { http: { allowPrivateNetwork: 'true' } } },
-      env: BARE_ENV,
-    });
+  it('reports the top-level allowPrivateNetwork when set in the file', () => {
+    const on = runDoctor({ config: { allowPrivateNetwork: true }, env: BARE_ENV });
     expect(on.allowPrivateNetwork.enabled).toBe(true);
     expect(on.allowPrivateNetwork.source).toBe('file');
 
     const off = runDoctor({ config: {}, env: BARE_ENV });
     expect(off.allowPrivateNetwork.enabled).toBe(false);
+    expect(off.allowPrivateNetwork.source).toBe('default');
   });
 });
 
