@@ -196,7 +196,7 @@ describe('concurrent writes merge instead of clobbering', () => {
     const procB = emptyCooldownState();
     recordQuotaCooldown(procA, 'exa', new Error('out of credits'), now, p);
     recordQuotaCooldown(procB, 'tavily', new Error('out of credits'), now, p);
-    // procA only knows about exa; clearing it must not wipe tavily off disk.
+    // procA only knows about exa, so clearing it must not wipe tavily off disk.
     expect(clearEngineCooldown(procA, 'exa', p)).toBe(true);
     expect(Object.keys(loadCooldownState(p).engineCooldowns)).toEqual(['tavily']);
   });

@@ -358,7 +358,7 @@ async function runOneSource(
         ? ({ ...output.result } as Record<string, unknown>)
         : ({ result: output.result } as Record<string, unknown>);
 
-    // The local engine hands its own runtime notices back as `warnings`; merge
+    // The local engine hands its own runtime notices back as `warnings`. Merge
     // those in after the routing ones. Other engines emit no warnings key.
     const engineWarnings = Array.isArray(body.warnings)
       ? (body.warnings as unknown[]).filter((line): line is string => typeof line === 'string')

@@ -86,7 +86,7 @@ const ENGINES: Record<string, SearchEngine> = {
   firecrawl: firecrawlProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
-  // The built-in direct fetcher. Canonically `local`; `http` and `direct` stay
+  // The built-in direct fetcher, canonically `local`. `http` and `direct` stay
   // as aliases so old flags and configs keep resolving to it.
   local: httpFetchProvider,
   http: httpFetchProvider,
