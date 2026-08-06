@@ -42,10 +42,15 @@ export function fakeEngine(options: {
   stdout?: string;
   code?: number;
   lingerSeconds?: number;
+  /** Sleep this long before printing, to model a slow engine (timing tests). */
+  delaySeconds?: number;
 }): string {
   const dir = tempDir('modsearch-engine-');
   const bin = path.join(dir, options.name ?? 'fake-engine');
   const lines = ['#!/bin/sh'];
+  if (options.delaySeconds) {
+    lines.push(`sleep ${options.delaySeconds}`);
+  }
   if (options.stdout !== undefined) {
     lines.push(`cat <<'ENGINE_EOF'\n${options.stdout}\nENGINE_EOF`);
   }

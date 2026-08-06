@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ModsearchConfig } from './config.ts';
 import { noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
 import { agySearchEnvelope } from './fixtures/index.ts';
-import { BARE_ENV, cleanupTempDirs, fakeEngine, startLocalPage } from './testing/helpers.ts';
+import {
+  BARE_ENV,
+  cleanupTempDirs,
+  fakeEngine,
+  startLocalPage,
+  withSignedInGrok,
+} from './testing/helpers.ts';
 
 /** A config whose agy engine is the given fake binary (full path, so PATH is irrelevant). */
 function agyConfig(
@@ -164,6 +170,86 @@ describe('X degrade is labeled, never silently mislabeled', () => {
     expect(x.attempts).toEqual([]);
     expect((x.uncertainty as string[])).toEqual([]);
     expect((x.warnings as string[]).join(' ')).toContain('X itself was not reachable');
+  }, 30_000);
+});
+
+describe('multiple sources run concurrently and fail independently', () => {
+  afterEach(() => cleanupTempDirs());
+
+  /** A grok envelope carrying one canned structured result. */
+  function grokEnvelope(summary: string): string {
+    return JSON.stringify({
+      structuredOutput: { summary, items: [], uncertainty: [] },
+      sessionId: 's',
+    });
+  }
+
+  it('runs web and X in parallel: total time is near the slower source, not the sum', async () => {
+    // Each engine sleeps ~1s. Serial would be ~2s; concurrent is ~1s.
+    const { env, restore } = withSignedInGrok();
+    const agyBin = fakeEngine({ name: 'agy', stdout: agySearchEnvelope('web'), delaySeconds: 1 });
+    const grokBin = fakeEngine({ name: 'grok', stdout: grokEnvelope('x'), delaySeconds: 1 });
+    try {
+      const result = await runSearch({
+        query: 'anything',
+        sources: 'web,x',
+        config: { engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } } },
+        env,
+        timeoutMs: 20_000,
+      });
+      expect(result.results.map((r) => r.source)).toEqual(['web', 'x']);
+      expect(result.results.every((r) => r.status === 'ok')).toBe(true);
+      // Serial execution would put this near 2s. Allow headroom for spawn cost.
+      expect(result.meta.durationSeconds).toBeLessThan(1.8);
+    } finally {
+      restore();
+      cleanupTempDirs();
+    }
+  }, 30_000);
+
+  it('keeps a succeeding source when the other source fails entirely', async () => {
+    // web has only a failing agy (no fallback); X is served by a working grok.
+    // The web failure must not sink the run: it becomes an unavailable entry
+    // while X still returns, and order stays web, x.
+    const { env, restore } = withSignedInGrok();
+    const agyBin = fakeEngine({ name: 'agy', code: 1 });
+    const grokBin = fakeEngine({ name: 'grok', stdout: grokEnvelope('x-sum') });
+    try {
+      const result = await runSearch({
+        query: 'anything',
+        sources: 'web,x',
+        config: { engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } } },
+        env,
+        timeoutMs: 20_000,
+      });
+      expect(result.results.map((r) => r.source)).toEqual(['web', 'x']);
+
+      const web = result.results[0];
+      expect(web.status).toBe('unavailable');
+      expect(web.engine).toBeNull();
+      expect((web.attempts as Array<{ engine: string; ok: boolean }>)[0]).toMatchObject({
+        engine: 'antigravity-cli',
+        ok: false,
+      });
+      expect((web.warnings as string[]).join(' ')).toContain('Every engine for the web source failed');
+
+      const x = result.results[1];
+      expect(x.status).toBe('ok');
+      expect(x.engine).toBe('grok-cli');
+      expect(x.summary).toBe('x-sum');
+    } finally {
+      restore();
+      cleanupTempDirs();
+    }
+  }, 30_000);
+
+  it('a single failing source still throws, so its behavior is unchanged', async () => {
+    // Only web, and it fails: no other source to protect, so the run errors
+    // exactly as before rather than returning an unavailable entry.
+    const config = agyConfig({ code: 1 });
+    await expect(
+      runSearch({ query: 'anything', config, env: BARE_ENV, timeoutMs: 20_000 }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
   }, 30_000);
 });
 

@@ -87,6 +87,39 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 // Give the engine's own timeout a chance to fire first; SIGTERM is the backstop.
 const KILL_GRACE_MS = 30_000;
 
+/**
+ * A source ran out of engines. Carries the per-engine attempts so a multi-source
+ * run can surface them in the source's `attempts` instead of losing them to the
+ * throw. Its message is unchanged from the old plain Error, so the single-source
+ * path (which lets this reach the CLI) prints exactly what it always did.
+ */
+class SourceRunError extends Error {
+  constructor(
+    message: string,
+    readonly attempts: EngineAttempt[],
+  ) {
+    super(message);
+    this.name = 'SourceRunError';
+  }
+}
+
+/** Turn a source that exhausted its engines into an explicit unavailable entry. */
+function failedSourceEntry(plan: SourcePlan, error: unknown): SourceResult {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    source: plan.source,
+    requestedSource: plan.source,
+    engine: null,
+    status: 'unavailable',
+    summary: '',
+    items: [],
+    uncertainty: [],
+    warnings: [message],
+    attempts: error instanceof SourceRunError ? error.attempts : [],
+    durationSeconds: null,
+  };
+}
+
 export function resolveMode(query?: string, url?: string): RunMode {
   const hasQuery = Boolean(query?.trim());
   const hasUrl = Boolean(url?.trim());
@@ -124,10 +157,25 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
     env,
   });
 
-  const results: SourceResult[] = [];
-  for (const plan of plans) {
-    results.push(await runOneSource(plan, { mode, query, url, timeoutMs, config, env, options }));
-  }
+  const context = { mode, query, url, timeoutMs, config, env, options };
+
+  // Run every source's plan concurrently and reassemble in request order, so a
+  // web,x run costs about the time of its slowest source, not their sum.
+  // Promise.all preserves index order regardless of which settled first.
+  const results = await Promise.all(
+    plans.map((plan) =>
+      runOneSource(plan, context).catch((error): SourceResult => {
+        // A single-source run keeps its exact prior behavior: the failure
+        // propagates and the CLI exits. With more than one source, one source
+        // failing must not sink the others, so it becomes an explicit
+        // unavailable entry, matching the router's own unavailable semantics.
+        if (plans.length === 1) {
+          throw error;
+        }
+        return failedSourceEntry(plan, error);
+      }),
+    ),
+  );
 
   return {
     mode,
@@ -181,7 +229,7 @@ async function runOneSource(
     const base = noEngineMessage(SOURCE_ROLE[plan.source] === 'social' ? 'social' : mode);
     // A typo in --engine is the actual problem: do not bury it under generic
     // setup advice.
-    throw new Error(plan.notes.length > 0 ? `${plan.notes.join(' ')}\n${base}` : base);
+    throw new SourceRunError(plan.notes.length > 0 ? `${plan.notes.join(' ')}\n${base}` : base, []);
   }
 
   const failures: string[] = [];
@@ -286,8 +334,9 @@ async function runOneSource(
     };
   }
 
-  throw new Error(
+  throw new SourceRunError(
     `Every engine for the ${plan.source} source failed.\n${failures.map((line) => `  - ${line}`).join('\n')}`,
+    attempts,
   );
 }
 
