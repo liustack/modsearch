@@ -43,24 +43,36 @@ modsearch config init     # starter file, every field optional
 modsearch config show     # effective config: file + env merged, each value tagged (file)/(env), keys masked, alias keys shown canonical
 ```
 
-Shape:
+Full structure. Every field is optional, and so is the file itself:
 
 ```json
 {
-  "engine": "",
+  "engine": "tavily",
   "cooldown": "on",
   "allowPrivateNetwork": false,
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
-    "tavily":          { "apiKey": "" },
-    "exa":             { "apiKey": "" },
-    "firecrawl":       { "apiKey": "" },
+    "tavily":          { "apiKey": "tvly-..." },
+    "exa":             { "apiKey": "..." },
+    "firecrawl":       { "apiKey": "fc-..." },
     "grok-cli":        { "bin": "grok" }
   }
 }
 ```
 
-An empty `engine` means "use the best available one". `cooldown` is `on` unless you set it to `off`. `allowPrivateNetwork` is a top-level boolean (default `false`): it is a global network policy, not an engine setting, so it governs both the local fetcher and firecrawl. An old file that stored it under `engines.http.allowPrivateNetwork` (or as the string `"true"`/`"false"`) is read and promoted automatically.
+JSON has no comments, so here is every field:
+
+| Field | Type | Applies to | Meaning |
+| :-- | :-- | :-- | :-- |
+| `engine` | string | top level | Which engine searches. Empty means automatic (the best available here). One of `antigravity-cli`, `tavily`, `exa`, `firecrawl`. The aliases `agy`, `antigravity`, `grok`, `http`, `direct` are accepted and normalized to the canonical name. |
+| `cooldown` | `"on"` / `"off"` | top level | Quota cooldown failover. On by default. Off reads and writes no state and routes exactly as before. |
+| `allowPrivateNetwork` | boolean | top level | Global network policy: allow reserved and private address ranges. Governs both the local fetcher (whether it reaches such a target) and firecrawl (whether a public host resolving to a reserved IP is still sent up), so it is not an engine setting. `false` by default. |
+| `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
+| `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
+| `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
+| `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.6-flash-low`. |
+
+`local` (the built-in fetcher) and `grok-cli` take no credentials, so they carry no per-engine settings worth storing. An old file that kept `allowPrivateNetwork` under `engines.http.allowPrivateNetwork`, or as the string `"true"`/`"false"`, is read and promoted to the top-level boolean automatically.
 
 ```bash
 modsearch config set engine tavily            # choose the search engine

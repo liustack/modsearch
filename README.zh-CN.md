@@ -142,7 +142,7 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 | `--workdir <path>` | 需要跑命令的引擎的工作目录 | 当前目录 |
 | `--allow-private-network` | 放行保留网段，给映射公网域名的 VPN 用 | 关 |
 
-配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 可关掉，`modsearch state clear` 清掉正在冷却的记录。
+配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 可关掉，`modsearch state clear` 清掉正在冷却的记录。完整的文件结构和每个字段（含顶层 `allowPrivateNetwork` 开关）见[配置手册](skills/modsearch/references/configure.md)。
 
 跑 `modsearch doctor` 看本机现状：Node 版本、每个角色的引擎各自就绪与否及原因、配置来自哪层、私网放行开没开、当前有哪些引擎在冷却。它不花额度、不发网络请求，加 `--json` 可喂给工具。路由不如预期时先跑它。
 

@@ -142,7 +142,7 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
-Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` turns it off, and `modsearch state clear` forgets what is cooling.
+Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` turns it off, and `modsearch state clear` forgets what is cooling. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are in the [configuration doc](skills/modsearch/references/configure.md).
 
 Run `modsearch doctor` to see what is set up here: your Node version, each role's engines with why they are or are not ready, where the config comes from, the private-network state, and anything cooling right now. It spends no quota and makes no request, and `--json` feeds it to a tool. Reach for it first when routing surprises you.
 
