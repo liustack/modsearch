@@ -23,6 +23,7 @@
     "dist",
     "docs",
     "skills/modsearch/SKILL.md",
+    "skills/modsearch/scripts",
     "skills/modsearch/references",
     "CHANGELOG.md",
     "SECURITY.md"
