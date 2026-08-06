@@ -48,19 +48,21 @@ npx -y skills add liustack/modsearch
 
 Or tell your agent: "Install the skill from https://github.com/liustack/modsearch".
 
-Then give it a search engine, either one. **Antigravity CLI** (no key, covers searching and page reading):
+Then give it a search engine. **Antigravity CLI** (no key, covers searching and page reading):
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # sign in, then exit
 ```
 
-Or a **[Tavily](https://app.tavily.com) key** (1,000 free credits a month):
+Or a keyed API, each with a standing free budget and no card:
 
 ```bash
-modsearch config set tavily.apiKey <key>
+modsearch config set tavily.apiKey <key>       # Tavily: 1,000 credits a month
+modsearch config set exa.apiKey <key>          # Exa: $10 of recurring monthly credit, about 1,400 searches
+modsearch config set firecrawl.apiKey <key>    # Firecrawl: 1,000 credits a month, and it reads JavaScript pages
 ```
 
-With neither, the command hands you both options rather than failing vaguely. Reading a page needs nothing installed. Requires Node 22.13+, macOS or Linux.
+With none of them, the command hands you the options rather than failing vaguely. Reading a page needs nothing installed. Requires Node 22.13+, macOS or Linux.
 
 ## Usage
 
@@ -118,11 +120,11 @@ Three jobs, each with its own engines, and only searching asks anything of you:
 
 | Job | What it takes | How |
 | :-- | :-- | :-- |
-| Search the public web | agy or a Tavily key | `-q "query"` |
-| Read one URL | nothing at all | `-u <url>` |
+| Search the public web | agy, or a Tavily, Exa, or Firecrawl key | `-q "query"` |
+| Read one URL | nothing at all, or Firecrawl for JavaScript pages | `-u <url>` |
 | Search X (Twitter) | Grok Build (SuperGrok or X Premium) | automatic, or `--source x` |
 
-The weaknesses, in the same place: agy's free tier is a weekly quota and heavy use hits the wall (a Tavily key picks it up automatically), the X route needs a subscription, and the local fetcher runs no JavaScript, so client-rendered pages come back thin.
+The weaknesses, in the same place: agy's free tier is a weekly quota and heavy use hits the wall, the X route needs a subscription, and the local fetcher runs no JavaScript, so client-rendered pages come back thin (Firecrawl reads those when you key it). When an engine hits its quota, a keyed backup picks up the search on its own, and modsearch remembers the spent engine and moves it to the back of the line until it recovers, so the next run fails over first instead of hitting the same wall.
 
 ## CLI reference
 
@@ -140,9 +142,9 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
-Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings.
+Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` turns it off, and `modsearch state clear` forgets what is cooling.
 
-Run `modsearch doctor` to see what is set up here: your Node version, each role's engines with why they are or are not ready, where the config comes from, and the private-network state. It spends no quota and makes no request, and `--json` feeds it to a tool. Reach for it first when routing surprises you.
+Run `modsearch doctor` to see what is set up here: your Node version, each role's engines with why they are or are not ready, where the config comes from, the private-network state, and anything cooling right now. It spends no quota and makes no request, and `--json` feeds it to a tool. Reach for it first when routing surprises you.
 
 ## Documentation
 

@@ -20,14 +20,18 @@ Before decoding a message, run `modsearch doctor`. It reports your Node version,
 No engine on this machine can search the web. Any one of these enables it:
   - antigravity-cli: install Antigravity CLI and sign in once (free, no key)
   - tavily: set a Tavily key (free tier: 1,000 credits/month, no card)
+  - exa: set an Exa key ($10/month recurring free credit, ~1,400 searches, no card)
+  - firecrawl: set a Firecrawl key (1,000 free credits/month, no card)
 ```
 
-Neither search engine is set up. Both fixes are listed because both are real: agy needs no key but has a weekly quota, Tavily needs a key but has its own budget.
+No search engine is set up. Every fix is listed because each is real: agy needs no key but has a weekly quota, the others need a key but each carry their own free budget.
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # then sign in
-# or
+# or any keyed engine:
 modsearch config set tavily.apiKey <key>
+modsearch config set exa.apiKey <key>
+modsearch config set firecrawl.apiKey <key>
 ```
 
 Page fetch (`-u`) is unaffected by this: it always works.
@@ -38,10 +42,39 @@ Page fetch (`-u`) is unaffected by this: it always works.
 Individual quota reached. Please upgrade your subscription ... Resets in 94h19m9s.
 ```
 
-agy's free tier is one weekly grant shared by the Antigravity desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Two ways out:
+agy's free tier is one weekly grant shared by the Antigravity desktop app, the CLI, and the SDK, and parallel subagents drain it faster. Three ways out:
 
 - Wait for the reset named in the message.
-- Add a Tavily key. Search then falls through to it automatically, with no further action from you.
+- Add a keyed search engine (Tavily, Exa, or Firecrawl). Search then falls through to it automatically, with no further action from you.
+- With cooldown on (the default), agy is remembered as spent and moved to the back of the chain until it resets, so later runs fail over first. See "An engine keeps getting skipped" below.
+
+## Exa or Firecrawl key rejected
+
+```
+exa rejected the API key (401). Fix it: modsearch config set exa.apiKey <key>
+firecrawl rejected the API key (401). Fix it: modsearch config set firecrawl.apiKey <key>
+```
+
+The key is missing, wrong, or revoked. Set a valid one with the command in the message, or export `EXA_API_KEY` / `FIRECRAWL_API_KEY`. A rejected key is a setup problem, not a quota problem, so it is not put on cooldown.
+
+## Exa or Firecrawl out of credits
+
+```
+exa is out of credits: ...
+firecrawl is out of credits: ...
+```
+
+The engine's free budget for the period is spent. Another keyed search engine picks up the work on its own, and with cooldown on the spent engine is moved to the back of the chain until it recovers, so you stop hitting it. Add credit, switch engines, or wait for the monthly reset.
+
+## An engine keeps getting skipped
+
+modsearch is failing over around a cooldown. When an engine hit a quota wall, it is remembered in `~/.modsearch/state.json` and tried last until it recovers, and the result's `warnings` name which engine and until when. Run `modsearch doctor` to see what is cooling and how much time is left. To clear it by hand:
+
+```bash
+modsearch state clear
+```
+
+To turn the behavior off entirely, so routing is exactly as it was before: `modsearch config set cooldown off`. A cooling engine is never removed, only reordered, so it is still tried when everything else fails.
 
 ## The wrong engine answered
 

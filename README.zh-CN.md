@@ -48,19 +48,21 @@ npx -y skills add liustack/modsearch
 
 或者跟你的 agent 说一句「安装这个 skill https://github.com/liustack/modsearch」。
 
-再给它一个搜索引擎，二选一。**Antigravity CLI**（零 key，搜索和读网页一并包了）：
+再给它一个搜索引擎。**Antigravity CLI**（零 key，搜索和读网页一并包了）：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 浏览器登录后退出
 ```
 
-或者一个 **[Tavily](https://app.tavily.com) key**（免费档每月一千次）：
+或者一个带 key 的 API，每个都有常驻免费额度且无需绑卡：
 
 ```bash
-modsearch config set tavily.apiKey <key>
+modsearch config set tavily.apiKey <key>       # Tavily: 每月 1,000 credits
+modsearch config set exa.apiKey <key>          # Exa: 每月 $10 循环赠额，约 1,400 次搜索
+modsearch config set firecrawl.apiKey <key>    # Firecrawl: 每月 1,000 credits，还能读 JavaScript 页面
 ```
 
-两个都没有时命令会把这两条路直接摆给你。读网页零依赖，本来就能用。需要 Node 22.13+，macOS 或 Linux。
+一个都没有时命令会把这些选项直接摆给你。读网页零依赖，本来就能用。需要 Node 22.13+，macOS 或 Linux。
 
 ## 用法
 
@@ -118,11 +120,11 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 
 | 干什么 | 需要什么 | 怎么用 |
 | :-- | :-- | :-- |
-| 搜公共网页 | agy 或一个 Tavily key | `-q "查询词"` |
-| 读一个 URL | 什么都不用装 | `-u <url>` |
+| 搜公共网页 | agy，或一个 Tavily / Exa / Firecrawl key | `-q "查询词"` |
+| 读一个 URL | 什么都不用装，JavaScript 页面可交给 Firecrawl | `-u <url>` |
 | 搜 X（推特） | Grok Build（SuperGrok 或 X Premium 自带） | 自动触发，或 `--source x` |
 
-短板一并摆这儿：agy 免费额度是周配额，重度用会撞墙（配了 Tavily key 自动接上）。X 那条路要订阅。本地抓取器不跑 JavaScript，纯前端渲染的页面读得薄。
+短板一并摆这儿：agy 免费额度是周配额，重度用会撞墙。X 那条路要订阅。本地抓取器不跑 JavaScript，纯前端渲染的页面读得薄（配了 Firecrawl 就能读）。某个引擎额度烧干时，带 key 的备用引擎会自动接上，modsearch 还会记住这个撞墙的引擎，把它挪到队尾，下次运行先用健康的引擎故障转移，不再撞同一堵墙。
 
 ## CLI 参数
 
@@ -140,9 +142,9 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 | `--workdir <path>` | 需要跑命令的引擎的工作目录 | 当前目录 |
 | `--allow-private-network` | 放行保留网段，给映射公网域名的 VPN 用 | 关 |
 
-配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。
+配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 可关掉，`modsearch state clear` 清掉正在冷却的记录。
 
-跑 `modsearch doctor` 看本机现状：Node 版本、每个角色的引擎各自就绪与否及原因、配置来自哪层、私网放行开没开。它不花额度、不发网络请求，加 `--json` 可喂给工具。路由不如预期时先跑它。
+跑 `modsearch doctor` 看本机现状：Node 版本、每个角色的引擎各自就绪与否及原因、配置来自哪层、私网放行开没开、当前有哪些引擎在冷却。它不花额度、不发网络请求，加 `--json` 可喂给工具。路由不如预期时先跑它。
 
 ## 文档
 
