@@ -22,9 +22,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-```bash
-npx -y skills add liustack/modsearch          # 安装 skill
-npx @liustack/modsearch -q "Node.js LTS 版本"  # 或直接作为 CLI 使用
+```text
+把这句话发给你的 AI：按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill
 ```
 
 DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问题只能依赖训练数据，答案可能过期而模型自己无从察觉。ModSearch 为它补上三种能力：搜索网页、抓取指定页面、搜索 X（推特），返回几百 token 的结构化证据，每条带来源。不更换模型，不修改提示词，起步不需要任何 key。
@@ -33,78 +32,26 @@ DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问�
 
 - **免费起步。** 默认引擎无需 API key。三个备用引擎（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
 - **自动故障转移。** 引擎失败或额度耗尽时自动切换下一个，并记录冷却状态，后续查询直接从可用引擎开始，不重复失败请求。
-- **返回结构化证据。** 输出仅几百 token：标题、链接、日期，以及标明未查实内容的 `uncertainty` 清单，而非整页网页。
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
-- **网页抓取始终可用。** 零依赖的本地抓取器保底，配置 Firecrawl 后支持 JavaScript 渲染页面。
 - **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
 
 ## 安装
 
-### 快速开始
+把下面这句话发给你的 AI，它会完成安装、配置和验证，并把结果告诉你：
 
-约一分钟，无需做任何选择。按顺序执行下面三段命令。
+> 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
 
-安装 skill：
-
-```bash
-npx -y skills add liustack/modsearch
-```
-
-给搜索配一个免费引擎。Antigravity CLI 无需 key，也能抓取网页，首次运行会打开浏览器登录：
+**唯一需要你亲手做的一步**：默认搜索引擎 Antigravity CLI 的浏览器登录需要本人完成。你的 AI 装好它之后，运行一次并完成登录：
 
 ```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 浏览器登录后退出
+agy    # 浏览器完成登录后退出
 ```
 
-检查配置并运行一次真实搜索：
-
-```bash
-npx @liustack/modsearch doctor
-npx @liustack/modsearch -q "Node.js 现在的 LTS 版本"
-```
-
-`doctor` 应显示搜索 `resolved: antigravity-cli`，且搜索返回带来源的 JSON。这就说明安装成功。
-
-想让 agent 代劳？告诉它：「安装这个 skill https://github.com/liustack/modsearch」。它会照着 [INSTALL.md](INSTALL.md)（专为 agent 编写的分步指南）执行。
-
-<details>
-<summary><b>用带 key 的搜索引擎替代 agy</b></summary>
-
-Antigravity CLI 作为默认是因为它无需 key。若不想安装它，下面三个带 key 的引擎任选其一即可启用搜索。三家均有月度免费额度且无需绑卡：
-
-```bash
-modsearch config set tavily.apiKey <key>       # Tavily：每月 1,000 credits
-modsearch config set exa.apiKey <key>          # Exa：每月 10 美元额度，约 1,400 次搜索
-modsearch config set firecrawl.apiKey <key>    # Firecrawl：每月 1,000 credits，支持 JavaScript 页面
-```
-
-一个引擎都没有配置时，任何搜索都会在报错里列出以上选项。网页抓取始终无需安装任何东西。
-</details>
-
-<details>
-<summary><b>手动安装，以及各 agent 从哪里读取 skill</b></summary>
-
-skills CLI 不可用时，自己复制这个目录即可。克隆仓库，把 `skills/modsearch` 放进你所用宿主的 skill 目录：
-
-| 宿主 | skill 目录 |
-| :-- | :-- |
-| Claude Code | `~/.claude/skills/` |
-| Codex | `~/.codex/skills/` |
-| Pi、OpenCode | `~/.agents/skills/` |
-
-```bash
-git clone --depth 1 https://github.com/liustack/modsearch.git
-cp -R modsearch/skills/modsearch ~/.claude/skills/    # 换成你宿主对应的那一行
-```
-
-[INSTALL.md](INSTALL.md) 给出了每一步都带失败分支的完整流程。
-</details>
-
-要求 Node 22.13+。macOS、Linux 与 Windows 的支持情况见[平台支持](#平台支持)。
+不想装 Antigravity CLI 的话，把 Tavily、Exa 或 Firecrawl 任意一家的免费 key 发给你的 AI 让它配置，就不需要这一步（Tavily 每月 1,000 次，Exa 每月约 1,400 次，Firecrawl 每月 1,000 点，注册均无需绑卡）。
 
 ## 用法
 
-安装 skill 后无需记忆命令：提出需要查证的问题，或给出一个 URL，skill 自动触发。手动使用：
+安装 skill 后无需记忆命令：提出需要查证的问题，或给出一个 URL，skill 自动触发，由启动器决定如何运行 modsearch。下面的命令用于在装有 Node 的机器上自己驱动 CLI：
 
 ```bash
 modsearch -q "Node.js 现在的 LTS 版本"        # 搜索网页
@@ -188,7 +135,7 @@ modsearch -q "推特上怎么评价" --source x       # 搜索 X，涉及 X 的�
 
 ## 平台支持
 
-macOS 与 Linux 完整支持，并在 CI 上以 Node 22 和 24 运行完整测试套件。
+macOS 与 Linux 完整支持，并在 CI 上以 Node 22 和 24 运行完整测试套件。skill 附带 `scripts/run.sh`（macOS 与 Linux）和 `scripts/run.ps1`（Windows）两个启动器，自动选择本机可用的运行方式，三个平台行为一致。
 
 CI 矩阵同样包含 `windows-latest`（Node 22 和 24），运行相同的 typecheck、测试与构建。Windows 上能用什么，取决于各部分依赖什么：
 

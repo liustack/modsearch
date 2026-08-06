@@ -22,9 +22,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
-```bash
-npx -y skills add liustack/modsearch              # install the skill
-npx @liustack/modsearch -q "current Node.js LTS"  # or just use the CLI
+```text
+Send this to your AI: install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md
 ```
 
 Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive questions get answered from training data, which may be out of date without the model knowing. ModSearch adds three capabilities: web search, single-page fetch, and X (Twitter) search, returning a few hundred tokens of structured evidence with sources. No model change, no prompt changes, no key required to start.
@@ -33,78 +32,26 @@ Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive 
 
 - **Free to start.** The default engine needs no API key. All three fallback engines (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
 - **Automatic failover.** When an engine fails or exhausts its quota, the next one takes over. Exhausted engines are recorded as cooling, so later queries start from a working engine instead of repeating a failed request.
-- **Structured evidence.** Output is a few hundred tokens: titles, links, dates, and an `uncertainty` list naming what could not be verified, rather than whole pages.
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
-- **Page fetching always works.** A dependency-free local fetcher is the guaranteed floor. With a Firecrawl key, JavaScript-rendered pages are supported.
 - **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
 ## Installation
 
-### Quick start
+Send this line to your AI. It installs, configures, and verifies the skill, then reports back:
 
-About a minute, and no decisions to make. Run these three blocks in order.
+> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
 
-Install the skill:
-
-```bash
-npx -y skills add liustack/modsearch
-```
-
-Give search a free engine. Antigravity CLI needs no key and also reads pages. It opens a browser once to sign in:
+**The one step that needs your hands**: the default search engine, Antigravity CLI, requires a browser sign-in that only you can complete. After your AI installs it, run it once and sign in:
 
 ```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # sign in, then exit
+agy    # sign in, then exit
 ```
 
-Check the setup and run a real search:
-
-```bash
-npx @liustack/modsearch doctor
-npx @liustack/modsearch -q "current Node.js LTS version"
-```
-
-`doctor` should show search `resolved: antigravity-cli`, and the search should return JSON with sources. That is a working install.
-
-Prefer to let your agent do it? Tell it: "Install the skill from https://github.com/liustack/modsearch." It follows [INSTALL.md](INSTALL.md), the step-by-step guide written for an agent.
-
-<details>
-<summary><b>Use a keyed search engine instead of agy</b></summary>
-
-Antigravity CLI is the default because it needs no key. To skip it, any one of these keyed engines enables search on its own. All three have a monthly free tier and need no card:
-
-```bash
-modsearch config set tavily.apiKey <key>       # Tavily: 1,000 credits a month
-modsearch config set exa.apiKey <key>          # Exa: $10 of recurring monthly credit, about 1,400 searches
-modsearch config set firecrawl.apiKey <key>    # Firecrawl: 1,000 credits a month, supports JavaScript pages
-```
-
-With no engine configured at all, any search prints these options in its error. Page fetching still needs nothing installed.
-</details>
-
-<details>
-<summary><b>Install by hand, and where each agent reads skills</b></summary>
-
-If the skills CLI is unavailable, copy the folder yourself. Clone the repo and place `skills/modsearch` in your harness's skill directory:
-
-| Harness | Skill directory |
-| :-- | :-- |
-| Claude Code | `~/.claude/skills/` |
-| Codex | `~/.codex/skills/` |
-| Pi, OpenCode | `~/.agents/skills/` |
-
-```bash
-git clone --depth 1 https://github.com/liustack/modsearch.git
-cp -R modsearch/skills/modsearch ~/.claude/skills/    # use the row for your harness
-```
-
-[INSTALL.md](INSTALL.md) has the full procedure with a failure branch at every step.
-</details>
-
-Requires Node 22.13+. See [Platform support](#platform-support) for macOS, Linux, and Windows.
+To skip Antigravity CLI entirely, send your AI a free key from Tavily, Exa, or Firecrawl and let it configure the engine (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
 
 ## Usage
 
-With the skill installed you do not type commands: ask anything that needs checking, or paste a URL, and it fires on its own. By hand:
+With the skill installed you do not type commands: ask anything that needs checking, or paste a URL, and it fires on its own, with the launcher choosing how to run modsearch. The commands below are for driving the CLI yourself on a machine with Node:
 
 ```bash
 modsearch -q "current Node.js LTS version"     # search the web
@@ -188,7 +135,7 @@ Configuration is optional. `~/.modsearch/config.json` holds one main decision: w
 
 ## Platform support
 
-macOS and Linux are fully supported and run the whole test suite in CI on Node 22 and 24.
+macOS and Linux are fully supported and run the whole test suite in CI on Node 22 and 24. The skill ships two launchers, `scripts/run.sh` for macOS and Linux and `scripts/run.ps1` for Windows, which pick a working way to run modsearch automatically and behave the same on all three platforms.
 
 The CI matrix also includes `windows-latest` on Node 22 and 24, running the same typecheck, test, and build gate. What works on Windows follows from what each part depends on:
 
