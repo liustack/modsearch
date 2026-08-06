@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.0.0 - 2026-08-06
 
 A review pass fixing stale docs, a swallowed error, brittle tests, and thin release tooling.
 
