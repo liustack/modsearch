@@ -70,7 +70,7 @@ export interface DoctorReport {
 export interface DoctorOptions {
   config?: ModsearchConfig;
   env?: NodeJS.ProcessEnv;
-  /** Defaults to the running Node version; injectable for tests. */
+  /** Defaults to the running Node version. Injectable for tests. */
   nodeVersion?: string;
   configPath?: string;
 }
@@ -208,7 +208,7 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
       configProblem = error instanceof Error ? error.message : String(error);
     }
   } else if (options.config === undefined) {
-    readable = false; // no file is not "readable"; it just means defaults
+    readable = false; // no file is not "readable", it just means defaults
   }
 
   const ok = compareVersions(nodeVersion, MIN_NODE) >= 0;
@@ -279,7 +279,7 @@ export function formatDoctorReport(report: DoctorReport): string {
   }
   const file = report.configFile;
   if (!file.exists) {
-    lines.push(`  file: ${file.path} (not present; running on defaults)`);
+    lines.push(`  file: ${file.path} (not present, running on defaults)`);
   } else if (file.problem) {
     lines.push(`  file: ${file.path} (unreadable)`);
     lines.push(`    ! ${file.problem}`);

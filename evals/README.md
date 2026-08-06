@@ -39,7 +39,7 @@ Each file in `cases/` default-exports one object:
 | `args` | The CLI arguments, e.g. `['-q', 'current Node.js LTS version']` |
 | `expectError` | `true` when a non-zero exit is the expected outcome (the SSRF case) |
 | `expectation` | Plain-language statement of what a correct run looks like |
-| `check(result, run)` | Returns `{ pass, detail }`. For `expectError` cases it receives the raw `run` (`{ stdout, stderr, code }`); otherwise the parsed result envelope, plus `run` |
+| `check(result, run)` | Returns `{ pass, detail }`. For `expectError` cases it receives the raw `run` (`{ stdout, stderr, code }`), otherwise the parsed result envelope, plus `run` |
 
 `requirement` semantics:
 

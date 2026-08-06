@@ -75,7 +75,7 @@ locally, on demand, and are **not** in CI (most cases spend quota).
 
 - `pnpm build && pnpm eval` runs the seed cases. The runner reads
   `modsearch doctor --json` first and skips any case whose engine is not set up
-  here; the SSRF case needs nothing and always runs.
+  here. The SSRF case needs nothing and always runs.
 - Each case is a file in `evals/cases/` default-exporting `{ id, title,
   requirement, args, expectError?, expectation, check }`. Keep assertions
   structural (shape, links, dates, a status, a warning), never an exact-string

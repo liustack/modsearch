@@ -3,7 +3,7 @@
 // one evidence artifact per case under evals/results/<date>/, and prints a
 // pass-rate and latency summary. Meant to be run locally, on demand, not in CI:
 // most cases spend real engine quota. The SSRF case spends nothing and always
-// runs; the rest run only when this machine has the engine each one needs.
+// runs. The rest run only when this machine has the engine each one needs.
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -16,7 +16,7 @@ const casesDir = path.join(evalsDir, 'cases');
 
 const RUN_TIMEOUT_MS = 240_000;
 
-/** Run the built CLI with args; resolve with stdout, stderr, exit code, latency. */
+/** Run the built CLI with args, resolving with stdout, stderr, exit code, latency. */
 function runCli(args, { timeoutMs = RUN_TIMEOUT_MS } = {}) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
