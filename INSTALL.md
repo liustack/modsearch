@@ -74,12 +74,12 @@ refreshes the skill.
 **If it fails:**
 - `git: command not found` -> install git, or use Path B.
 - Clone cannot reach GitHub -> check network access, then retry.
-- After copying, confirm the two files landed:
+- After copying, confirm the skill and its launcher landed:
   ```bash
-  ls ~/.claude/skills/modsearch/SKILL.md ~/.claude/skills/modsearch/references
+  ls ~/.claude/skills/modsearch/SKILL.md ~/.claude/skills/modsearch/scripts/run.sh ~/.claude/skills/modsearch/references
   ```
-  If `SKILL.md` is missing, the copy targeted the wrong path. Re-run the `cp`
-  line and check `TARGET`.
+  If `SKILL.md` or `scripts/run.sh` is missing, the copy targeted the wrong path.
+  Re-run the `cp` line and check `TARGET`.
 
 ### Path B: the skills CLI (third party)
 
@@ -144,13 +144,17 @@ npx @liustack/modsearch config set firecrawl.apiKey <key>    # 1,000 credits/mon
 
 ## Step 4: Verify
 
-First, run the diagnosis. It spends no quota and makes no network request.
+First, run the diagnosis through the launcher. It spends no quota and makes no
+network request.
 
 ```bash
-npx @liustack/modsearch doctor
+bash ~/.claude/skills/modsearch/scripts/run.sh doctor   # replace with your TARGET
 ```
 
-A healthy machine with agy signed in looks like this (trimmed):
+The launcher prints its runtime selection first (whether it chose a `modsearch`
+on PATH, `npx`, or `bunx`), then chains modsearch's own report below a
+`--- modsearch doctor ---` line. That report, on a healthy machine with agy
+signed in, looks like this (trimmed):
 
 ```
 Node
@@ -183,7 +187,7 @@ How to read it:
 Then run one real search to confirm the whole path end to end:
 
 ```bash
-npx @liustack/modsearch -q "current Node.js LTS version"
+bash ~/.claude/skills/modsearch/scripts/run.sh -q "current Node.js LTS version"   # replace with your TARGET
 ```
 
 Expect JSON on stdout: a `results` array whose first entry has an `engine` naming

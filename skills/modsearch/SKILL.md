@@ -1,8 +1,8 @@
 ---
 name: modsearch
 description: "Plug-in web search, X (Twitter) search, and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, posts from X, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also use when the user asks how to install or configure modsearch, or wants to switch engines or add a key."
-allowed-tools:
-  - Bash
+compatibility: Requires network access and one of node 22+/npx, bun/bunx, or a preinstalled modsearch binary on PATH.
+allowed-tools: Bash
 ---
 
 # ModSearch — Search & Fetch Bridge Skill
@@ -22,13 +22,32 @@ Do not use this skill for:
 
 ## Prerequisites
 
+Run every modsearch command through the launcher bundled with this skill.
+Replace `<skill-dir>` with the directory this SKILL.md lives in:
+
 ```bash
-modsearch --version
+bash <skill-dir>/scripts/run.sh -q "test"                                       # macOS / Linux
+powershell -ExecutionPolicy Bypass -File <skill-dir>\scripts\run.ps1 -q "test"  # Windows
 ```
 
-If `modsearch` is missing, run it via `npx @liustack/modsearch` instead. Nothing else needs setting up first: modsearch works with no config file, and page fetch works on any machine. Web search does need one engine, and if neither is present the error names both ways to get one.
+The launcher finds a working way to run modsearch and forwards your arguments to it unchanged. It tries, in order: a compatible `modsearch` already on `PATH`, then `npx`, then `bunx`. If none of those exists it prints a JSON diagnosis to stderr and exits 78, with a `nextSteps` list for the user. Relay those steps instead of retrying. To see the full diagnosis, run `bash <skill-dir>/scripts/run.sh doctor --json` (on a machine that can launch the CLI it also chains modsearch's own engine/config `doctor`).
+
+Nothing else needs setting up first: modsearch works with no config file, and page fetch works on any machine. Web search does need one engine, and if neither is present the error names both ways to get one.
+
+### If you cannot run the launcher script
+
+Some harnesses forbid running scripts. Reason through the same order by hand and run the first line that works (the pinned version is 5.0.0):
+
+1. A `modsearch` on `PATH` whose major version is 5 and is at least 5.0.0: `modsearch <args>`.
+2. Otherwise, if `npx` exists: `npx --yes --package @liustack/modsearch@5.0.0 modsearch <args>`.
+3. Otherwise, if `bunx` exists: `bunx --bun @liustack/modsearch@5.0.0 <args>`.
+4. Otherwise none of these runtimes is here. Tell the user no JavaScript runtime was found and that installing Node 22.13+ (https://nodejs.org) or Bun (https://bun.sh) is the next step. Do not claim modsearch itself failed.
+
+`references/runtime.md` documents the version pin, the compatibility rule, and the diagnostic fields.
 
 ## Commands
+
+In the examples below, `modsearch` means the command run through the launcher above (`bash <skill-dir>/scripts/run.sh ...`, or the PowerShell form on Windows).
 
 ```bash
 modsearch -q "<query>"                 # search the web
