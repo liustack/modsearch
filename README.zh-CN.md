@@ -52,32 +52,7 @@ agy                                                           # 浏览器完成�
 
 ## 用法
 
-安装 skill 后无需记忆命令：提出需要查证的问题，或给出一个 URL，skill 自动触发，由启动器决定如何运行 modsearch。下面的命令用于在装有 Node 的机器上自己驱动 CLI：
-
-```bash
-modsearch -q "Node.js 现在的 LTS 版本"        # 搜索网页
-modsearch -u "https://nodejs.org/en/about"    # 抓取一个页面，可加 -q 指定提取关注点
-modsearch -q "推特上怎么评价" --source x       # 搜索 X，涉及 X 的查询会自动路由
-```
-
-输出始终是 `results` 数组，每个语料一条：
-
-```json
-{
-  "mode": "search",
-  "results": [{
-    "source": "web",
-    "engine": "antigravity-cli",
-    "summary": "Node.js 当前 LTS 是 v24.19.0（Krypton），2026-08-03 发布。",
-    "items": [{ "title": "...", "url": "https://...", "published_at": "2026-08-03" }],
-    "uncertainty": [],
-    "warnings": [],
-    "durationSeconds": 5.5
-  }]
-}
-```
-
-`uncertainty` 是引擎对事实层面的存疑说明。`warnings` 记录这条结果的路由过程（引擎切换、X 降级为网页、重定向）。`attempts` 记录每次引擎尝试及其结果。
+装好之后不需要记任何命令。正常聊天，提出需要查证的问题或给出一个链接，skill 自动触发：选引擎、跑搜索或抓取，答案带着来源回来。
 
 ## 实测
 
@@ -114,43 +89,12 @@ modsearch -q "推特上怎么评价" --source x       # 搜索 X，涉及 X 的�
 
 作为量级参照：由服务端内置搜索承载的一次问答，实测消耗约三万 token（2026-08，DeepSeek-V4-Flash 经 Codex 的 Responses API 端点）。ModSearch 返回的证据通常在几百 token。
 
-## CLI 参数
-
-| 参数 | 含义 | 默认值 |
-| :-- | :-- | :-- |
-| `-q, --query <text>` | 查询词，与 `-u` 同用时为提取关注点 | |
-| `-u, --url <url>` | 抓取该页面，不执行搜索 | |
-| `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 由查询词判定，默认 `web` |
-| `-e, --engine <name>` | 本次仅使用该引擎，失败直接报错，不切换其他引擎 | 自动选择 |
-| `-o, --output <path>` | 同时将 JSON 写入文件 | |
-| `-m, --model <name>` | 引擎模型 | `gemini-3.6-flash-low` |
-| `--prompt <text>` | 本次运行的额外约束，透传给引擎 | |
-| `--max-results <n>` | 搜索结果上限 | `8` |
-| `--timeout <ms>` | 引擎超时 | `180000` |
-| `--workdir <path>` | 子进程引擎的工作目录 | 当前目录 |
-| `--allow-private-network` | 放行保留网段，用于将公网域名解析到保留地址的 VPN 环境 | 关 |
-
-配置是可选的。`~/.modsearch/config.json` 的核心决定只有一个：搜索使用哪个引擎（`modsearch config set engine tavily`，留空为自动）。抓取和 X 搜索无需配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 关闭，`modsearch state clear` 清空冷却记录。完整的文件结构与字段说明（含顶层 `allowPrivateNetwork`）见[配置手册](skills/modsearch/references/configure.md)。
-
-`modsearch doctor` 输出本机诊断：Node 版本、各任务的引擎就绪状态及原因、配置来源、私网放行状态、当前冷却中的引擎。不消耗额度，不发起网络请求，`--json` 输出可供程序消费。路由行为不符合预期时先运行它。
-
-## 平台支持
-
-macOS 与 Linux 完整支持，并在 CI 上以 Node 22 和 24 运行完整测试套件。skill 附带 `scripts/run.sh`（macOS 与 Linux）和 `scripts/run.ps1`（Windows）两个启动器，自动选择本机可用的运行方式，三个平台行为一致。
-
-CI 矩阵同样包含 `windows-latest`（Node 22 和 24），运行相同的 typecheck、测试与构建。Windows 上能用什么，取决于各部分依赖什么：
-
-- **CLI、路由与配置逻辑，以及各 HTTP 引擎**（`local` 抓取、Tavily、Exa、Firecrawl）是纯 Node 实现，只用到 `fetch` 和文件系统，因此跨平台。
-- **agy 与 grok 是外部 CLI。** modsearch 以命令名、无 shell 的方式调用它们，所以 PATH 上有原生 Windows 可执行文件时可用，而 npm 那种 `.cmd` 包装则不行。是否存在 Windows 版本由这些工具自己决定，与 modsearch 无关。
-- **冷却状态文件**通过临时文件加原子改名写入。Windows 上该改名会替换目标文件，但系统无法替换被其他进程打开的文件，因此极少见的同时写入竞争可能丢掉一次写入。该存储是尽力而为的缓存，读取时会合并，后续运行可重新发现丢失的内容。
-
-仅限 Unix 的测试（调用假 CLI、SIGTERM/SIGKILL 升级、POSIX 权限位）在 Windows 上跳过，原因记录在 [docs/testing.md](docs/testing.md)。
-
 ## 文档
 
 | 文档 | 适用场景 |
 | :-- | :-- |
 | [INSTALL.md](INSTALL.md) | 一步步安装 skill（为 agent 编写） |
+| [CLI 手册](skills/modsearch/references/cli.md) | skill 所驱动的 CLI：参数、配置与体检 |
 | [故障排查](docs/troubleshooting.md) | 命令报错，查成因和解法 |
 | [配置手册](skills/modsearch/references/configure.md) | 配置 key、切换引擎、排查配置 |
 | [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具 |
