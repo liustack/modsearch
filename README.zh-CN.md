@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>给纯文本模型接上网线：搜网页、搜 X、读页面，回来的是能引用的证据，不是整页原文。</b></p>
+<p align="center"><b>为纯文本模型补上联网能力：网页搜索、X 搜索、单页抓取，返回可引用的结构化证据。</b></p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
@@ -23,22 +23,20 @@
 </p>
 
 ```bash
-npx -y skills add liustack/modsearch          # 装 skill
-npx @liustack/modsearch -q "Node.js LTS 版本"  # 或者直接当 CLI 用
+npx -y skills add liustack/modsearch          # 安装 skill
+npx @liustack/modsearch -q "Node.js LTS 版本"  # 或直接作为 CLI 使用
 ```
 
-DeepSeek-V4-Flash 这类模型便宜、快、能打，唯独活在训练截止那天。问它 Node.js 现在的 LTS 是多少，它凭记忆给你一个数，语气笃定，还可能是错的。ModSearch 给它接一条通往外界的线：搜网页、精读某个页面、进 X 翻帖子，回来的是几百 token 的结构化证据，条条带来源。模型不用换，提示词不用改，起步不要 key。
+DeepSeek-V4-Flash 这类纯文本模型没有联网能力，回答时效性问题只能依赖训练数据，答案可能过期而模型自己无从察觉。ModSearch 为它补上三种能力：搜索网页、抓取指定页面、搜索 X（推特），返回几百 token 的结构化证据，每条带来源。不更换模型，不修改提示词，起步不需要任何 key。
 
 ## 亮点
 
-- **默认就是免费的。** 默认引擎不要任何 key，备胎引擎（Tavily、Exa、Firecrawl）全都有不绑卡的月度免费档。烧穿其中一家的额度，也轮不到你掏钱。
-- **自己换人，还记仇。** 引擎挂掉或额度烧干，当场换下一个顶上。冷却记录会记住谁烧穿了，下一次查询直接从能干活的引擎起步，不再白撞一遍慢失败。`doctor` 看谁在冷却，`state clear` 提前赦免。
-- **交回证据，不是整页网页。** 服务端内置搜索把整页塞进主模型上下文（实测一次问答约三万 token），ModSearch 只交回几百 token 的可引用证据：标题、链接、日期，外加一份写明哪些没查实的 `uncertainty` 清单。
-- **能进 X（推特）。** 装了 Grok Build 就进得去，那是任何网页索引都够不着的语料。
-- **读网页永不失手。** 零依赖的本地抓取器无条件兜底，配了 Firecrawl 连 JS 渲染的页面都吃得下。
-- **一次装好，处处能用。** Claude Code、Codex、Pi、OpenCode 都吃同一份 skill。
-
-<sub>「约三万 token」是 2026-08 的一次实测，不是基准跑分：DeepSeek-V4-Flash 经 Codex 的 Responses API 端点回答一次带搜索的问答。它说明的是「整页塞进上下文」的量级，不是某个固定数字。</sub>
+- **免费起步。** 默认引擎无需 API key。三个备用引擎（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
+- **自动故障转移。** 引擎失败或额度耗尽时自动切换下一个，并记录冷却状态，后续查询直接从可用引擎开始，不重复失败请求。
+- **返回结构化证据。** 输出仅几百 token：标题、链接、日期，以及标明未查实内容的 `uncertainty` 清单，而非整页网页。
+- **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
+- **网页抓取始终可用。** 零依赖的本地抓取器保底，配置 Firecrawl 后支持 JavaScript 渲染页面。
+- **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
 
 ## 安装
 
@@ -46,35 +44,35 @@ DeepSeek-V4-Flash 这类模型便宜、快、能打，唯独活在训练截止�
 npx -y skills add liustack/modsearch
 ```
 
-或者跟你的 agent 说一句「安装这个 skill https://github.com/liustack/modsearch」。
+也可以直接告诉你的 agent：「安装这个 skill https://github.com/liustack/modsearch」。
 
-再给它一个搜索引擎。**Antigravity CLI**（零 key，搜索和读网页一并包了）：
+然后配置一个搜索引擎。**Antigravity CLI** 无需 key，同时覆盖搜索与网页抓取：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 浏览器登录后退出
 ```
 
-或者一个带 key 的 API，每个都有常驻免费额度且无需绑卡：
+或者配置一个带 key 的引擎，三家均有月度免费额度且无需绑卡：
 
 ```bash
-modsearch config set tavily.apiKey <key>       # Tavily: 每月 1,000 credits
-modsearch config set exa.apiKey <key>          # Exa: 每月 $10 循环赠额，约 1,400 次搜索
-modsearch config set firecrawl.apiKey <key>    # Firecrawl: 每月 1,000 credits，还能读 JavaScript 页面
+modsearch config set tavily.apiKey <key>       # Tavily：每月 1,000 credits
+modsearch config set exa.apiKey <key>          # Exa：每月 10 美元额度，约 1,400 次搜索
+modsearch config set firecrawl.apiKey <key>    # Firecrawl：每月 1,000 credits，支持 JavaScript 页面
 ```
 
-一个都没有时命令会把这些选项直接摆给你。读网页零依赖，本来就能用。需要 Node 22.13+，macOS 或 Linux。
+一个引擎都没有时，报错信息会列出以上选项。网页抓取零依赖，无需任何配置即可使用。要求 Node 22.13+，macOS 或 Linux。
 
 ## 用法
 
-装完 skill 就不用记命令，直接问需要查证的问题或甩一个 URL，skill 自己触发。手动用：
+安装 skill 后无需记忆命令：提出需要查证的问题，或给出一个 URL，skill 自动触发。手动使用：
 
 ```bash
-modsearch -q "Node.js 现在的 LTS 版本"        # 搜网页
-modsearch -u "https://nodejs.org/en/about"    # 读一个页面，可加 -q 指定关注点
-modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查询会自动走这条
+modsearch -q "Node.js 现在的 LTS 版本"        # 搜索网页
+modsearch -u "https://nodejs.org/en/about"    # 抓取一个页面，可加 -q 指定提取关注点
+modsearch -q "推特上怎么评价" --source x       # 搜索 X，涉及 X 的查询会自动路由
 ```
 
-输出永远是 `results` 数组，一个语料一格：
+输出始终是 `results` 数组，每个语料一条：
 
 ```json
 {
@@ -91,93 +89,95 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
 }
 ```
 
-`uncertainty`是引擎对事实拿不准的地方。`warnings`是这条答案怎么路由来的（换了引擎、X 用网页顶替、跟了跳转），`attempts`记录试过哪些引擎。
+`uncertainty` 是引擎对事实层面的存疑说明。`warnings` 记录这条结果的路由过程（引擎切换、X 降级为网页、重定向）。`attempts` 记录每次引擎尝试及其结果。
 
 ## 实测
 
-两张截图都是 Codex 桌面 App 里的原样实录，驱动的是纯文本的 DeepSeek-V4-Flash。
+两张截图均为 Codex 桌面 App 中的原样记录，驱动的是纯文本的 DeepSeek-V4-Flash。
 
-丢个博客链接问一句「说的什么」。25 秒后拿到全文的结构化摘要，浏览器从头到尾没打开过。
+给出一个博客链接，询问文章内容。25 秒后返回全文的结构化摘要，全程未打开浏览器。
 
 ![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
-连目标都不给，只说「看看今天有啥有趣的 AI 新鲜事」。36 秒后回来六条带来源的趣闻，末尾还主动交代：哪些信息来自检索聚合，细节可能有出入。这份诚实不是临场发挥，是从 `uncertainty` 字段一路带出来的。
+不指定目标，只问「今天有什么有趣的 AI 新闻」。36 秒后返回六条带来源的结果，并在结尾说明哪些信息来自检索聚合、细节可能有出入。该提醒来自 `uncertainty` 字段。
 
-![开放问题回来六条带来源的新鲜事，还主动交代可信度](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+![开放问题返回六条带来源的结果，并附可信度说明](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
-## 它是怎么干活的
+## 工作原理
 
-![纯文本模型经 modsearch skill 拿到网页搜索、单页精读、X 三条来源，回来的是结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
+![纯文本模型经 modsearch skill 获得网页搜索、单页抓取、X 三条来源，返回结构化 JSON 证据](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.zh.png)
 
-没有魔法，四步：
+四个步骤：
 
-1. 模型需要外部世界时 skill 触发：时效性问题、贴进来的 URL、带 X 味的查询。
-2. skill 跑 `modsearch` 命令，命令按活儿从你本机装了的引擎里挑一个。
-3. 引擎跑挂了或额度烧干，下一个自动顶上，结果里记着是谁答的、为什么换人。
-4. 模型读回 JSON 证据，带着来源回答，而不是凭记忆。
+1. 模型需要外部信息时 skill 触发：时效性问题、用户给出的 URL、涉及 X 的查询。
+2. skill 运行 `modsearch` 命令，按任务类型从本机可用引擎中选择一个。
+3. 引擎失败或额度耗尽时自动切换下一个，结果中记录实际应答的引擎与切换原因。
+4. 模型读取 JSON 证据，带来源作答。
 
-三件活，各有各的引擎，只有搜索需要你准备一样东西：
+三类任务各有引擎，只有搜索需要准备条件：
 
-| 干什么 | 需要什么 | 怎么用 |
+| 任务 | 前置条件 | 用法 |
 | :-- | :-- | :-- |
-| 搜公共网页 | agy，或一个 Tavily / Exa / Firecrawl key | `-q "查询词"` |
-| 读一个 URL | 什么都不用装，JavaScript 页面可交给 Firecrawl | `-u <url>` |
-| 搜 X（推特） | Grok Build（SuperGrok 或 X Premium 自带） | 自动触发，或 `--source x` |
+| 搜索公共网页 | agy，或 Tavily / Exa / Firecrawl 任一 key | `-q "查询词"` |
+| 抓取一个 URL | 无，JavaScript 页面需要 Firecrawl | `-u <url>` |
+| 搜索 X（推特） | Grok Build（SuperGrok 或 X Premium 附带） | 自动触发，或 `--source x` |
 
-短板一并摆这儿：agy 免费额度是周配额，重度用会撞墙。X 那条路要订阅。本地抓取器不跑 JavaScript，纯前端渲染的页面读得薄（配了 Firecrawl 就能读）。某个引擎额度烧干时，带 key 的备用引擎会自动接上，modsearch 还会记住这个撞墙的引擎，把它挪到队尾，下次运行先用健康的引擎故障转移，不再撞同一堵墙。
+限制如下：agy 免费额度按周发放，重度使用会耗尽。X 搜索依赖订阅。本地抓取器不执行 JavaScript，纯前端渲染页面内容有限（Firecrawl 可覆盖）。引擎额度耗尽时记入冷却状态并移至队尾，后续查询优先使用可用引擎，冷却结束后自动恢复。
+
+作为量级参照：由服务端内置搜索承载的一次问答，实测消耗约三万 token（2026-08，DeepSeek-V4-Flash 经 Codex 的 Responses API 端点）。ModSearch 返回的证据通常在几百 token。
 
 ## CLI 参数
 
 | 参数 | 含义 | 默认值 |
 | :-- | :-- | :-- |
-| `-q, --query <text>` | 查询词，配合 `-u` 时是提取关注点 | |
-| `-u, --url <url>` | 抓这一页，不做搜索 | |
-| `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 看查询词，默认 `web` |
-| `-e, --engine <name>` | 本次强制只用这一个引擎，不兜底：该引擎干不了或失败就直接报错，不会偷偷换别的引擎。想让 modsearch 自动挑并故障切换就别加它。 | 自动挑本机能用的 |
-| `-o, --output <path>` | 同时把 JSON 写入文件 | |
+| `-q, --query <text>` | 查询词，与 `-u` 同用时为提取关注点 | |
+| `-u, --url <url>` | 抓取该页面，不执行搜索 | |
+| `-s, --source <list>` | 语料：`web`、`x` 或 `web,x` | 由查询词判定，默认 `web` |
+| `-e, --engine <name>` | 本次仅使用该引擎，失败直接报错，不切换其他引擎 | 自动选择 |
+| `-o, --output <path>` | 同时将 JSON 写入文件 | |
 | `-m, --model <name>` | 引擎模型 | `gemini-3.6-flash-low` |
 | `--prompt <text>` | 本次运行的额外约束，透传给引擎 | |
 | `--max-results <n>` | 搜索结果上限 | `8` |
 | `--timeout <ms>` | 引擎超时 | `180000` |
-| `--workdir <path>` | 需要跑命令的引擎的工作目录 | 当前目录 |
-| `--allow-private-network` | 放行保留网段，给映射公网域名的 VPN 用 | 关 |
+| `--workdir <path>` | 子进程引擎的工作目录 | 当前目录 |
+| `--allow-private-network` | 放行保留网段，用于将公网域名解析到保留地址的 VPN 环境 | 关 |
 
-配置是可选的，`~/.modsearch/config.json` 只有一个决定要做：搜索用哪个引擎（`modsearch config set engine tavily`，留空则自动挑）。读网页和搜 X 都不需要配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 可关掉，`modsearch state clear` 清掉正在冷却的记录。完整的文件结构和每个字段（含顶层 `allowPrivateNetwork` 开关）见[配置手册](skills/modsearch/references/configure.md)。
+配置是可选的。`~/.modsearch/config.json` 的核心决定只有一个：搜索使用哪个引擎（`modsearch config set engine tavily`，留空为自动）。抓取和 X 搜索无需配置。额度冷却故障转移默认开启，`modsearch config set cooldown off` 关闭，`modsearch state clear` 清空冷却记录。完整的文件结构与字段说明（含顶层 `allowPrivateNetwork`）见[配置手册](skills/modsearch/references/configure.md)。
 
-跑 `modsearch doctor` 看本机现状：Node 版本、每个角色的引擎各自就绪与否及原因、配置来自哪层、私网放行开没开、当前有哪些引擎在冷却。它不花额度、不发网络请求，加 `--json` 可喂给工具。路由不如预期时先跑它。
+`modsearch doctor` 输出本机诊断：Node 版本、各任务的引擎就绪状态及原因、配置来源、私网放行状态、当前冷却中的引擎。不消耗额度，不发起网络请求，`--json` 输出可供程序消费。路由行为不符合预期时先运行它。
 
 ## 文档
 
-| 文档 | 什么时候看 |
+| 文档 | 适用场景 |
 | :-- | :-- |
-| [故障排查](docs/troubleshooting.md) | 命令报错，想知道成因和解法 |
-| [配置手册](skills/modsearch/references/configure.md) | 配 key、换引擎、排查配置 |
-| [输出契约](skills/modsearch/references/output-schema.md) | 要解析 JSON 或写下游工具 |
-| [宿主接入](docs/harness-setup.md) | 在 Codex、Claude Code、OpenCode、Pi 里配置 |
+| [故障排查](docs/troubleshooting.md) | 命令报错，查成因和解法 |
+| [配置手册](skills/modsearch/references/configure.md) | 配置 key、切换引擎、排查配置 |
+| [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具 |
+| [宿主接入](docs/harness-setup.md) | 在 Codex、Claude Code、OpenCode、Pi 中配置 |
 | [安全说明](docs/security.md) | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
-| [更新日志](CHANGELOG.md) | 想知道某个版本改了什么 |
-| [AGENTS.md](AGENTS.md) | 要改这个项目的代码 |
+| [更新日志](CHANGELOG.md) | 查询版本变更 |
+| [AGENTS.md](AGENTS.md) | 修改本项目代码 |
 
 ## 参与方式
 
-本仓不收 PR。工具小，一双手维护，每一行代码都要作者自己背，这个闭环收紧了它才可靠。真正帮得上忙的两条路：
+本仓库不接受 PR。项目由作者独立维护，所有代码经作者本人审阅，这是它可靠性的前提。两种有效的参与方式：
 
-- **[提 issue](https://github.com/liustack/modsearch/issues)。** bug、想法、看不懂的报错、读着别扭的文档都算。issue 一定会被读，也真的会影响接下来做什么。
-- **Fork。** MIT 协议下你的副本完全归你：改名、魔改、发布都随意。
+- **[提交 issue](https://github.com/liustack/modsearch/issues)。** bug、建议、难以理解的报错或文档都欢迎。issue 会被认真阅读，并影响后续开发方向。
+- **Fork。** MIT 协议下你的副本完全归你，修改和发布不受限制。
 
 ## 关注公众号
 
-AI 工具、实践与想法，第一时间推送。微信扫码，或搜一搜「liustack」关注：
+AI 工具、实践与想法，第一时间推送。微信扫码，或搜索「liustack」关注：
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/liustack/modsearch/main/assets/wechat-qrcode.png" width="420" alt="微信公众号 liustack" />
 </p>
 
-⭐ 好用的话给 [ModSearch](https://github.com/liustack/modsearch) 点个 star，这是下一个开发者找到它的方式。
+⭐ 如果它对你有用，请给 [ModSearch](https://github.com/liustack/modsearch) 一个 star，这是其他开发者找到它的方式。
 
 ## 免责声明
 
-ModSearch 以 MIT 许可发布，使用不受限制。作者不对任何用途（含商业使用）提供保证与背书。它驱动的上游引擎（Antigravity CLI、Tavily、Grok Build）各有各的条款与额度，遵守这些约束由使用者自负。
+ModSearch 以 MIT 许可发布，使用不受限制。作者不对任何用途（含商业使用）提供保证与背书。上游引擎（Antigravity CLI、Tavily、Exa、Firecrawl、Grok Build）各有自己的条款与额度，遵守这些约束由使用者负责。
 
 ## License
 

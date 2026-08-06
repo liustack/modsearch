@@ -27,18 +27,16 @@ npx -y skills add liustack/modsearch              # install the skill
 npx @liustack/modsearch -q "current Node.js LTS"  # or just use the CLI
 ```
 
-Models like DeepSeek-V4-Flash are cheap, fast, capable, and frozen at their training cutoff. Ask one for the current Node.js LTS and it answers from memory: confidently, and possibly wrong. ModSearch gives it a live line out. It searches the web, reads a specific page, or goes inside X, and hands back a few hundred tokens of structured, citable evidence instead of a wall of page text. No model swap, no prompt surgery, no key to start.
+Text-only models like DeepSeek-V4-Flash cannot reach the web, so time-sensitive questions get answered from training data, which may be out of date without the model knowing. ModSearch adds three capabilities: web search, single-page fetch, and X (Twitter) search, returning a few hundred tokens of structured evidence with sources. No model change, no prompt changes, no key required to start.
 
 ## Highlights
 
-- **Free by default.** The default engine needs no key at all, and every fallback engine (Tavily, Exa, Firecrawl) has a real monthly free tier with no card on file. You can burn through one quota and still not owe anyone money.
-- **Fails over by itself, and remembers.** An engine that dies or runs dry is swapped out mid-run, and the cooldown store remembers who is spent, so the next query starts from an engine that works instead of re-running a slow failure. `doctor` shows who is cooling, `state clear` forgives early.
-- **Evidence, not pages.** Server-side built-in search pushes whole pages into your model's context (~30k tokens for one measured answer). ModSearch hands back a few hundred tokens your model can quote: titles, links, dates, and an `uncertainty` list naming what could not be pinned down.
-- **Reaches inside X (Twitter).** With Grok Build installed, ModSearch searches the one corpus no web index can see.
-- **Reading a page never fails.** A dependency-free local fetcher is the guaranteed floor, and with a Firecrawl key the fallback even renders JavaScript pages.
-- **Install once, works everywhere.** Claude Code, Codex, Pi, and OpenCode all take the same skill.
-
-<sub>The ~30,000-token figure is one 2026-08 measurement, not a benchmark: a single search-backed question answered by DeepSeek-V4-Flash through Codex's Responses API endpoint. It stands for the cost of pushing whole pages into context, not a fixed number.</sub>
+- **Free to start.** The default engine needs no API key. All three fallback engines (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
+- **Automatic failover.** When an engine fails or exhausts its quota, the next one takes over. Exhausted engines are recorded as cooling, so later queries start from a working engine instead of repeating a failed request.
+- **Structured evidence.** Output is a few hundred tokens: titles, links, dates, and an `uncertainty` list naming what could not be verified, rather than whole pages.
+- **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
+- **Page fetching always works.** A dependency-free local fetcher is the guaranteed floor. With a Firecrawl key, JavaScript-rendered pages are supported.
+- **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
 ## Installation
 
@@ -54,15 +52,15 @@ Then give it a search engine. **Antigravity CLI** (no key, covers searching and 
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # sign in, then exit
 ```
 
-Or a keyed API, each with a standing free budget and no card:
+Or configure a keyed engine. All three have monthly free tiers and require no card:
 
 ```bash
 modsearch config set tavily.apiKey <key>       # Tavily: 1,000 credits a month
 modsearch config set exa.apiKey <key>          # Exa: $10 of recurring monthly credit, about 1,400 searches
-modsearch config set firecrawl.apiKey <key>    # Firecrawl: 1,000 credits a month, and it reads JavaScript pages
+modsearch config set firecrawl.apiKey <key>    # Firecrawl: 1,000 credits a month, supports JavaScript pages
 ```
 
-With none of them, the command hands you the options rather than failing vaguely. Reading a page needs nothing installed. Requires Node 22.13+, macOS or Linux.
+With none configured, the error message lists these options. Page fetching needs nothing installed. Requires Node 22.13+, macOS or Linux.
 
 ## Usage
 
@@ -71,7 +69,7 @@ With the skill installed you do not type commands: ask anything that needs check
 ```bash
 modsearch -q "current Node.js LTS version"     # search the web
 modsearch -u "https://nodejs.org/en/about"     # read one page, add -q for a focus
-modsearch -q "reactions on X" --source x       # search X, automatic for X-flavored queries
+modsearch -q "reactions on X" --source x       # search X, automatic for queries about X
 ```
 
 Output is always a `results` array, one entry per corpus:
@@ -97,11 +95,11 @@ Output is always a `results` array, one entry per corpus:
 
 Both screenshots are unedited runs from the Codex desktop app, driving a text-only DeepSeek-V4-Flash.
 
-Drop in a blog link and ask what it says. Twenty-five seconds later: a structured summary of the whole post, and the browser never opened.
+Give it a blog link and ask what the post says. Twenty-five seconds later: a structured summary of the whole post, with no browser involved.
 
 ![Text-only DeepSeek summarising a blog link through ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
-Give it no target at all, just "anything interesting in AI today?". Thirty-six seconds later: six sourced stories, and a closing caveat flagging which details came from aggregation and deserve a second look. That honesty is carried straight out of the `uncertainty` field.
+Give it no target at all, just "anything interesting in AI today?". Thirty-six seconds later: six sourced stories, with a closing note on which details came from aggregation and deserve a second look. The note comes from the `uncertainty` field.
 
 ![An open-ended question comes back as six sourced stories with a stated confidence caveat](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
 
@@ -109,14 +107,14 @@ Give it no target at all, just "anything interesting in AI today?". Thirty-six s
 
 ![A text-only model reaches web search, one-page reading, and X through the modsearch skill, and gets structured JSON evidence back](https://raw.githubusercontent.com/liustack/modsearch/main/assets/flow.en.png)
 
-No magic, four steps:
+Four steps:
 
-1. The skill triggers when your model needs the outside world: a time-sensitive question, a pasted URL, an X-flavored query.
-2. It runs the `modsearch` CLI, which picks an engine for the job from whatever is installed on your machine.
-3. If that engine fails or runs out of quota mid-run, the next one takes over on its own, and the output records who answered and why it fell through.
-4. Your model reads the JSON evidence and answers with sources, instead of from memory.
+1. The skill triggers when the model needs outside information: a time-sensitive question, a user-supplied URL, a query about X.
+2. It runs the `modsearch` CLI, which picks an engine for the task from what is available on the machine.
+3. If that engine fails or exhausts its quota, the next one takes over. The output records which engine answered and why any switch happened.
+4. The model reads the JSON evidence and answers with sources.
 
-Three jobs, each with its own engines, and only searching asks anything of you:
+Three tasks, each with its own engines. Only searching requires setup:
 
 | Job | What it takes | How |
 | :-- | :-- | :-- |
@@ -124,7 +122,9 @@ Three jobs, each with its own engines, and only searching asks anything of you:
 | Read one URL | nothing at all, or Firecrawl for JavaScript pages | `-u <url>` |
 | Search X (Twitter) | Grok Build (SuperGrok or X Premium) | automatic, or `--source x` |
 
-The weaknesses, in the same place: agy's free tier is a weekly quota and heavy use hits the wall, the X route needs a subscription, and the local fetcher runs no JavaScript, so client-rendered pages come back thin (Firecrawl reads those when you key it). When an engine hits its quota, a keyed backup picks up the search on its own, and modsearch remembers the spent engine and moves it to the back of the line until it recovers, so the next run fails over first instead of hitting the same wall.
+The limitations: agy's free quota is issued weekly and heavy use exhausts it. The X route requires a subscription. The local fetcher does not execute JavaScript, so client-rendered pages return limited content (Firecrawl covers those). When an engine exhausts its quota, it is recorded as cooling and moved to the back of the chain, so later queries start from a working engine until it recovers.
+
+For scale: one question answered through server-side built-in search measured about 30,000 tokens of context (2026-08, DeepSeek-V4-Flash through Codex's Responses API endpoint). ModSearch's evidence is typically a few hundred tokens.
 
 ## CLI reference
 
@@ -133,7 +133,7 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `-q, --query <text>` | Query, or the extraction focus when paired with `-u` | |
 | `-u, --url <url>` | Fetch this page instead of searching | |
 | `-s, --source <list>` | Corpora: `web`, `x`, or `web,x` | from the query, else `web` |
-| `-e, --engine <name>` | Force exactly one engine for this run. No fallback: if it cannot do the job or fails, the run errors instead of switching to another engine. Drop it to let modsearch pick and fail over. | picked from what works here |
+| `-e, --engine <name>` | Use only this engine for this run. On failure the run errors instead of switching engines | automatic |
 | `-o, --output <path>` | Also write JSON to a file | |
 | `-m, --model <name>` | Engine model | `gemini-3.6-flash-low` |
 | `--prompt <text>` | Extra constraints for this run, passed to the engine | |
@@ -142,9 +142,9 @@ The weaknesses, in the same place: agy's free tier is a weekly quota and heavy u
 | `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
-Configuration is optional. `~/.modsearch/config.json` holds one decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Reading pages and searching X need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` turns it off, and `modsearch state clear` forgets what is cooling. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are in the [configuration doc](skills/modsearch/references/configure.md).
+Configuration is optional. `~/.modsearch/config.json` holds one main decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Fetching and X search need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` disables it, and `modsearch state clear` resets the cooldown records. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are documented in the [configuration doc](skills/modsearch/references/configure.md).
 
-Run `modsearch doctor` to see what is set up here: your Node version, each role's engines with why they are or are not ready, where the config comes from, the private-network state, and anything cooling right now. It spends no quota and makes no request, and `--json` feeds it to a tool. Reach for it first when routing surprises you.
+`modsearch doctor` prints a local diagnosis: Node version, each task's engines with their readiness and reasons, where each config value comes from, the private-network setting, and any engines currently cooling. It spends no quota and makes no network request, and `--json` makes the output machine-readable. Run it first when routing does not behave as expected.
 
 ## Documentation
 
@@ -160,10 +160,10 @@ Run `modsearch doctor` to see what is set up here: your Node version, each role'
 
 ## Contributing
 
-ModSearch does not accept pull requests. It is a small tool with one pair of hands on it, and every line stays author-owned: that tight loop is what keeps it dependable. Two ways to contribute that genuinely help:
+ModSearch does not accept pull requests. The project is maintained by a single author who reviews every line, which is a deliberate choice for reliability. Two effective ways to contribute:
 
-- **[Open an issue](https://github.com/liustack/modsearch/issues).** Bugs, ideas, a confusing error, docs that read wrong. Issues get read and drive what gets built.
-- **Fork it.** MIT means your copy is fully yours: rename it, rewire it, ship it.
+- **[Open an issue](https://github.com/liustack/modsearch/issues).** Bugs, suggestions, confusing errors, unclear docs. Issues are read and shape what gets built next.
+- **Fork it.** Under MIT your copy is fully yours to modify and publish.
 
 ## Shameless plug
 
@@ -177,7 +177,7 @@ npx -y skills add liustack/liustack -g
 
 ## Disclaimer
 
-ModSearch is MIT-licensed, so use is not restricted. The author gives no warranty and no endorsement for any particular use, commercial or otherwise. The upstream engines it drives (Antigravity CLI, Tavily, Grok Build) each carry their own terms and quotas, and complying with them is the user's responsibility.
+ModSearch is MIT-licensed, so use is not restricted. The author gives no warranty and no endorsement for any particular use, commercial or otherwise. The upstream engines it drives (Antigravity CLI, Tavily, Exa, Firecrawl, Grok Build) each carry their own terms and quotas, and complying with them is the user's responsibility.
 
 ## License
 
