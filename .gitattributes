@@ -1,0 +1,5 @@
+# Normalize line endings to LF on checkout everywhere, including Windows, whose
+# CI runners default to core.autocrlf=true. Tests read repository files (for
+# example the output-schema reference) and match on `\n`, so a CRLF checkout
+# would break them on Windows for no real reason.
+* text=auto eol=lf

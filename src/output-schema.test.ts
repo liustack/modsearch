@@ -4,7 +4,12 @@
 import * as fs from 'fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runSearch } from './search.ts';
-import { cleanupTempDirs, fakeEngine } from './testing/helpers.ts';
+import { cleanupTempDirs, fakeEngine, SPAWNS_FAKE_CLI } from './testing/helpers.ts';
+
+// The two envelope tests spawn a fake agy CLI, which does not run on Windows;
+// see SPAWNS_FAKE_CLI. The doc-shape test below reads only the reference file
+// and runs everywhere.
+const itSpawn = it.runIf(SPAWNS_FAKE_CLI);
 
 const DOC_URL = new URL('../skills/modsearch/references/output-schema.md', import.meta.url);
 
@@ -57,7 +62,7 @@ describe('output-schema reference stays in step with RunSearchResult', () => {
     expect(Object.keys(doc).sort()).toEqual(['fetch', 'search']);
   });
 
-  it('search envelope matches a real run', async () => {
+  itSpawn('search envelope matches a real run', async () => {
     const bin = fakeEngine({
       name: 'agy',
       stdout: JSON.stringify({
@@ -80,7 +85,7 @@ describe('output-schema reference stays in step with RunSearchResult', () => {
     expect(shapeOf(real)).toEqual(shapeOf(doc.search));
   }, 30_000);
 
-  it('fetch envelope matches a real run', async () => {
+  itSpawn('fetch envelope matches a real run', async () => {
     const bin = fakeEngine({
       name: 'agy',
       stdout: JSON.stringify({
