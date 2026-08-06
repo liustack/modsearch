@@ -12,7 +12,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { cooldownEnabled, type ModsearchConfig } from './config.ts';
+import { canonicalEngineName, cooldownEnabled, type ModsearchConfig } from './config.ts';
 
 export interface CooldownEntry {
   /** ISO time the engine may be worth trying again. */
@@ -64,11 +64,16 @@ export function loadCooldownState(statePath = currentStatePath()): CooldownState
     for (const [engine, entry] of Object.entries(cooldowns)) {
       if (entry && typeof entry === 'object' && typeof (entry as CooldownEntry).until === 'string') {
         const e = entry as CooldownEntry;
-        clean[engine] = {
+        // Fold a legacy engine key (e.g. `http`, written before the rename to
+        // `local`) onto its canonical name so an old cooldown is not orphaned.
+        // On a collision, keep whichever cooldown lasts longer.
+        const key = canonicalEngineName(engine);
+        const normalized: CooldownEntry = {
           until: e.until,
           reason: typeof e.reason === 'string' ? e.reason : '',
           observedAt: typeof e.observedAt === 'string' ? e.observedAt : '',
         };
+        clean[key] = clean[key] ? laterEntry(clean[key], normalized) : normalized;
       }
     }
     return { engineCooldowns: clean };

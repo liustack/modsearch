@@ -84,6 +84,12 @@ const CANONICAL_ENGINE: Record<string, string> = {
   direct: 'local',
 };
 
+/** The canonical name for an engine, folding aliases (agy, http, direct, ...). */
+export function canonicalEngineName(name: string): string {
+  const trimmed = name.trim().toLowerCase();
+  return CANONICAL_ENGINE[trimmed] ?? trimmed;
+}
+
 interface LegacyConfig {
   /** v2: one global provider name. */
   provider?: string;

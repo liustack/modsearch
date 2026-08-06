@@ -51,6 +51,21 @@ describe('cooldown state file', () => {
     expect(Object.keys(state.engineCooldowns)).toEqual(['tavily']);
   });
 
+  it('folds a legacy engine key (http) onto its canonical name (local) on read', () => {
+    const p = statePath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: {
+          http: { until: '2999-01-01T00:00:00.000Z', reason: 'x', observedAt: '2026-01-01T00:00:00.000Z' },
+          tavily: { until: '2999-01-01T00:00:00.000Z', reason: 'y', observedAt: '2026-01-01T00:00:00.000Z' },
+        },
+      }),
+    );
+    const state = loadCooldownState(p);
+    expect(Object.keys(state.engineCooldowns).sort()).toEqual(['local', 'tavily']);
+  });
+
   it('writes 0600 and round-trips through a record', () => {
     const p = statePath();
     const state = emptyCooldownState();
