@@ -96,7 +96,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 grok    # the user signs in with SuperGrok or X Premium
 ```
 
-Nothing else to turn on. An X-flavored query goes to X automatically once `grok` is installed and signed in. Without it, an X question is answered from the public web, and the result says so in `uncertainty`.
+Nothing else to turn on. An X-flavored query goes to X automatically once `grok` is installed and signed in. Without it, an X question is answered from the public web, and the result says so in `warnings`.
 
 ### http (fetch, nothing to install)
 
@@ -114,5 +114,5 @@ modsearch config set http.allowPrivateNetwork true   # make it permanent
 - `No engine on this machine can search the web`: neither agy nor a Tavily key is set up. The message lists both fixes. Offer, do not insist.
 - Quota errors from agy: the weekly free quota is spent. Add a Tavily key, or wait for the reset named in the message.
 - `Blocked private network target`: SSRF guard. If the user is behind a VPN, retry with `--allow-private-network`.
-- Wrong engine name in config: modsearch says so in `uncertainty` and uses a working engine anyway. Fix the name when the user wants that engine back.
+- Wrong engine name in config: modsearch says so in `warnings` and uses a working engine anyway. Fix the name when the user wants that engine back.
 - Timeouts: retry once with `--timeout 300000` before reporting failure.

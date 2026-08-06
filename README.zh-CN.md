@@ -83,10 +83,13 @@ modsearch -q "推特上怎么评价" --source x       # 搜 X，带 X 味的查�
     "summary": "Node.js 当前 LTS 是 v24.19.0（Krypton），2026-08-03 发布。",
     "items": [{ "title": "...", "url": "https://...", "published_at": "2026-08-03" }],
     "uncertainty": [],
+    "warnings": [],
     "durationSeconds": 5.5
   }]
 }
 ```
+
+`uncertainty`是引擎对事实拿不准的地方。`warnings`是这条答案怎么路由来的（换了引擎、X 用网页顶替、跟了跳转），`attempts`记录试过哪些引擎。
 
 ## 实测
 

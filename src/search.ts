@@ -32,6 +32,17 @@ export interface RunSearchOptions {
 /** How well this entry served the source that was requested. */
 export type SourceStatus = 'ok' | 'degraded' | 'unavailable';
 
+/** One try at one engine, in the order they were attempted. */
+export interface EngineAttempt {
+  engine: string;
+  /** True when the engine returned a result, false when it failed or was skipped. */
+  ok: boolean;
+  /** Present only when `ok` is false: the failure message. */
+  error?: string;
+  /** How long this attempt took, or null when nothing ran. */
+  durationSeconds: number | null;
+}
+
 /** One source's answer. Engine result fields are flattened in beside them. */
 export interface SourceResult {
   /** The corpus this entry actually came from. May differ from requestedSource. */
@@ -47,6 +58,15 @@ export interface SourceResult {
    * nothing could serve the source, and `items` is empty.
    */
   status: SourceStatus;
+  /**
+   * Routing and runtime warnings for this source: an engine that failed and was
+   * replaced, a degrade to a stand-in corpus, a config typo, the http engine's
+   * "no synthesis" and "private network allowed" notices. These are about how
+   * the answer was produced, not about the facts in it.
+   */
+  warnings: string[];
+  /** Every engine tried for this source, in order, with per-try outcome. */
+  attempts: EngineAttempt[];
   durationSeconds: number | null;
   [resultField: string]: unknown;
 }
@@ -146,7 +166,11 @@ async function runOneSource(
       status: 'unavailable',
       summary: '',
       items: [],
-      uncertainty: plan.notes,
+      // The router's notes (e.g. the X-degrade caveat) are about routing, not
+      // facts, so they belong in warnings. Nothing ran, so no attempts.
+      uncertainty: [],
+      warnings: plan.notes,
+      attempts: [],
       durationSeconds: null,
     };
   }
@@ -161,6 +185,7 @@ async function runOneSource(
   }
 
   const failures: string[] = [];
+  const attempts: EngineAttempt[] = [];
   for (const engine of candidates) {
     const settings = engineSettings(engine.name, config, env);
     if (options.allowPrivateNetwork) {
@@ -187,17 +212,29 @@ async function runOneSource(
         timeoutMs,
       );
     } catch (error) {
-      failures.push(`${engine.name}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${engine.name}: ${message}`);
+      attempts.push({
+        engine: engine.name,
+        ok: false,
+        error: message,
+        durationSeconds: (Date.now() - startedAt) / 1000,
+      });
       continue;
     }
 
-    const notes = [...plan.notes];
+    const durationSeconds = (Date.now() - startedAt) / 1000;
+    attempts.push({ engine: engine.name, ok: true, durationSeconds });
+
+    // Routing and runtime warnings, kept apart from the engine's epistemic
+    // uncertainty. Config typos and degrade caveats travel on the plan.
+    const warnings = [...plan.notes];
     if (failures.length > 0) {
-      notes.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
+      warnings.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
       // A web engine answering an X request is second-hand evidence whether the
       // X engine was missing or died mid-run.
       if (plan.degradeNote && !engine.roles.includes('social')) {
-        notes.push(plan.degradeNote);
+        warnings.push(plan.degradeNote);
       }
     }
 
@@ -213,18 +250,28 @@ async function runOneSource(
       status = 'degraded';
     }
 
-    // Routing facts go last: an engine returning its own `source` or `engine`
-    // key must not be able to rewrite who answered.
-    // Strip routing-shaped keys the engine returned before stamping the real
-    // ones: a conditional spread left `model` overridable whenever the engine
-    // had no model of its own.
-    const body = withNotes(output.result, notes);
+    const body =
+      output.result && typeof output.result === 'object'
+        ? ({ ...output.result } as Record<string, unknown>)
+        : ({ result: output.result } as Record<string, unknown>);
+
+    // The http engine hands its own runtime notices back as `warnings`; merge
+    // those in after the routing ones. Other engines emit no warnings key.
+    const engineWarnings = Array.isArray(body.warnings)
+      ? (body.warnings as unknown[]).filter((line): line is string => typeof line === 'string')
+      : [];
+
+    // Routing facts and the warnings/attempts channels are stamped by modsearch,
+    // never by the engine: strip any key the engine returned with these names so
+    // it cannot rewrite who answered or forge a routing warning.
     delete body.source;
     delete body.requestedSource;
     delete body.engine;
     delete body.model;
     delete body.status;
     delete body.durationSeconds;
+    delete body.warnings;
+    delete body.attempts;
 
     return {
       ...body,
@@ -233,7 +280,9 @@ async function runOneSource(
       engine: engine.name,
       model,
       status,
-      durationSeconds: (Date.now() - startedAt) / 1000,
+      warnings: [...warnings, ...engineWarnings],
+      attempts,
+      durationSeconds,
     };
   }
 
@@ -261,20 +310,6 @@ async function callEngine(
     return engine.parseOutput(commandResult.stdout);
   }
   throw new Error(`Engine ${engine.name} implements neither execute nor buildInvocation.`);
-}
-
-/** Merge routing notes into the result's uncertainty list. */
-function withNotes(result: unknown, notes: string[]): Record<string, unknown> {
-  const shaped = (result && typeof result === 'object' ? { ...result } : { result }) as Record<
-    string,
-    unknown
-  >;
-  if (notes.length === 0) {
-    return shaped;
-  }
-  const existing = Array.isArray(shaped.uncertainty) ? (shaped.uncertainty as unknown[]) : [];
-  shaped.uncertainty = [...notes, ...existing];
-  return shaped;
 }
 
 /**

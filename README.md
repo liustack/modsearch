@@ -83,10 +83,13 @@ Output is always a `results` array, one entry per corpus:
     "summary": "The current Node.js LTS is v24.19.0 (Krypton), released 2026-08-03.",
     "items": [{ "title": "...", "url": "https://...", "published_at": "2026-08-03" }],
     "uncertainty": [],
+    "warnings": [],
     "durationSeconds": 5.5
   }]
 }
 ```
+
+`uncertainty` is what the engine could not pin down about the facts. `warnings` is how the answer was routed (a fallback, a stand-in for X, redirects), and `attempts` records each engine tried.
 
 ## See it work
 

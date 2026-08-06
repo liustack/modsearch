@@ -26,7 +26,11 @@ every run:
           "published_at": "2026-08-03"
         }
       ],
-      "uncertainty": []
+      "uncertainty": [],
+      "warnings": [],
+      "attempts": [
+        { "engine": "antigravity-cli", "ok": true, "durationSeconds": 5.5 }
+      ]
     }
   ],
   "meta": {
@@ -59,9 +63,27 @@ result fields in beside them:
 | `engine` | which engine actually answered (`antigravity-cli`, `tavily`, `grok-cli`, `http`), or `null` when the source was unreachable |
 | `model` | the model used, where the engine has one (empty string when it does not) |
 | `status` | `ok`, `degraded`, or `unavailable` (see below) |
+| `warnings` | routing and runtime warnings for this source: a fallback, a degrade caveat, a config typo, the http engine's "no synthesis" and "private network allowed" notices. About how the answer was produced, not the facts in it. Always an array, often empty |
+| `attempts` | every engine tried for this source, in order: `{ engine, ok, error?, durationSeconds }`. `ok: false` entries carry the failure `error`. One `ok: true` entry at the end on a successful run |
 | `durationSeconds` | how long this one source took, or `null` when nothing ran |
 
 The remaining fields depend on the mode.
+
+### `uncertainty` vs `warnings`
+
+Two separate lists, and the split matters when you relay a result:
+
+- `uncertainty` is the engine's own epistemic doubt about the **facts**: a gap it
+  could not fill, sources that conflict, a figure that might be stale, a page
+  that came back too thin to trust. Surface these as caveats on the answer.
+- `warnings` is about **how the answer was produced**: an engine failed and
+  another stood in, an X request was served by the web, a config key was a typo,
+  a fetch followed redirects or ran with the private-network guard off. Surface
+  these when they change how much to trust the routing (a degrade especially),
+  not as doubt about the facts themselves.
+
+Older versions folded both into `uncertainty`. A consumer that parsed routing
+notes out of `uncertainty` should read `warnings` now.
 
 ### `status` and degraded X answers
 
@@ -72,12 +94,12 @@ for:
 - `degraded`: a stand-in corpus answered. Only X degrades today: when Grok Build
   is missing, signed out, or failing, a web engine answers the X request. The
   entry then reads `requestedSource: "x"`, `source: "web"`, `status: "degraded"`,
-  and `uncertainty` explains that web data cannot see inside X. Do not present a
+  and `warnings` explains that web data cannot see inside X. Do not present a
   degraded entry as X coverage.
 - `unavailable`: nothing could serve the source. `engine` is `null`, `items` is
-  empty, `durationSeconds` is `null`, and `uncertainty` says why. This appears
-  for the X slot of a `--source web,x` run when X is unreachable, so the slot is
-  explicit rather than silently missing:
+  empty, `attempts` is empty, `durationSeconds` is `null`, and `warnings` says
+  why. This appears for the X slot of a `--source web,x` run when X is
+  unreachable, so the slot is explicit rather than silently missing:
 
 ```json
 {
@@ -87,9 +109,11 @@ for:
   "status": "unavailable",
   "summary": "",
   "items": [],
-  "uncertainty": [
+  "uncertainty": [],
+  "warnings": [
     "X itself was not reachable here (Grok Build missing, signed out, or failing), so this came from the public web, which cannot see inside X."
   ],
+  "attempts": [],
   "durationSeconds": null
 }
 ```
@@ -141,7 +165,11 @@ The engine result flattened into the entry:
       "links": [
         { "text": "Downloads", "url": "https://nodejs.org/en/download" }
       ],
-      "uncertainty": []
+      "uncertainty": [],
+      "warnings": [],
+      "attempts": [
+        { "engine": "antigravity-cli", "ok": true, "durationSeconds": 8.1 }
+      ]
     }
   ],
   "meta": {

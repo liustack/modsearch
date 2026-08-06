@@ -89,7 +89,7 @@ describe('zero-config machine', () => {
         timeoutMs: 30_000,
       });
       expect(result.results[0].engine).toBe('http');
-      expect((result.results[0].uncertainty as string[]).join(' ')).toContain('Fell back to http');
+      expect((result.results[0].warnings as string[]).join(' ')).toContain('Fell back to http');
     } finally {
       await page.close();
     }
@@ -136,7 +136,9 @@ describe('X degrade is labeled, never silently mislabeled', () => {
     expect(entry.requestedSource).toBe('x');
     expect(entry.status).toBe('degraded');
     expect(entry.engine).toBe('antigravity-cli');
-    expect((entry.uncertainty as string[]).join(' ')).toContain('X itself was not reachable');
+    expect((entry.warnings as string[]).join(' ')).toContain('X itself was not reachable');
+    // The degrade reason is a routing warning, not epistemic uncertainty.
+    expect((entry.uncertainty as string[]).join(' ')).not.toContain('X itself was not reachable');
   }, 30_000);
 
   it('emits an explicit empty unavailable X entry for web,x when X is unreachable', async () => {
@@ -159,8 +161,80 @@ describe('X degrade is labeled, never silently mislabeled', () => {
     expect(x.requestedSource).toBe('x');
     expect(x.engine).toBeNull();
     expect(x.items).toEqual([]);
-    expect((x.uncertainty as string[]).join(' ')).toContain('X itself was not reachable');
+    expect(x.attempts).toEqual([]);
+    expect((x.uncertainty as string[])).toEqual([]);
+    expect((x.warnings as string[]).join(' ')).toContain('X itself was not reachable');
   }, 30_000);
+});
+
+describe('uncertainty, warnings, and attempts are separate channels', () => {
+  afterEach(() => cleanupTempDirs());
+
+  it('keeps the engine epistemic uncertainty, routing goes to warnings', async () => {
+    // The engine reports a real gap; the run also falls back. The two must not
+    // mix: uncertainty is the engine's own doubt, warnings is how we routed.
+    const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
+    try {
+      // agy fails on the first (config) engine, http answers the fetch.
+      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const result = await runSearch({
+        url: page.url,
+        config,
+        env: BARE_ENV,
+        timeoutMs: 30_000,
+      });
+      const entry = result.results[0];
+      expect(entry.engine).toBe('http');
+      // http's own uncertainty is epistemic only (nothing about routing here).
+      expect((entry.uncertainty as string[]).join(' ')).not.toContain('Fell back');
+      // Routing + runtime notices live in warnings.
+      const warnings = (entry.warnings as string[]).join(' ');
+      expect(warnings).toContain('Fell back to http');
+      expect(warnings).toContain('no LLM synthesis');
+    } finally {
+      await page.close();
+    }
+  }, 40_000);
+
+  it('records every engine attempt in order with per-try outcome', async () => {
+    // agy fails, http answers: two attempts, first not ok, second ok.
+    const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
+    try {
+      const config = agyConfig({ code: 1 }, { engines: { http: { allowPrivateNetwork: 'true' } } });
+      const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
+      const attempts = result.results[0].attempts as Array<{
+        engine: string;
+        ok: boolean;
+        error?: string;
+      }>;
+      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'http']);
+      expect(attempts[0].ok).toBe(false);
+      expect(typeof attempts[0].error).toBe('string');
+      expect(attempts[1].ok).toBe(true);
+      expect(attempts[1].error).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  }, 40_000);
+
+  it('http sorts a thin page into uncertainty and its method notice into warnings', async () => {
+    const page = await startLocalPage('<html><body>hi</body></html>');
+    try {
+      const result = await runSearch({
+        url: page.url,
+        config: { engines: { http: { allowPrivateNetwork: 'true' } } },
+        env: BARE_ENV,
+        timeoutMs: 30_000,
+      });
+      const entry = result.results[0];
+      expect((entry.uncertainty as string[]).join(' ')).toContain('JavaScript');
+      const warnings = (entry.warnings as string[]).join(' ');
+      expect(warnings).toContain('Private network protection was disabled');
+      expect(warnings).not.toContain('JavaScript');
+    } finally {
+      await page.close();
+    }
+  }, 40_000);
 });
 
 describe('routing facts cannot be faked by an engine', () => {

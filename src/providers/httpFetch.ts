@@ -410,27 +410,31 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
     allowPrivateNetwork: allowPrivate,
   });
 
-  const uncertainty: string[] = [
+  // How the page was fetched (method, truncation, redirects, private-network
+  // override) is a runtime warning, not a fact the page was unsure about.
+  const warnings: string[] = [
     'Fetched directly over HTTP with no LLM synthesis: this is the page text as served, not a restructured summary.',
   ];
   if (result.meta.truncated) {
-    uncertainty.push(`Content truncated at ${result.meta.maxChars} characters.`);
+    warnings.push(`Content truncated at ${result.meta.maxChars} characters.`);
   }
   if (result.meta.redirectChain.length > 0) {
-    uncertainty.push(
-      `Followed ${result.meta.redirectChain.length} redirect(s) to ${result.finalUrl}.`,
-    );
+    warnings.push(`Followed ${result.meta.redirectChain.length} redirect(s) to ${result.finalUrl}.`);
   }
   if (options.extraPrompt || options.query) {
-    uncertainty.push(
+    warnings.push(
       'This engine cannot narrow the page to a focus. The full text is here, so pick out the relevant parts yourself.',
     );
   }
   if (allowPrivate) {
-    uncertainty.push(
+    warnings.push(
       'Private network protection was disabled for this fetch, so the URL was trusted as given.',
     );
   }
+
+  // A page that came back nearly empty is genuine doubt about the evidence: the
+  // content may be incomplete. That is epistemic, so it stays in uncertainty.
+  const uncertainty: string[] = [];
   if (result.text.length < 200) {
     uncertainty.push(
       'Very little text came back. The page is probably rendered by JavaScript, which this engine does not run.',
@@ -443,6 +447,7 @@ export async function executeHttpFetch(options: EngineRequest): Promise<EngineOu
       content: result.text,
       links: result.rawHtml ? extractLinks(result.rawHtml, result.finalUrl) : [],
       uncertainty,
+      warnings,
     },
     meta: {
       conversationId: null,

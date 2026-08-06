@@ -43,9 +43,9 @@ agy's free tier is one weekly grant shared by the Antigravity desktop app, the C
 
 Read `results[].engine` in the output. Engines are chosen per run from what is installed, so this is usually correct rather than broken:
 
-- Expected agy, got `tavily`: agy failed or is unavailable, and Tavily picked up the work. The `uncertainty` list says what agy's failure was.
-- Expected agy, got `http` on a fetch: same story, and the page came back as served with no summary or focus narrowing.
-- Asked about X, got `antigravity-cli` or `tavily`: Grok Build is missing or signed out, so this is second-hand web evidence. The `uncertainty` list says so explicitly.
+- Expected agy, got `tavily`: agy failed or is unavailable, and Tavily picked up the work. The `warnings` list names the fallback and `attempts` carries agy's exact failure.
+- Expected agy, got `http` on a fetch: same story, and the page came back as served with no summary or focus narrowing (`warnings` says so).
+- Asked about X, got `antigravity-cli` or `tavily`: Grok Build is missing or signed out, so this is second-hand web evidence. The `warnings` list says so explicitly.
 
 Force one engine with `-e <name>` when you need to be sure.
 
