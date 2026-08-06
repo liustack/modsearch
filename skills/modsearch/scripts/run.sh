@@ -67,6 +67,23 @@ cli_version() {
     sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'
 }
 
+# The npx path runs the CLI on this machine's node, so npx is only usable when
+# node itself meets the CLI's floor. An old node with a working npx used to be
+# selected anyway, a path known to fail at run time.
+NODE_FLOOR="22.13.0"
+node_meets_floor() {
+  command -v node >/dev/null 2>&1 || return 1
+  _nv="$(node --version 2>/dev/null | sed 's/^v//')"
+  [ -n "$_nv" ] || return 1
+  parse_semver "$NODE_FLOOR"
+  _floor_maj="$_MAJ"
+  _floor_min="$_MIN"
+  parse_semver "$_nv"
+  if [ "$_MAJ" -gt "$_floor_maj" ]; then return 0; fi
+  if [ "$_MAJ" -lt "$_floor_maj" ]; then return 1; fi
+  [ "$_MIN" -ge "$_floor_min" ]
+}
+
 # Echo exactly one word: the chosen launch path.
 resolve() {
   if command -v "$BIN" >/dev/null 2>&1; then
@@ -76,7 +93,7 @@ resolve() {
       return
     fi
   fi
-  if command -v npx >/dev/null 2>&1; then
+  if command -v npx >/dev/null 2>&1 && node_meets_floor; then
     echo "npx"
     return
   fi
@@ -160,13 +177,20 @@ collect() {
     G_NODE_VER="$(node --version 2>/dev/null | sed 's/^v//')"
   fi
 
+  G_NODE_FLOOR_OK=0
+  if node_meets_floor; then G_NODE_FLOOR_OK=1; fi
+
   G_SEL="$(resolve)"
 }
 
 # Build the nextSteps JSON array body (without the brackets) into G_NEXTSTEPS.
 compute_next_steps() {
   if [ "$G_SEL" = "none" ]; then
-    _s1="Install Node 22.13+ from https://nodejs.org so npx can run $PKG@$PINNED, then re-run this launcher."
+    if [ "$G_NPX_PRESENT" = 1 ] && [ "$G_NODE_FLOOR_OK" = 0 ]; then
+      _s1="npx is present but node ${G_NODE_VER:-missing} is below the $NODE_FLOOR floor this CLI needs. Upgrade Node at https://nodejs.org, then re-run this launcher."
+    else
+      _s1="Install Node 22.13+ from https://nodejs.org so npx can run $PKG@$PINNED, then re-run this launcher."
+    fi
     _s2="No JavaScript runtime? Install Bun from https://bun.sh to use bunx, or put a compatible $BIN (major ${PINNED%%.*}, at or above $PINNED) on PATH."
     G_NEXTSTEPS="$(printf '"%s", "%s"' "$(json_escape "$_s1")" "$(json_escape "$_s2")")"
   else
@@ -187,7 +211,7 @@ emit_json() {
   printf '  "checked": {\n'
   printf '    "pathCli": { "present": %s, "path": %s, "version": %s, "compatible": %s },\n' \
     "$(jbool "$G_CLI_PRESENT")" "$(jstr "$G_CLI_PATH")" "$(jstr "$G_CLI_VER")" "$(jbool "$G_CLI_COMPAT")"
-  printf '    "npx": { "present": %s, "path": %s },\n' "$(jbool "$G_NPX_PRESENT")" "$(jstr "$G_NPX_PATH")"
+  printf '    "npx": { "present": %s, "path": %s, "nodeMeetsFloor": %s },\n' "$(jbool "$G_NPX_PRESENT")" "$(jstr "$G_NPX_PATH")" "$(jbool "$G_NODE_FLOOR_OK")"
   printf '    "bunx": { "present": %s, "path": %s },\n' "$(jbool "$G_BUNX_PRESENT")" "$(jstr "$G_BUNX_PATH")"
   printf '    "node": { "present": %s, "version": %s }\n' "$(jbool "$G_NODE_PRESENT")" "$(jstr "$G_NODE_VER")"
   printf '  },\n'
@@ -216,7 +240,15 @@ emit_text() {
   else
     printf '  %s on PATH:  no\n' "$BIN"
   fi
-  printf '  npx:            %s\n' "$([ "$G_NPX_PRESENT" = 1 ] && echo "$G_NPX_PATH" || echo no)"
+  _npx_desc="no"
+  if [ "$G_NPX_PRESENT" = 1 ]; then
+    if [ "$G_NODE_FLOOR_OK" = 1 ]; then
+      _npx_desc="$G_NPX_PATH"
+    else
+      _npx_desc="$G_NPX_PATH (unusable: node ${G_NODE_VER:-missing} is below $NODE_FLOOR)"
+    fi
+  fi
+  printf '  npx:            %s\n' "$_npx_desc"
   printf '  bunx:           %s\n' "$([ "$G_BUNX_PRESENT" = 1 ] && echo "$G_BUNX_PATH" || echo no)"
   printf '  node:           %s\n' "$([ "$G_NODE_PRESENT" = 1 ] && echo "${G_NODE_VER:-yes}" || echo no)"
   printf '  selected path:  %s\n' "$G_SEL"

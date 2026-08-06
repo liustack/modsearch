@@ -41,6 +41,7 @@ $script:BunxPresent = $false
 $script:BunxPath = $null
 $script:NodePresent = $false
 $script:NodeVer = $null
+$script:NodeFloorOk = $false
 $script:Selected = 'none'
 
 # First "X.Y.Z" token printed by `$Bin --version`.
@@ -68,6 +69,24 @@ function Test-Compatible {
     return ($fPat -ge $pPat)
 }
 
+# The npx path runs the CLI on this machine's node, so npx is only usable when
+# node itself meets the CLI's floor. An old node with a working npx used to be
+# selected anyway, a path known to fail at run time.
+$NodeFloor = '22.13.0'
+function Test-NodeMeetsFloor {
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) { return $false }
+    try { $nv = ((& node --version 2>$null) -replace '^v', '') } catch { return $false }
+    if (-not $nv) { return $false }
+    $n = $nv -split '\.'
+    $f = $NodeFloor -split '\.'
+    if ($n.Count -lt 2) { return $false }
+    $nMaj = [int]$n[0]; $nMin = [int]$n[1]
+    $fMaj = [int]$f[0]; $fMin = [int]$f[1]
+    if ($nMaj -gt $fMaj) { return $true }
+    if ($nMaj -lt $fMaj) { return $false }
+    return ($nMin -ge $fMin)
+}
+
 # Return exactly one word: the chosen launch path.
 function Resolve-LaunchKind {
     $cli = Get-Command $Bin -ErrorAction SilentlyContinue
@@ -75,7 +94,7 @@ function Resolve-LaunchKind {
         $v = Get-CliVersion
         if ($v -and (Test-Compatible $v)) { return 'path' }
     }
-    if (Get-Command npx -ErrorAction SilentlyContinue) { return 'npx' }
+    if ((Get-Command npx -ErrorAction SilentlyContinue) -and (Test-NodeMeetsFloor)) { return 'npx' }
     if (Get-Command bunx -ErrorAction SilentlyContinue) { return 'bunx' }
     # Phase B goes here: check a versioned user cache, then download and verify a
     # native artifact into it. Any such download must use curl.exe (written in
@@ -127,6 +146,7 @@ function Collect {
     if ($node) {
         $script:NodePresent = $true
         try { $script:NodeVer = ((& node --version 2>$null) -replace '^v', '') } catch { $script:NodeVer = $null }
+        $script:NodeFloorOk = Test-NodeMeetsFloor
     }
 
     $script:Selected = Resolve-LaunchKind
@@ -138,15 +158,19 @@ function Build-DiagnosisJson {
     param($Chained)
     $checked = [ordered]@{
         pathCli = [ordered]@{ present = $script:CliPresent; path = $script:CliPath; version = $script:CliVer; compatible = $script:CliCompat }
-        npx     = [ordered]@{ present = $script:NpxPresent; path = $script:NpxPath }
+        npx     = [ordered]@{ present = $script:NpxPresent; path = $script:NpxPath; nodeMeetsFloor = $script:NodeFloorOk }
         bunx    = [ordered]@{ present = $script:BunxPresent; path = $script:BunxPath }
         node    = [ordered]@{ present = $script:NodePresent; version = $script:NodeVer }
     }
     $steps = @()
     if ($script:Selected -eq 'none') {
         $major = $Pinned.Split('.')[0]
+        $first = "Install Node 22.13+ from https://nodejs.org so npx can run $Package@$Pinned, then re-run this launcher."
+        if ($script:NpxPresent -and (-not $script:NodeFloorOk)) {
+            $first = "npx is present but node $(if ($script:NodeVer) { $script:NodeVer } else { 'missing' }) is below the $NodeFloor floor this CLI needs. Upgrade Node at https://nodejs.org, then re-run this launcher."
+        }
         $steps = @(
-            "Install Node 22.13+ from https://nodejs.org so npx can run $Package@$Pinned, then re-run this launcher.",
+            $first,
             "No JavaScript runtime? Install Bun from https://bun.sh to use bunx, or put a compatible $Bin (major $major, at or above $Pinned) on PATH."
         )
     }
@@ -178,7 +202,12 @@ function Write-DiagnosisText {
     else {
         Write-Output ("  {0} on PATH:  no" -f $Bin)
     }
-    Write-Output ("  npx:            {0}" -f $(if ($script:NpxPresent) { $script:NpxPath } else { 'no' }))
+    $npxDesc = 'no'
+    if ($script:NpxPresent) {
+        if ($script:NodeFloorOk) { $npxDesc = $script:NpxPath }
+        else { $npxDesc = "$($script:NpxPath) (unusable: node $(if ($script:NodeVer) { $script:NodeVer } else { 'missing' }) is below $NodeFloor)" }
+    }
+    Write-Output ("  npx:            {0}" -f $npxDesc)
     Write-Output ("  bunx:           {0}" -f $(if ($script:BunxPresent) { $script:BunxPath } else { 'no' }))
     Write-Output ("  node:           {0}" -f $(if ($script:NodePresent) { $script:NodeVer } else { 'no' }))
     Write-Output ("  selected path:  {0}" -f $script:Selected)

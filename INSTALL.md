@@ -181,8 +181,9 @@ bash ~/.claude/skills/modsearch/scripts/run.sh config set firecrawl.apiKey <key>
 
 ## Step 4: Verify
 
-First, run the diagnosis through the launcher. It spends no quota and makes no
-network request.
+First, run the diagnosis through the launcher. It spends no quota. (On a
+machine where the launcher resolves to npx or bunx, the first call may download
+the pinned package; that is how those runners work.)
 
 ```bash
 bash ~/.claude/skills/modsearch/scripts/run.sh doctor   # replace with your TARGET

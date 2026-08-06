@@ -22,7 +22,7 @@ launcher/reference copies ever drift from `package.json`.
 Each call resolves a way to run the CLI, in this order:
 
 1. **A compatible `modsearch` already on `PATH`** — run it directly, by name.
-2. **`npx` present** — `npx --yes --package @liustack/modsearch@<pinned> modsearch <args>`.
+2. **`npx` present, and `node` meets the CLI's 22.13 floor** — `npx --yes --package @liustack/modsearch@<pinned> modsearch <args>`. An npx sitting on an older node is skipped: it would select a path known to fail at run time.
 3. **`bunx` present** — `bunx --bun @liustack/modsearch@<pinned> <args>`.
 4. **A native artifact** — reserved for phase B. None is published yet, so this
    branch reports `nativeArtifact.available: false` and moves on.
@@ -43,7 +43,9 @@ instead.
 
 ## Cache and permissions (phase B, not active yet)
 
-Phase A never downloads anything. When native artifacts land in phase B, the
+Phase A ships no native artifact. The `npx` and `bunx` paths fetch the pinned
+npm package on first use and cache it (that is how those runners work); nothing
+else is ever downloaded. When native artifacts land in phase B, the
 launchers will cache them per user, keyed by version, and launch them by
 absolute path:
 
@@ -67,7 +69,9 @@ would have set.
   `arm64` / `x64`).
 - `checked.pathCli` — `{ present, path, version, compatible }` for a `modsearch`
   on `PATH`, with `compatible` applying the rule above.
-- `checked.npx`, `checked.bunx` — `{ present, path }` visibility of each runner.
+- `checked.npx` — `{ present, path, nodeMeetsFloor }`; `nodeMeetsFloor` is whether
+  the local node satisfies the CLI's 22.13 floor, required for the npx path.
+- `checked.bunx` — `{ present, path }`.
 - `checked.node` — `{ present, version }`.
 - `nativeArtifact` — `{ available, note }`; `available` is `false` in phase A.
 - `selected` — the resolved path: `path`, `npx`, `bunx`, or `none`.
@@ -76,9 +80,11 @@ would have set.
 - `cliDoctor` — when a CLI is resolvable, the CLI's own `doctor --json` report
   (engine and config diagnosis) is nested here; `null` otherwise.
 
-`doctor` is offline and spends no quota: it inspects the local environment and,
-when it can, chains the CLI's own offline `doctor`. It makes no network request
-of its own.
+`doctor` spends no quota. The launcher's own diagnosis is offline: it inspects
+the local environment and makes no network request of its own. Chaining the
+CLI's `doctor` through the npx or bunx path can download the pinned package the
+first time (that is how those runners work); after that it is served from the
+local cache.
 
 ## Delivery form: local CLI, long term
 
