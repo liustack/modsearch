@@ -38,11 +38,16 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: pnpm
+      # OIDC trusted publishing needs npm 11.5.1+, newer than what Node 22
+      # ships with. pnpm publish cannot do the OIDC token exchange at all: the
+      # 4.1.0 first attempt signed provenance fine and then got a masked 404 on
+      # the registry PUT because the request carried no credential.
+      - run: npm install -g npm@latest
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm publish --access public --no-git-checks --provenance
+      - run: npm publish --provenance --access public
       - name: Build release notes from CHANGELOG
         run: >
           node --input-type=module -e "
