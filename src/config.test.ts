@@ -11,7 +11,7 @@ import {
   renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
-import { cleanupTempDirs, tempConfigPath } from './testing/helpers.ts';
+import { cleanupTempDirs, expectPosixMode, tempConfigPath } from './testing/helpers.ts';
 
 describe('config file', () => {
   afterEach(() => cleanupTempDirs());
@@ -36,7 +36,7 @@ describe('config file', () => {
     expect(chosenEngine(config)).toBe('tavily');
     expect(config.engines?.tavily?.apiKey).toBe('tvly-secret-123456');
     expect(config.engines?.['grok-cli']?.bin).toBe('/opt/grok');
-    expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    expectPosixMode(p, 0o600);
   });
 
   it('rejects unknown fields and malformed keys', () => {

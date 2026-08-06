@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { runCommand } from './subprocess.ts';
-import { cleanupTempDirs, tempDir } from './testing/helpers.ts';
+import { cleanupTempDirs, SPAWNS_FAKE_CLI, tempDir } from './testing/helpers.ts';
 
 afterAll(cleanupTempDirs);
 
@@ -27,7 +27,10 @@ function processGone(pid: number): boolean {
   }
 }
 
-describe('runCommand timeout handling', () => {
+// Unix-only: this spawns a POSIX shell script and drives SIGTERM-then-SIGKILL
+// escalation. On Windows child.kill always calls TerminateProcess (there is no
+// ignorable SIGTERM to escalate from) and a shell script is not a runnable image.
+describe.runIf(SPAWNS_FAKE_CLI)('runCommand timeout handling', () => {
   it('SIGKILLs a child that ignores SIGTERM, so its PID goes away', async () => {
     const dir = tempDir('modsearch-sigkill-');
     const pidFile = path.join(dir, 'pid');

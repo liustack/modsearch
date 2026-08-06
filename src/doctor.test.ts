@@ -5,6 +5,7 @@ import {
   BARE_ENV,
   cleanupTempDirs,
   envWithBinaries,
+  IS_WINDOWS,
   tempConfigPath,
   withSignedInGrok,
   withTempHome,
@@ -160,10 +161,15 @@ describe('doctor: config file', () => {
   it('reports an existing file with its permission mode', () => {
     const p = tempConfigPath();
     fs.writeFileSync(p, JSON.stringify({ engine: 'tavily' }), { mode: 0o600 });
-    fs.chmodSync(p, 0o600);
+    if (!IS_WINDOWS) {
+      fs.chmodSync(p, 0o600);
+    }
     const report = runDoctor({ env: BARE_ENV, configPath: p });
     expect(report.configFile.exists).toBe(true);
-    expect(report.configFile.mode).toBe('600');
+    // POSIX permission bits only: Windows reports an ACL-derived mode, not 600.
+    if (!IS_WINDOWS) {
+      expect(report.configFile.mode).toBe('600');
+    }
     expect(report.engineChoice.value).toBe('tavily');
   });
 

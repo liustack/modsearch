@@ -22,7 +22,16 @@ pnpm typecheck                              # tsc --noEmit, run before tests
 
 ## Conventions
 
-- No network in unit tests: Tavily is mocked via `vi.mock('@tavily/core', ...)`; the agy and grok binaries are replaced with tiny shell scripts in a temp dir that echo canned envelopes.
-- To fake the home directory or PATH (grok availability checks), set `process.env.HOME` / `process.env.PATH` and restore them in `afterEach`; `os.homedir()` follows `HOME` on POSIX.
-- Engines with subprocess transports test `buildInvocation`/`parseOutput` as pure functions. X routing tests the whole route-and-fallback contract through `runSearch` with fake binaries.
-- Real `agy`/`grok` calls are end-to-end verification, not unit tests. They consume real quota: keep them out of `pnpm test`.
+- No network in unit tests. The keyed HTTP engines (Tavily, Exa, Firecrawl) are exercised by stubbing the global `fetch`, a page fetch runs against the loopback server from `startLocalPage`, and the `agy`/`grok` subprocess engines are replaced with fake CLIs that echo canned envelopes.
+- To fake the home directory or PATH (grok availability checks), use `withTempHome` / `envWithBinaries` from `src/testing/helpers.ts`. They restore what they change. `withTempHome` redirects both `HOME` and `USERPROFILE`, because `os.homedir()` follows `HOME` on POSIX and `USERPROFILE` on Windows.
+- Engines with subprocess transports test `buildInvocation` / `parseOutput` as pure functions, which run on every platform. The end-to-end route-and-fallback tests spawn a fake CLI through `runSearch`, and a fake CLI is a POSIX shell script, so those suites are gated on `SPAWNS_FAKE_CLI` and skipped on Windows.
+
+## Platform coverage
+
+`macos-latest`, `ubuntu-latest`, and `windows-latest` all run `pnpm typecheck && pnpm test && pnpm build` on Node 22 and 24. A few Unix-only suites are guarded so the Windows job stays honest rather than red:
+
+- **Spawned fake CLIs** (`SPAWNS_FAKE_CLI`). modsearch runs engines with `spawn(bin, args)` and no shell, a deliberate security choice. On Windows only a real `.exe` is a runnable image by path: Node refuses to spawn a `.cmd`/`.bat` without `shell: true` (CVE-2024-27980), and a POSIX shell script is not executable there. A cross-platform fake would need a real `.exe` the tests cannot produce, so the suites that spawn `agy`/`grok` fakes run on Unix only. The in-process HTTP engines and all pure routing, config, and parsing logic still run on Windows.
+- **SIGTERM/SIGKILL escalation** (`src/subprocess.test.ts`). Unix signal semantics: on Windows `child.kill` always calls `TerminateProcess`, so there is no ignorable SIGTERM to escalate from.
+- **POSIX permission bits** (`expectPosixMode`). Windows models file access through ACLs, not rwx bits, so `stat.mode` never reflects a `chmod`. The assertion is a no-op there.
+
+- Real `agy` / `grok` calls are end-to-end verification, not unit tests. They consume real quota, so keep them out of `pnpm test`.

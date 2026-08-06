@@ -5,6 +5,35 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import { expect } from 'vitest';
+
+export const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Whether this platform can run the suites that spawn a fake engine CLI.
+ *
+ * modsearch runs engine binaries with `spawn(bin, args)` and no shell, a
+ * deliberate security choice. On Windows only a real `.exe` is a runnable image
+ * by path: Node refuses to spawn a `.cmd`/`.bat` without `shell: true`
+ * (CVE-2024-27980), and a POSIX shell script is not executable there. `fakeEngine`
+ * therefore emits a shell script that runs only on Unix, so the suites that spawn
+ * it are gated on this flag and skipped on Windows. The in-process HTTP engines
+ * (local, tavily, exa, firecrawl) and every pure-logic test still run on all
+ * platforms. See docs/testing.md.
+ */
+export const SPAWNS_FAKE_CLI = !IS_WINDOWS;
+
+/**
+ * Assert a file's POSIX permission bits. A no-op on Windows, which controls file
+ * access through ACLs rather than rwx bits, so `stat.mode` never reflects a
+ * chmod there and `fs.chmod` only toggles the read-only flag.
+ */
+export function expectPosixMode(filePath: string, mode: number): void {
+  if (IS_WINDOWS) {
+    return;
+  }
+  expect(fs.statSync(filePath).mode & 0o777).toBe(mode);
+}
 
 const created: string[] = [];
 
@@ -36,7 +65,12 @@ export function envWithBinaries(...binaries: string[]): NodeJS.ProcessEnv {
 /** Nothing installed, no keys: the machine a new user starts on. */
 export const BARE_ENV: NodeJS.ProcessEnv = { PATH: '/nonexistent' };
 
-/** A fake engine binary that prints `stdout` and exits with `code`. */
+/**
+ * A fake engine binary that prints `stdout` and exits with `code`. It is a POSIX
+ * shell script, so it only runs on Unix. Suites that spawn it must be gated on
+ * SPAWNS_FAKE_CLI, which explains why a cross-platform fake is not possible under
+ * modsearch's no-shell spawn.
+ */
 export function fakeEngine(options: {
   name?: string;
   stdout?: string;
@@ -63,15 +97,31 @@ export function fakeEngine(options: {
   return bin;
 }
 
-/** Point HOME at a throwaway directory for the duration of a test. */
+/** Restore an env var to its prior value, deleting it when it was unset. */
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
+
+/**
+ * Point the home directory at a throwaway dir for the duration of a test.
+ * `os.homedir()` reads HOME on POSIX and USERPROFILE on Windows, so redirect
+ * both for a test home that holds on every platform.
+ */
 export function withTempHome(): { home: string; restore: () => void } {
   const home = tempDir('modsearch-home-');
   const realHome = process.env.HOME;
+  const realUserProfile = process.env.USERPROFILE;
   process.env.HOME = home;
+  process.env.USERPROFILE = home;
   return {
     home,
     restore: () => {
-      process.env.HOME = realHome;
+      restoreEnv('HOME', realHome);
+      restoreEnv('USERPROFILE', realUserProfile);
     },
   };
 }

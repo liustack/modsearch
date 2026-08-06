@@ -17,7 +17,7 @@ import {
 } from './cooldown.ts';
 import { agyQuotaEnvelope } from './fixtures/index.ts';
 import { parseAntigravityOutput } from './providers/antigravity.ts';
-import { cleanupTempDirs, tempDir } from './testing/helpers.ts';
+import { cleanupTempDirs, expectPosixMode, tempDir } from './testing/helpers.ts';
 
 afterEach(() => cleanupTempDirs());
 
@@ -70,7 +70,7 @@ describe('cooldown state file', () => {
     const p = statePath();
     const state = emptyCooldownState();
     recordQuotaCooldown(state, 'exa', new Error('out of credits'), at('2026-08-06T00:00:00.000Z'), p);
-    expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    expectPosixMode(p, 0o600);
     const reloaded = loadCooldownState(p);
     expect(reloaded.engineCooldowns.exa.reason).toContain('out of credits');
   });

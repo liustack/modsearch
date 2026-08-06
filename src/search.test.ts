@@ -14,10 +14,17 @@ import {
   BARE_ENV,
   cleanupTempDirs,
   fakeEngine,
+  SPAWNS_FAKE_CLI,
   startLocalPage,
   tempDir,
   withSignedInGrok,
 } from './testing/helpers.ts';
+
+// Suites and cases that spawn a fake engine CLI cannot run on Windows, where a
+// non-.exe fake is not a runnable image under modsearch's no-shell spawn. They
+// are gated here and skipped there; see SPAWNS_FAKE_CLI in testing/helpers.ts.
+const describeSpawn = describe.runIf(SPAWNS_FAKE_CLI);
+const itSpawn = it.runIf(SPAWNS_FAKE_CLI);
 
 /** A config whose agy engine is the given fake binary (full path, so PATH is irrelevant). */
 function agyConfig(
@@ -81,7 +88,7 @@ describe('zero-config machine', () => {
     }
   }, 40_000);
 
-  it('always returns an array of results, one per source', async () => {
+  itSpawn('always returns an array of results, one per source', async () => {
     const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
     const result = await runSearch({ query: 'node lts', config, env: BARE_ENV, timeoutMs: 20_000 });
     expect(result.results).toHaveLength(1);
@@ -93,7 +100,7 @@ describe('zero-config machine', () => {
     expect(result.mode).toBe('search');
   }, 30_000);
 
-  it('falls through to the next engine and says so', async () => {
+  itSpawn('falls through to the next engine and says so', async () => {
     const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
     try {
       const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
@@ -111,7 +118,7 @@ describe('zero-config machine', () => {
   }, 40_000);
 });
 
-describe('a forced --engine is strict', () => {
+describeSpawn('a forced --engine is strict', () => {
   afterEach(() => cleanupTempDirs());
 
   it('errors instead of silently spending another engine when the forced one fails', async () => {
@@ -131,7 +138,7 @@ describe('a forced --engine is strict', () => {
   }, 30_000);
 });
 
-describe('X degrade is labeled, never silently mislabeled', () => {
+describeSpawn('X degrade is labeled, never silently mislabeled', () => {
   afterEach(() => cleanupTempDirs());
 
   it('marks a web-served X answer as degraded web while keeping requestedSource x', async () => {
@@ -182,7 +189,7 @@ describe('X degrade is labeled, never silently mislabeled', () => {
   }, 30_000);
 });
 
-describe('multiple sources run concurrently and fail independently', () => {
+describeSpawn('multiple sources run concurrently and fail independently', () => {
   afterEach(() => cleanupTempDirs());
 
   /** A grok envelope carrying one canned structured result. */
@@ -265,7 +272,7 @@ describe('multiple sources run concurrently and fail independently', () => {
 describe('uncertainty, warnings, and attempts are separate channels', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('keeps the engine epistemic uncertainty, routing goes to warnings', async () => {
+  itSpawn('keeps the engine epistemic uncertainty, routing goes to warnings', async () => {
     // The engine reports a real gap; the run also falls back. The two must not
     // mix: uncertainty is the engine's own doubt, warnings is how we routed.
     const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
@@ -291,7 +298,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     }
   }, 40_000);
 
-  it('records every engine attempt in order with per-try outcome', async () => {
+  itSpawn('records every engine attempt in order with per-try outcome', async () => {
     // agy fails, http answers: two attempts, first not ok, second ok.
     const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
     try {
@@ -332,7 +339,7 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
   }, 40_000);
 });
 
-describe('quota cooldown records, clears, and can be switched off', () => {
+describeSpawn('quota cooldown records, clears, and can be switched off', () => {
   afterEach(() => cleanupTempDirs());
   const now = new Date('2026-08-06T00:00:00.000Z');
   const statePath = () => path.join(tempDir('modsearch-state-'), 'state.json');
@@ -444,7 +451,7 @@ describe('engine spend surfaces on the attempt', () => {
   });
 });
 
-describe('routing facts cannot be faked by an engine', () => {
+describeSpawn('routing facts cannot be faked by an engine', () => {
   afterEach(() => cleanupTempDirs());
 
   it('overwrites source, engine, and model even when the engine has no model', async () => {
