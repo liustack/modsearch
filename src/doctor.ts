@@ -150,6 +150,22 @@ function diagnoseEngine(
     };
   }
 
+  if (engine.name === 'firecrawl') {
+    const fromEnv = env.FIRECRAWL_API_KEY?.trim();
+    const fromFile = config.engines?.firecrawl?.apiKey?.trim();
+    const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
+    const ready = Boolean(keySource);
+    return {
+      engine: engine.name,
+      ready,
+      keySource,
+      reason: ready
+        ? `API key present (from ${keySource})`
+        : 'no API key (not in FIRECRAWL_API_KEY or the config file)',
+      ...(ready ? {} : { fix: 'modsearch config set firecrawl.apiKey <key>' }),
+    };
+  }
+
   if (engine.name === 'grok-cli') {
     const bin = settings.bin || 'grok';
     const binPresent = commandOnPath(bin, env);

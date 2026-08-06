@@ -3,6 +3,7 @@ import {
   assertSafeRemoteTarget,
   isBlockedHostname,
   isPrivateIpAddress,
+  isReservedTarget,
   normalizeFetchUrl,
 } from './network.ts';
 
@@ -87,5 +88,28 @@ describe('assertSafeRemoteTarget returns the pinned IP', () => {
     await expect(assertSafeRemoteTarget(u('http://localhost/'), true)).rejects.toThrow(
       /Blocked hostname/,
     );
+  });
+});
+
+describe('isReservedTarget: advisory skip for cloud-fetch engines', () => {
+  const u = (spec: string) => new URL(spec);
+
+  it('flags private and blocked literals as reserved', async () => {
+    expect(await isReservedTarget(u('http://192.168.0.1/'), false)).toBe(true);
+    expect(await isReservedTarget(u('http://127.0.0.1/'), false)).toBe(true);
+    expect(await isReservedTarget(u('http://[::1]/'), false)).toBe(true);
+    expect(await isReservedTarget(u('http://localhost/'), false)).toBe(true);
+  });
+
+  it('does not flag ordinary public literals', async () => {
+    expect(await isReservedTarget(u('http://93.184.216.34/'), false)).toBe(false);
+    expect(await isReservedTarget(u('http://[2606:4700:4700::1111]/'), false)).toBe(false);
+  });
+
+  it('returns false for any target when the private network is allowed', async () => {
+    // --allow-private-network means the user vouches for the reserved range, so
+    // firecrawl should still try rather than skip.
+    expect(await isReservedTarget(u('http://192.168.0.1/'), true)).toBe(false);
+    expect(await isReservedTarget(u('http://localhost/'), true)).toBe(false);
   });
 });

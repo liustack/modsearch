@@ -66,6 +66,15 @@ describe('doctor: search engines', () => {
     expect(exa?.keySource).toBe('env');
   });
 
+  it('reports firecrawl ready from an env key for both search and fetch', () => {
+    const report = runDoctor({
+      config: {},
+      env: { PATH: '/nonexistent', FIRECRAWL_API_KEY: 'k' } as NodeJS.ProcessEnv,
+    });
+    expect(engine(report, 'search', 'firecrawl')?.ready).toBe(true);
+    expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
+  });
+
   it('gives a copyable fix for a missing key and missing agy', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
     expect(role(report, 'search')?.resolved).toBeNull();

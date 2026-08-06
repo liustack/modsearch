@@ -80,6 +80,29 @@ describe('engine chains per role', () => {
     ]);
   });
 
+  it('adds firecrawl to the end of the search chain when keyed', () => {
+    const keyed = config({
+      engines: { tavily: { apiKey: 't' }, exa: { apiKey: 'e' }, firecrawl: { apiKey: 'f' } },
+    });
+    expect(names(planRole('search', keyed, undefined, WITH_AGY).chain)).toEqual([
+      'antigravity-cli',
+      'tavily',
+      'exa',
+      'firecrawl',
+    ]);
+  });
+
+  it('inserts firecrawl into the fetch chain before the http floor when keyed', () => {
+    const keyed = config({ engines: { firecrawl: { apiKey: 'k' } } });
+    expect(names(planRole('fetch', keyed, undefined, WITH_AGY).chain)).toEqual([
+      'antigravity-cli',
+      'firecrawl',
+      'http',
+    ]);
+    // On a bare machine with just a firecrawl key, it leads and http still floors.
+    expect(names(planRole('fetch', keyed, undefined, BARE).chain)).toEqual(['firecrawl', 'http']);
+  });
+
   it('leaves the search chain empty on a bare machine', () => {
     expect(planRole('search', config(), undefined, BARE).chain).toEqual([]);
   });

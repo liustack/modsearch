@@ -1,6 +1,7 @@
 import type { EngineSettings, Role } from '../config.ts';
 import { antigravityCliProvider } from './antigravity.ts';
 import { exaProvider } from './exa.ts';
+import { firecrawlProvider } from './firecrawl.ts';
 import { grokCliProvider } from './grok.ts';
 import { httpFetchProvider } from './httpFetch.ts';
 import { tavilyProvider } from './tavily.ts';
@@ -75,6 +76,7 @@ const ENGINES: Record<string, SearchEngine> = {
   agy: antigravityCliProvider,
   tavily: tavilyProvider,
   exa: exaProvider,
+  firecrawl: firecrawlProvider,
   'grok-cli': grokCliProvider,
   grok: grokCliProvider,
   http: httpFetchProvider,
@@ -86,11 +88,13 @@ const ENGINES: Record<string, SearchEngine> = {
  * machine with nothing installed still lands on something that works.
  */
 export const ROLE_PREFERENCE: Record<Role, string[]> = {
-  // agy synthesizes and cites. tavily, then exa, are the keyed backups when agy
-  // is spent, each with its own free budget.
-  search: ['antigravity-cli', 'tavily', 'exa'],
-  // agy extracts to a focus. http always works and returns the page as served.
-  fetch: ['antigravity-cli', 'http'],
+  // agy synthesizes and cites. tavily, then exa, then firecrawl are the keyed
+  // backups when agy is spent, each with its own free budget.
+  search: ['antigravity-cli', 'tavily', 'exa', 'firecrawl'],
+  // agy extracts to a focus. firecrawl runs a cloud browser for JS-heavy pages
+  // when it is keyed. http always works and returns the page as served, so it
+  // stays the floor.
+  fetch: ['antigravity-cli', 'firecrawl', 'http'],
   // Only xAI can see inside X.
   social: ['grok-cli'],
 };

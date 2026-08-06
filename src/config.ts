@@ -47,6 +47,7 @@ export function currentConfigPath(): string {
 const ENV_BINDINGS: Record<string, Partial<Record<keyof EngineSettings, string>>> = {
   tavily: { apiKey: 'TAVILY_API_KEY' },
   exa: { apiKey: 'EXA_API_KEY' },
+  firecrawl: { apiKey: 'FIRECRAWL_API_KEY' },
 };
 
 const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [

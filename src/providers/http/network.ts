@@ -136,6 +136,44 @@ export async function assertSafeRemoteTarget(
   return { hostname, address: chosen.address, family: chosen.family };
 }
 
+/**
+ * Advisory check for cloud-fetch engines (firecrawl): is this target definitely
+ * a private or reserved address, so sending it to a remote crawler is pointless?
+ *
+ * This is not a security boundary. The http engine's assertSafeRemoteTarget
+ * stays the SSRF guard: it pins the connection and refuses on any doubt. This
+ * one only decides whether a cloud engine should bother, so it is the opposite
+ * bias: it never connects or pins, and a DNS failure returns false (let the
+ * cloud resolve it with its own DNS) rather than blocking. When the private
+ * network is explicitly allowed, it returns false so firecrawl still tries,
+ * matching the --allow-private-network semantics the local fetcher already has.
+ */
+export async function isReservedTarget(
+  url: URL,
+  allowPrivateNetwork: boolean,
+): Promise<boolean> {
+  if (allowPrivateNetwork) {
+    return false;
+  }
+  if (isBlockedHostname(url.hostname)) {
+    return true;
+  }
+
+  const hostname = stripIpv6Brackets(url.hostname);
+  const ipFamily = isIP(hostname);
+  if (ipFamily > 0) {
+    return isPrivateIpAddress(hostname);
+  }
+
+  try {
+    const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
+    return resolved.some((record) => isPrivateIpAddress(record.address));
+  } catch {
+    // Cannot confirm it is private from here, so do not block the cloud engine.
+    return false;
+  }
+}
+
 function stripIpv6Brackets(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
     return hostname.slice(1, -1);
