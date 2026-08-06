@@ -118,6 +118,8 @@ modsearch config set firecrawl.apiKey <key>
 
 Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. A literal private or reserved target (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) is always skipped and read by the local engine instead, even with `--allow-private-network` on, so an internal address never leaks to the cloud. Only a public-looking host that resolves to a reserved IP follows the switch: a VPN fake-ip goes up when you waive the guard, and is skipped otherwise. On search it sits last.
 
+Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends `maxAge: 0`, which disables Firecrawl's default multi-day cache, so a fetch can never return stale content. The trade is deliberate: a credit per fetch in exchange for currency, which is the point of the tool. If you would rather trade freshness for credits, Firecrawl is not the engine to reach for.
+
 ### grok-cli (X, rides a SuperGrok or X Premium subscription)
 
 ```bash

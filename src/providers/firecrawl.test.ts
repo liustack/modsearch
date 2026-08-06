@@ -169,6 +169,8 @@ describe('firecrawl fetch path', () => {
     expect(sent.formats).toEqual(['markdown', 'links']);
     expect(sent.onlyMainContent).toBe(true);
     expect(sent.timeout).toBeGreaterThan(0);
+    // Force fresh: no Firecrawl cache, so stale content can never come back.
+    expect(sent.maxAge).toBe(0);
 
     const result = parsed.result as {
       summary: string;

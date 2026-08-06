@@ -195,6 +195,11 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
       url: target.toString(),
       formats: ['markdown', 'links'],
       onlyMainContent: true,
+      // Force a fresh scrape. Firecrawl defaults maxAge to a multi-day cache and
+      // will return stale content within it, which is fatal for a tool whose
+      // whole point is current information. maxAge: 0 disables the cache and
+      // always re-crawls, at the cost of a credit per fetch.
+      maxAge: 0,
       timeout: Math.min(options.timeoutMs, TIMEOUT_CEILING_MS),
     },
     options.timeoutMs,
