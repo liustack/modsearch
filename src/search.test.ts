@@ -58,11 +58,21 @@ describe('mode resolution', () => {
 describe('zero-config machine', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('tells the user how to enable search rather than crashing', async () => {
-    // Nothing installed, no keys, no config file.
-    await expect(
-      runSearch({ query: 'anything', config: {}, env: BARE_ENV, timeoutMs: 5_000 }),
-    ).rejects.toThrow(/No engine on this machine can search the web/);
+  it('searches through keyless firecrawl on a bare machine, failing honestly offline', async () => {
+    // Nothing installed, no keys, no config file: keyless firecrawl is the
+    // floor, so search is attempted rather than refused. Stub fetch so the
+    // unit test stays offline; the stubbed network failure must come back as
+    // an engine failure, not a crash.
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
+    });
+    try {
+      await expect(
+        runSearch({ query: 'anything', config: {}, env: BARE_ENV, timeoutMs: 5_000 }),
+      ).rejects.toThrow(/Every engine for the web source failed/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
 
     const message = noEngineMessage('search');
     expect(message).toContain('antigravity-cli:');
@@ -230,6 +240,11 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
     const { env, restore } = withSignedInGrok();
     const agyBin = fakeEngine({ name: 'agy', code: 1 });
     const grokBin = fakeEngine({ name: 'grok', stdout: grokEnvelope('x-sum') });
+    // Keyless firecrawl now closes the web chain; stub fetch so the unit test
+    // stays offline and the web source genuinely exhausts its engines.
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
+    });
     try {
       const result = await runSearch({
         query: 'anything',
@@ -254,6 +269,7 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
       expect(x.engine).toBe('grok-cli');
       expect(x.summary).toBe('x-sum');
     } finally {
+      vi.unstubAllGlobals();
       restore();
       cleanupTempDirs();
     }
@@ -261,11 +277,19 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
 
   it('a single failing source still throws, so its behavior is unchanged', async () => {
     // Only web, and it fails: no other source to protect, so the run errors
-    // exactly as before rather than returning an unavailable entry.
-    const config = agyConfig({ code: 1 });
-    await expect(
-      runSearch({ query: 'anything', config, env: BARE_ENV, timeoutMs: 20_000 }),
-    ).rejects.toThrow(/Every engine for the web source failed/);
+    // exactly as before rather than returning an unavailable entry. Fetch is
+    // stubbed so keyless firecrawl fails offline too.
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
+    });
+    try {
+      const config = agyConfig({ code: 1 });
+      await expect(
+        runSearch({ query: 'anything', config, env: BARE_ENV, timeoutMs: 20_000 }),
+      ).rejects.toThrow(/Every engine for the web source failed/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   }, 30_000);
 });
 
@@ -348,9 +372,13 @@ describeSpawn('quota cooldown records, clears, and can be switched off', () => {
     const p = statePath();
     const config = agyConfig({ stdout: agyQuotaEnvelope() });
     const controller = buildCooldownController({}, { now, statePath: p });
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
+    });
     await expect(
       runSearch({ query: 'q', config, env: BARE_ENV, timeoutMs: 20_000, cooldown: controller }),
     ).rejects.toThrow(/Every engine for the web source failed/);
+    vi.unstubAllGlobals();
     // agy hit its quota, so it is remembered for the next run.
     const recorded = loadCooldownState(p).engineCooldowns['antigravity-cli'];
     expect(recorded).toBeDefined();
@@ -363,13 +391,23 @@ describeSpawn('quota cooldown records, clears, and can be switched off', () => {
     recordQuotaCooldown(emptyCooldownState(), 'antigravity-cli', new Error('out of credits'), now, p);
     const config = agyConfig({ stdout: agySearchEnvelope('back') });
     const controller = buildCooldownController({}, { now, statePath: p });
-    const result = await runSearch({
-      query: 'q',
-      config,
-      env: BARE_ENV,
-      timeoutMs: 20_000,
-      cooldown: controller,
+    // agy is demoted behind keyless firecrawl this run; stub fetch so
+    // firecrawl fails offline and the demoted agy still gets its turn.
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
     });
+    let result: Awaited<ReturnType<typeof runSearch>>;
+    try {
+      result = await runSearch({
+        query: 'q',
+        config,
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+        cooldown: controller,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
     // It was the only engine, so demoted-not-removed means it is still tried and
     // answers. A successful answer clears its cooldown.
     expect(result.results[0].engine).toBe('antigravity-cli');
@@ -383,9 +421,13 @@ describeSpawn('quota cooldown records, clears, and can be switched off', () => {
     const config = agyConfig({ stdout: agyQuotaEnvelope() }, { cooldown: 'off' });
     const controller = buildCooldownController(config, { now, statePath: p });
     expect(controller).toBeUndefined();
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('offline unit test');
+    });
     await expect(
       runSearch({ query: 'q', config, env: BARE_ENV, timeoutMs: 20_000, cooldown: controller }),
     ).rejects.toThrow(/Every engine/);
+    vi.unstubAllGlobals();
     // Off means the state file is never created.
     expect(fs.existsSync(p)).toBe(false);
   }, 30_000);

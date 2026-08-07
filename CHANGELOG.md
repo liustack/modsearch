@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-Fixes from a deep acceptance review (external audit, reproduced and verified here).
+Fixes from a deep acceptance review (external audit, reproduced and verified here), plus keyless Firecrawl search.
+
+- Firecrawl search now works with no key at all. Firecrawl's REST API accepts unauthenticated calls against a shared free allowance (1,000 credits/month, verified against the live endpoint), so `firecrawl` closes every search chain as a zero-setup floor: a bare machine with nothing installed and nothing configured can search. Requests without a key send no Authorization header; a configured key still gets its own quota. Fetch stays keyed on purpose, since pages should not flow through a third-party cloud unless the user opted in by configuring it, and `doctor` explains the split per role.
+- BREAKING (behavior): the cloud crawler never receives a target that is, or resolves to, a private or reserved address. `--allow-private-network` used to carry through to firecrawl, sending a reserved-resolving hostname with its full path and query to the cloud when the switch was on. The switch now governs the local fetcher only, because a VPN fake-ip and a real internal name cannot be told apart, and the run falls through to the local engine, which the switch does let reach the target.
 
 - Cooldown clear now always reaches the disk. It used to be guarded by the run's in-memory snapshot, so a run that started before another process recorded a cooldown would "clear" it while the file kept it, silently undoing an explicit clear. And the store, defined as a pure cache, could break a search: a failed write (read-only dir, full disk, Windows rename lock) aborted failover mid-loop, and a failed clear after a success threw away a result already won. Cache I/O failures now degrade into a `warnings` entry while the run continues, unchanged writes are skipped entirely, and `modsearch state clear` exits non-zero when the delete fails instead of printing success.
 - Firecrawl requests explicitly send `storeInCache: false` and `skipTlsVerification: false`. The API defaults both to true, so a fetch that already forced `maxAge: 0` still wrote the scraped page into Firecrawl's index and skipped certificate checks. The timeout is clamped to the documented 1000-300000 ms contract at both ends.

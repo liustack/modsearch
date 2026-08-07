@@ -121,6 +121,7 @@ function diagnoseEngine(
   engine: SearchEngine,
   config: ModsearchConfig,
   env: NodeJS.ProcessEnv,
+  role: Role,
 ): EngineDiagnosis {
   const settings = engineSettings(engine.name, config, env);
 
@@ -173,6 +174,20 @@ function diagnoseEngine(
     const fromEnv = env.FIRECRAWL_API_KEY?.trim();
     const fromFile = config.engines?.firecrawl?.apiKey?.trim();
     const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
+    // Search works keyless (Firecrawl grants 1,000 free credits/month with no
+    // signup), so for the search role the engine is ready with or without a
+    // key. Fetch stays keyed: pages should not flow through a third-party
+    // cloud unless the user opted in by configuring it.
+    if (role === 'search') {
+      return {
+        engine: engine.name,
+        ready: true,
+        keySource,
+        reason: keySource
+          ? `API key present (from ${keySource})`
+          : 'keyless: search needs no key (1,000 shared free credits/month; set a key for your own quota)',
+      };
+    }
     const ready = Boolean(keySource);
     return {
       engine: engine.name,
@@ -180,7 +195,7 @@ function diagnoseEngine(
       keySource,
       reason: ready
         ? `API key present (from ${keySource})`
-        : 'no API key (not in FIRECRAWL_API_KEY or the config file)',
+        : 'fetch needs an API key (search works keyless); not in FIRECRAWL_API_KEY or the config file',
       ...(ready ? {} : { fix: 'modsearch config set firecrawl.apiKey <key>' }),
     };
   }
@@ -203,7 +218,7 @@ function diagnoseEngine(
   }
 
   // the local engine and anything else that needs no setup.
-  const ready = engine.isAvailable(settings, env);
+  const ready = engine.isAvailable(settings, env, role);
   return {
     engine: engine.name,
     ready,
@@ -310,7 +325,7 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
 
   const roles: RoleDiagnosis[] = ROLES.map((role) => {
     const candidates = candidatesForRole(role, config).map((engine) =>
-      diagnoseEngine(engine, config, env),
+      diagnoseEngine(engine, config, env, role),
     );
     const resolved = candidates.find((c) => c.ready)?.engine ?? null;
     return { role, job: ROLE_JOB[role], candidates, resolved };

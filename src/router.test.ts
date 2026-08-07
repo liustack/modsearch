@@ -65,9 +65,11 @@ describe('source selection', () => {
 describe('engine chains per role', () => {
   it('prefers agy for search and adds tavily when a key exists', () => {
     const withKey = config({ engines: { tavily: { apiKey: 'k' } } });
+    // firecrawl closes every search chain: keyless search needs no setup.
     expect(names(planRole('search', withKey, undefined, WITH_AGY).chain)).toEqual([
       'antigravity-cli',
       'tavily',
+      'firecrawl',
     ]);
   });
 
@@ -77,6 +79,7 @@ describe('engine chains per role', () => {
       'antigravity-cli',
       'tavily',
       'exa',
+      'firecrawl',
     ]);
   });
 
@@ -103,8 +106,10 @@ describe('engine chains per role', () => {
     expect(names(planRole('fetch', keyed, undefined, BARE).chain)).toEqual(['firecrawl', 'local']);
   });
 
-  it('leaves the search chain empty on a bare machine', () => {
-    expect(planRole('search', config(), undefined, BARE).chain).toEqual([]);
+  it('searches through keyless firecrawl on a bare machine', () => {
+    // Zero config, nothing installed: search still works, because Firecrawl's
+    // REST API accepts unauthenticated calls against a free monthly allowance.
+    expect(names(planRole('search', config(), undefined, BARE).chain)).toEqual(['firecrawl']);
   });
 
   it('ends page fetch at the local engine when no engine is forced', () => {

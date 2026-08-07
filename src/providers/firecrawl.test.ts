@@ -49,10 +49,30 @@ describe('firecrawl provider registration', () => {
 });
 
 describe('firecrawl search path', () => {
-  it('requires an API key', async () => {
+  it('searches keyless, sending no authorization header without a key', async () => {
+    const calls = mockFetchJson({ success: true, data: { web: [] } });
+    await executeFirecrawl({ mode: 'search', query: 'anything', timeoutMs: 1000, settings: {} });
+    expect(calls).toHaveLength(1);
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+  });
+
+  it('sends the Bearer key when one is configured', async () => {
+    const calls = mockFetchJson({ success: true, data: { web: [] } });
+    await executeFirecrawl({
+      mode: 'search',
+      query: 'anything',
+      timeoutMs: 1000,
+      settings: { apiKey: 'fc-test' },
+    });
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.authorization).toBe('Bearer fc-test');
+  });
+
+  it('still requires an API key for fetch', async () => {
     await expect(
-      executeFirecrawl({ mode: 'search', query: 'anything', timeoutMs: 1000, settings: {} }),
-    ).rejects.toThrow(/FIRECRAWL_API_KEY|config set firecrawl\.apiKey/);
+      executeFirecrawl({ mode: 'fetch', url: 'https://example.com/', timeoutMs: 1000, settings: {} }),
+    ).rejects.toThrow(/needs an API key \(search works keyless\)/);
   });
 
   it('posts to the v2 search endpoint with a Bearer key and the search body', async () => {

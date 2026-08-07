@@ -60,7 +60,7 @@ function requireKey(options: EngineRequest): string {
   const apiKey = options.settings.apiKey;
   if (!apiKey) {
     throw new Error(
-      'The firecrawl provider needs an API key. Set FIRECRAWL_API_KEY, or run: modsearch config set firecrawl.apiKey <key> (1,000 free credits/month, no card at https://firecrawl.dev)',
+      'Firecrawl fetch needs an API key (search works keyless). Set FIRECRAWL_API_KEY, or run: modsearch config set firecrawl.apiKey <key> (1,000 free credits/month, no card at https://firecrawl.dev)',
     );
   }
   return apiKey;
@@ -68,7 +68,7 @@ function requireKey(options: EngineRequest): string {
 
 async function firecrawlPost(
   url: string,
-  apiKey: string,
+  apiKey: string | null,
   body: unknown,
   timeoutMs: number,
 ): Promise<Response> {
@@ -76,13 +76,16 @@ async function firecrawlPost(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   timer.unref?.();
   try {
+    // No key means keyless mode: the endpoint accepts requests with no
+    // Authorization header against a shared monthly free allowance.
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (apiKey) {
+      headers.authorization = `Bearer ${apiKey}`;
+    }
     return await fetch(url, {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     });
   } catch (error) {
@@ -109,7 +112,7 @@ async function ensureOk(response: Response): Promise<void> {
     /credit|quota|insufficient|payment required/i.test(detail)
   ) {
     throw new Error(
-      `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit at https://firecrawl.dev, or search with another engine.`,
+      `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit or set your own key at https://firecrawl.dev, or search with another engine.`,
     );
   }
   if (response.status === 401 || response.status === 403) {
@@ -126,7 +129,9 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
   if (!options.query) {
     throw new Error('Search mode requires a query.');
   }
-  const apiKey = requireKey(options);
+  // Search runs keyless when no key is configured: Firecrawl's REST API
+  // accepts unauthenticated calls against a shared free monthly allowance.
+  const apiKey = options.settings.apiKey || null;
   const limit = options.maxResults ?? DEFAULT_LIMIT;
   const startedAt = Date.now();
 
@@ -307,7 +312,8 @@ function safeHostname(url: string): string | undefined {
 export const firecrawlProvider: SearchEngine = {
   name: 'firecrawl',
   roles: ['search', 'fetch'],
-  requirement: 'set a Firecrawl key (1,000 free credits/month, no card)',
-  isAvailable: (settings, env) => Boolean(settings.apiKey || env.FIRECRAWL_API_KEY),
+  requirement: 'for fetch, set a Firecrawl key; search works keyless (1,000 free credits/month)',
+  isAvailable: (settings, env, role) =>
+    role === 'fetch' ? Boolean(settings.apiKey || env.FIRECRAWL_API_KEY) : true,
   execute: executeFirecrawl,
 };

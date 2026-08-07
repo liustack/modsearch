@@ -65,7 +65,7 @@ export interface SearchEngine {
   /** Model used when nothing else specifies one. Absent when it has no model. */
   defaultModel?: string;
   /** Is this engine usable right now (installed, signed in, keyed)? */
-  isAvailable: (settings: EngineSettings, env: NodeJS.ProcessEnv) => boolean;
+  isAvailable: (settings: EngineSettings, env: NodeJS.ProcessEnv, role: Role) => boolean;
   /** One line for humans: what this engine needs to become available. */
   requirement: string;
   // Subprocess engines implement buildInvocation + parseOutput.

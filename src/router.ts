@@ -111,7 +111,7 @@ export function planRole(
 ): { chain: SearchEngine[]; notes: string[] } {
   const notes: string[] = [];
   const settingsFor = (name: string) => engineSettings(name, config, env);
-  const usable = (engine: SearchEngine) => engine.isAvailable(settingsFor(engine.name), env);
+  const usable = (engine: SearchEngine) => engine.isAvailable(settingsFor(engine.name), env, role);
 
   const chain: SearchEngine[] = [];
   const add = (engine: SearchEngine | undefined) => {

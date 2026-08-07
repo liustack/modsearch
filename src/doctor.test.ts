@@ -78,7 +78,11 @@ describe('doctor: search engines', () => {
 
   it('gives a copyable fix for a missing key and missing agy', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
-    expect(role(report, 'search')?.resolved).toBeNull();
+    // Keyless firecrawl means search always resolves, even on a bare machine.
+    expect(role(report, 'search')?.resolved).toBe('firecrawl');
+    const fc = engine(report, 'search', 'firecrawl');
+    expect(fc?.ready).toBe(true);
+    expect(fc?.reason).toMatch(/keyless/i);
     expect(engine(report, 'search', 'tavily')?.fix).toContain('modsearch config set tavily.apiKey');
     expect(engine(report, 'search', 'exa')?.fix).toContain('modsearch config set exa.apiKey');
     expect(engine(report, 'search', 'antigravity-cli')?.fix).toContain('antigravity.google');

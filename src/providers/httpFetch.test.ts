@@ -31,7 +31,7 @@ describe('local engine routing', () => {
     const engine = resolveEngine('local');
     expect(engine.name).toBe('local');
     expect(engine.roles).toEqual(['fetch']);
-    expect(engine.isAvailable({}, {})).toBe(true);
+    expect(engine.isAvailable({}, {}, 'fetch')).toBe(true);
   });
 
   it('keeps http and direct as aliases that resolve to local', () => {
