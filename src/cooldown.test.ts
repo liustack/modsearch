@@ -280,7 +280,9 @@ describe('the cache never breaks the run, and clear always reaches the disk', ()
     expect(persistErrors).toHaveLength(1);
   });
 
-  it.skipIf(process.getuid?.() === 0)(
+  // POSIX-only: Windows access control is ACL-based, so chmod 0o500 does not
+  // make the directory unwritable there and the write goes through.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     'clear survives an unwritable state dir: memory cleared, miss reported, no throw',
     () => {
       const dir = tempDir('modsearch-rostate-');
