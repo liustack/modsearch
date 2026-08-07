@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.2.0 - 2026-08-07
 
 Fixes from a deep acceptance review (external audit, reproduced and verified here), plus keyless Firecrawl search.
 
