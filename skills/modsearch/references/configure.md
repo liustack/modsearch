@@ -66,7 +66,7 @@ JSON has no comments, so here is every field:
 | :-- | :-- | :-- | :-- |
 | `engine` | string | top level | Which engine searches. Empty means automatic (the best available here). One of `antigravity-cli`, `tavily`, `exa`, `firecrawl`. The aliases `agy`, `antigravity`, `grok`, `http`, `direct` are accepted and normalized to the canonical name. |
 | `cooldown` | `"on"` / `"off"` | top level | Quota cooldown failover. On by default. Off reads and writes no state and routes exactly as before. |
-| `allowPrivateNetwork` | boolean | top level | Global network policy: allow reserved and private address ranges. Governs both the local fetcher (whether it reaches such a target) and firecrawl (whether a public host resolving to a reserved IP is still sent up), so it is not an engine setting. `false` by default. |
+| `allowPrivateNetwork` | boolean | top level | Local network policy: allow the local fetcher to reach reserved and private address ranges. It never affects firecrawl: a target that is, or resolves to, a reserved address is kept off the cloud regardless, because the switch authorizes local access, not disclosing internal hostnames to a third-party service. `false` by default. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
@@ -128,7 +128,7 @@ modsearch config set firecrawl.apiKey <key>
 # or environment: export FIRECRAWL_API_KEY=<key>
 ```
 
-Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. A literal private or reserved target (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) is always skipped and read by the local engine instead, even with `--allow-private-network` on, so an internal address never leaks to the cloud. Only a public-looking host that resolves to a reserved IP follows the switch: a VPN fake-ip goes up when you waive the guard, and is skipped otherwise. On search it sits last.
+Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. Any private or reserved target is always skipped and read by the local engine instead, even with `--allow-private-network` on: a literal one (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) and equally a public-looking host that resolves to a reserved IP. A VPN fake-ip and a real internal name cannot be told apart from here, so neither is handed to the cloud; the switch only lets the local engine reach them. On search it sits last.
 
 Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends `maxAge: 0`, which disables Firecrawl's default multi-day cache, so a fetch can never return stale content. The trade is deliberate: a credit per fetch in exchange for currency, which is the point of the tool. If you would rather trade freshness for credits, Firecrawl is not the engine to reach for.
 

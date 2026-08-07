@@ -172,13 +172,7 @@ export function isLiteralReservedTarget(url: URL): boolean {
  * network is explicitly allowed, it returns false so firecrawl still tries,
  * matching the --allow-private-network semantics the local fetcher already has.
  */
-export async function isReservedTarget(
-  url: URL,
-  allowPrivateNetwork: boolean,
-): Promise<boolean> {
-  if (allowPrivateNetwork) {
-    return false;
-  }
+export async function isReservedTarget(url: URL): Promise<boolean> {
   if (isBlockedHostname(url.hostname)) {
     return true;
   }
