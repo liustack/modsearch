@@ -44,3 +44,7 @@ but answered wrong.
 
 Config (with keys masked, from `modsearch config show`), whether a VPN or proxy
 is active, or anything else that might matter.
+
+---
+
+Not sure it is a bug, or just want to talk it through? Find me on X: [@liustack](https://x.com/liustack).

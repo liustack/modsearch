@@ -24,6 +24,10 @@
 
 DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型网页搜索、X 搜索、单页抓取能力。
 
+## 交流
+
+用出问题了就[提个 issue](https://github.com/liustack/modsearch/issues/new/choose)。其他的都欢迎来 X 上聊：**[@liustack](https://x.com/liustack)**，你用它做了什么、在哪个 harness 上跑、接下来该做什么，新版本也是那边先发。社群正在筹备中。
+
 ## 特性
 
 - **完全免费。** 默认走 Antigravity CLI 通道，无需 API key。三个备用通道（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。

@@ -24,3 +24,7 @@ Other ways to get there, and why they fall short.
 ModSearch handles the live web: search, page fetch, and X. Image parsing lives
 in the separate `modlens` project. If your idea is about a new search or fetch
 engine, say which one and what it needs to run (key, binary, sign-in).
+
+---
+
+Not sure it is a bug, or just want to talk it through? Find me on X: [@liustack](https://x.com/liustack).

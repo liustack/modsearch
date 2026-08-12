@@ -24,6 +24,10 @@
 
 Models like DeepSeek-V4-Flash have no web access, or a weak one. ModSearch is a plug-in that greatly strengthens the model's web search, X search, and single-page fetch.
 
+## Talk to us
+
+Something broken, or something missing? [Open an issue](https://github.com/liustack/modsearch/issues/new/choose). For everything else, come find me on X: **[@liustack](https://x.com/liustack)**. What you built with it, which harness you are on, what should come next. New releases land there first, and a proper community space is on the way.
+
 ## Features
 
 - **Completely free.** The default channel is Antigravity CLI, no API key needed. All three fallback channels (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
