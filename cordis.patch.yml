@@ -1,0 +1,13 @@
+# dsh bundle layer: mount the modsearch web plugin (dsh/index.js via the
+# package root export; bin stays the CLI, nothing imports the root otherwise)
+# and route the web seam's search capability to it. The base layer pins
+# `searchProvider: deepseek-official`; a patch row replaces the targeted
+# row's whole config, and `searchProvider` is that row's only base key. A
+# later profile patch can pin any provider back.
+- id: web
+  config:
+    searchProvider: modsearch
+
+- insert:
+    - id: modsearch
+      name: '@liustack/modsearch'

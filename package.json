@@ -26,7 +26,9 @@
     "skills/modsearch/scripts",
     "skills/modsearch/references",
     "CHANGELOG.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    "dsh",
+    "cordis.patch.yml"
   ],
   "keywords": [
     "search",
@@ -36,7 +38,9 @@
     "agent",
     "agent-skill",
     "antigravity",
-    "modsearch"
+    "modsearch",
+    "dsh-plugin",
+    "deepseek-harness"
   ],
   "author": "Leon Liu",
   "license": "MIT",
@@ -50,6 +54,16 @@
   "homepage": "https://github.com/liustack/modsearch#readme",
   "engines": {
     "node": ">=22.13"
+  },
+  "exports": {
+    ".": "./dsh/index.js",
+    "./dsh": "./dsh/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   },
   "dependencies": {
     "commander": "^13.1.0",
