@@ -52,6 +52,10 @@ skills/
 
 The CLI is exposed via `dist/main.js`.
 
+## dsh Plugin (`dsh/`)
+
+`dsh/index.js` is a DeepSeek Harness plugin: plain JS, node builtins only, no build step, no dsh package imports. It spawns the CLI from `dist/main.js` inside the same package and plugs in three ways: the engine chain becomes the web seam's search provider (`cordis.patch.yml` repoints the seam's `searchProvider` at it, so dsh's native `web_search` tool runs on modsearch), and `x_search` / `read_page` register as raw tools for the two capabilities dsh has no seam for. The schema copies `dsh/search-schema.json` and `dsh/fetch-schema.json` are kept in lockstep with `src/schema.ts` by `src/dshPlugin.test.ts`, which also tests the plugin's behavior against a fake CLI via the `MODSEARCH_DSH_CLI` env override. The package.json `dsh.bundle` manifest plus the root export make the package installable with `dsh plugin add`.
+
 ## CLI Usage
 
 ```bash

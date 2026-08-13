@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.3.0 - 2026-08-14
+
+- ModSearch is now a DeepSeek Harness (dsh) plugin. The package doubles as a dsh bundle: `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest` mounts `dsh/index.js`, which plugs in three ways. The engine chain registers as the web seam's search provider and the bundle patch repoints the seam at it (`searchProvider: modsearch`), so dsh's native `web_search` tool and its citation cards run keyless through agy. `x_search` registers as a tool for the corpus dsh has no seam for, with a web stand-in answer marked degraded in the canonical value, never silent. `read_page` registers as a focused single-URL reader (summary, extracted content, links, uncertainty, optional answer focus); dsh ships its own `web_fetch` disabled for SSRF reasons, and modsearch's fetch blocks private-network targets by default with no override exposed through the tool. The plugin is plain JS with no dsh package imports, spawns the CLI from `dist/main.js` inside the same package, and `src/dshPlugin.test.ts` holds the shipped schema copies in lockstep with `src/schema.ts` and tests the behavior against a fake CLI.
+
 ## 5.2.0 - 2026-08-07
 
 Fixes from a deep acceptance review (external audit, reproduced and verified here), plus keyless Firecrawl search.
