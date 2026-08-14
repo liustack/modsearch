@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.4.0 - 2026-08-14
+
+- The HTTP engines (tavily, exa, firecrawl) accept a custom endpoint (#12): `modsearch config set tavily.baseURL <url>`, or `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL` in the environment, points the engine at a compatible third-party gateway, proxy, or self-hosted deployment. The engine appends its documented path to the base (`/search`, `/v2/search`, `/v2/scrape`), `config set` refuses a value that is not a full http(s) URL, an empty value unsets the override, and the API key goes to whatever host the base names, which is the point and the stated trust decision.
+- Both READMEs gain a "Supported engines" section: every engine with its roles, free tier, and the one command that turns it on, plus the env-var alternatives and the custom-endpoint pointer. The engines were always supported; the README never said how to switch them on without digging into the configuration reference.
+
 ## 5.3.0 - 2026-08-14
 
 - ModSearch is now a DeepSeek Harness (dsh) plugin. The package doubles as a dsh bundle: `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest` mounts `dsh/index.js`, which plugs in three ways. The engine chain registers as the web seam's search provider and the bundle patch repoints the seam at it (`searchProvider: modsearch`), so dsh's native `web_search` tool and its citation cards run keyless through agy. `x_search` registers as a tool for the corpus dsh has no seam for, with a web stand-in answer marked degraded in the canonical value, never silent. `read_page` registers as a focused single-URL reader (summary, extracted content, links, uncertainty, optional answer focus); dsh ships its own `web_fetch` disabled for SSRF reasons, and modsearch's fetch blocks private-network targets by default with no override exposed through the tool. The plugin is plain JS with no dsh package imports, spawns the CLI from `dist/main.js` inside the same package, and `src/dshPlugin.test.ts` holds the shipped schema copies in lockstep with `src/schema.ts` and tests the behavior against a fake CLI.

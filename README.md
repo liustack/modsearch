@@ -55,6 +55,21 @@ Prefer not to install it? Register a free key with Tavily, Exa, or Firecrawl ins
 
 > Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
 
+## Supported engines
+
+Any one of these makes search work. Configure with one command each, keys are stored in `~/.modsearch/config.json` (0600, masked when shown):
+
+| Engine | Does | Free tier | Turn it on |
+| :-- | :-- | :-- | :-- |
+| Antigravity CLI | web search + page fetch | free, browser sign-in | install `agy` and sign in |
+| Tavily | web search | 1,000 credits/month, no card | `modsearch config set tavily.apiKey <key>` |
+| Exa | web search | $10/month recurring credit (~1,400 searches), no card | `modsearch config set exa.apiKey <key>` |
+| Firecrawl | web search + page fetch | 1,000 credits/month, search even works keyless | `modsearch config set firecrawl.apiKey <key>` |
+| Grok Build | X (Twitter) search | rides SuperGrok or X Premium | install `grok` and sign in |
+| local | page fetch | built in, nothing to install | nothing |
+
+Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`). Multiple engines configured means automatic failover, best first. Using a Tavily-, Exa-, or Firecrawl-compatible third-party or self-hosted endpoint? Point the engine at it: `modsearch config set tavily.baseURL <url>`. Every knob, engine by engine, is in the [configuration guide](skills/modsearch/references/configure.md).
+
 ## Usage
 
 Once installed, just chat. Ask anything that needs checking, or paste a URL, and the skill triggers on its own: it picks an engine, runs the search or fetch, and the answer comes back with sources.

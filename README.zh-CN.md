@@ -55,6 +55,21 @@ agy                                                           # 浏览器完成�
 
 > 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
 
+## 支持的引擎
+
+下面任何一个都能让搜索跑起来。各一条命令配置，key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
+
+| 引擎 | 能做什么 | 免费额度 | 怎么开 |
+| :-- | :-- | :-- | :-- |
+| Antigravity CLI | 网页搜索 + 单页抓取 | 免费，浏览器登录 | 安装 `agy` 并登录 |
+| Tavily | 网页搜索 | 每月 1,000 credits，不绑卡 | `modsearch config set tavily.apiKey <key>` |
+| Exa | 网页搜索 | 每月 $10 循环额度（约 1,400 次），不绑卡 | `modsearch config set exa.apiKey <key>` |
+| Firecrawl | 网页搜索 + 单页抓取 | 每月 1,000 credits，搜索甚至无 key 可用 | `modsearch config set firecrawl.apiKey <key>` |
+| Grok Build | X（推特）搜索 | 随 SuperGrok 或 X Premium 订阅 | 安装 `grok` 并登录 |
+| local | 单页抓取 | 内置，零安装 | 无需任何操作 |
+
+key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`）。配了多个引擎就自动故障转移，好的优先。想用 Tavily、Exa、Firecrawl 兼容的第三方或自建端点？把引擎指过去即可：`modsearch config set tavily.baseURL <url>`。每个引擎的全部配置项见[配置指南](skills/modsearch/references/configure.md)。
+
 ## 用法
 
 装好之后不需要记任何命令。正常聊天，提出需要查证的问题或给出一个链接，skill 自动触发：选引擎、跑搜索或抓取，答案带着来源回来。
