@@ -9,6 +9,8 @@ read_when:
 
 # Harness setup
 
+English | [简体中文](harness-setup.zh-CN.md)
+
 ## DeepSeek Harness (dsh)
 
 dsh is different from the other harnesses: modsearch plugs in natively, not as a prompt-triggered skill. The package itself is a dsh bundle, so one command installs it into a profile:

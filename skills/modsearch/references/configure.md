@@ -1,5 +1,7 @@
 # Configuring ModSearch
 
+English | [简体中文](configure.zh-CN.md)
+
 Read this when the user asks how to set up modsearch, wants a key added, wants a different engine, or hits a setup-related failure. Run the commands for them instead of pasting instructions.
 
 ## The mental model

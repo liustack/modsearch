@@ -62,6 +62,19 @@ describe('output-schema reference stays in step with RunSearchResult', () => {
     expect(Object.keys(doc).sort()).toEqual(['fetch', 'search']);
   });
 
+  it('keeps the Chinese translation structurally identical to the English doc', () => {
+    // The zh-CN copy carries the same example envelopes; comparing shape
+    // fingerprints keeps the translation from rotting when the contract moves.
+    const zh = envelopes(
+      fs.readFileSync(
+        new URL('../skills/modsearch/references/output-schema.zh-CN.md', import.meta.url),
+        'utf-8',
+      ),
+    );
+    expect(shapeOf(zh.search)).toEqual(shapeOf(doc.search));
+    expect(shapeOf(zh.fetch)).toEqual(shapeOf(doc.fetch));
+  });
+
   itSpawn('search envelope matches a real run', async () => {
     const bin = fakeEngine({
       name: 'agy',

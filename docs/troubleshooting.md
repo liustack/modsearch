@@ -8,6 +8,8 @@ read_when:
 
 # Troubleshooting
 
+English | [简体中文](troubleshooting.zh-CN.md)
+
 Every message below is one modsearch actually prints. Search this file for the words you saw.
 
 ## First: run `modsearch doctor`

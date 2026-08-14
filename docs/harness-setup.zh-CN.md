@@ -1,0 +1,58 @@
+---
+summary: '宿主接入：dsh、Codex、Claude Code、OpenCode、Pi，以及内置搜索覆盖什么'
+read_when:
+  - 在某个具体的编码 agent 里配置 modsearch
+  - 安装 DeepSeek Harness (dsh) 插件
+  - 决定要不要关掉宿主的内置搜索
+  - 网关或端点根本没有搜索工具
+---
+
+# 宿主接入
+
+[English](harness-setup.md) | 简体中文
+
+## DeepSeek Harness (dsh)
+
+dsh 和其他宿主不一样：modsearch 以原生插件接入，不走提示词触发的 skill。这个包本身就是一个 dsh bundle，一条命令装进 profile：
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest
+```
+
+一次落地三件事：
+
+- **`web_search` 开始跑在 modsearch 上。** dsh 本就带一个原生 `web_search` 工具，架在可插拔的 provider 接缝上，默认钉在 DeepSeek 的带 key 搜索 API。bundle 把 modsearch 引擎链注册为 provider 并把接缝指过来（`searchProvider: modsearch`），于是只要 agy 登录了，搜索无需任何 API key，Web UI 的原生引用卡片也全部保留。想切回去，在更后面的 profile patch 里把 `searchProvider` 钉回其他 provider。
+- **`x_search`** 覆盖 dsh 没有接缝的语料。Grok Build 装好并登录时路由给它，网页顶替的答案会在工具输出里标注降级，绝不无声。
+- **`read_page`** 把一个 URL 读成结构化证据（summary、正文提取、外链、不确定项），可带答案焦点。dsh 自带的 `web_fetch` 默认关闭，因为那个 provider 把 SSRF 防护推给了别人。modsearch 的抓取默认拦截私网目标，且这个工具不暴露任何绕开的开关。
+
+引擎、key、路由继续放在 `~/.modsearch/config.json`，与其他所有宿主共用。dsh 还在开发者预览期，插件接口可能变化。这个插件刻意把接触面压到最小（一次 provider 注册，两次原始工具注册），任何一处变了都会在宿主日志里大声降级。dsh 提示 `declares no dsh.bundle` 的话，是 pnpm 的发布时长门槛装到了旧版本：带上显式 `@latest` 重跑一遍。
+
+## Codex（以及其他 DeepSeek 环境）
+
+DeepSeek 官方端点自带服务端 `web_search` 工具，由 Codex 说的 Responses API 和 Claude Code 说的 Anthropic 兼容端点承载。把两者之一指向 `api.deepseek.com` 并设 `web_search = "live"`，搜索就已经有了（见[官方接入指南](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)）。
+
+所以在 Codex 里，ModSearch 不是从无到有，而是省上下文的账：内置搜索把整页内容塞进模型上下文，一次搜索密集的回答实测约 30,000 token，而结构化证据只要几百。
+
+想把活交给它，先在 `~/.codex/config.toml` 里关掉内置搜索，否则模型先伸手够那个，skill 永远轮不上：
+
+```toml
+web_search = "disabled"
+```
+
+## 内置搜索完全不存在的地方
+
+- 官方 `/chat/completions` 端点不提供这个工具，**OpenCode** 和 **Pi** 就是被这挡在外面的。
+- DashScope 和大多数第三方网关只暴露模型的推理，别的什么都没有。
+- 读一个指定页面，以及触达 X，在哪里都不在内置搜索的能力范围内。
+
+## 各宿主的 skill 位置
+
+| 宿主 | 从哪里读 skill |
+| :-- | :-- |
+| Claude Code | `~/.claude/skills/` |
+| Codex | `~/.codex/skills/` |
+| Pi、OpenCode | `~/.agents/skills/` |
+
+Windows 上 `~` 是用户目录，即 `%USERPROFILE%\.claude\skills\` 等等。
+
+三者都支持符号链接，把 skill 目录链接一次，每个 agent 都始终用最新版。

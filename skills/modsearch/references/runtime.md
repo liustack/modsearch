@@ -1,5 +1,7 @@
 # modsearch runtime reference
 
+English | [简体中文](runtime.zh-CN.md)
+
 How the skill launches the `modsearch` CLI, what version it pins, and how it
 diagnoses a machine where nothing can run. The launchers `scripts/run.sh`
 (macOS / Linux) and `scripts/run.ps1` (Windows) implement everything below and

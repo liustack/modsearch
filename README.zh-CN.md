@@ -8,12 +8,14 @@
 
 <p align="center">🌐 <b>DeepSeek Harness (dsh) 的 web 插件</b> 🌐</p>
 
+<p align="center">引擎：<b>Antigravity CLI</b>（免费，默认）· <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok（X）</b> · <b>local</b>，自动故障转移</p>
+
 <p align="center">
   <a href="./README.md">English</a> ·
-  <a href="docs/troubleshooting.md">故障排查</a> ·
-  <a href="skills/modsearch/references/configure.md">配置</a> ·
-  <a href="skills/modsearch/references/output-schema.md">输出契约</a> ·
-  <a href="docs/security.md">安全</a> ·
+  <a href="docs/troubleshooting.zh-CN.md">故障排查</a> ·
+  <a href="skills/modsearch/references/configure.zh-CN.md">配置</a> ·
+  <a href="skills/modsearch/references/output-schema.zh-CN.md">输出契约</a> ·
+  <a href="docs/security.zh-CN.md">安全</a> ·
   <a href="https://github.com/liustack/modlens">ModLens（视觉）</a>
 </p>
 
@@ -34,11 +36,26 @@ DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch �
 
 ## 特性
 
-- **🌐 DeepSeek Harness (dsh) 的 web 插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。细节见[接入指南](docs/harness-setup.md#deepseek-harness-dsh)。
+- **🌐 DeepSeek Harness (dsh) 的 web 插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
 - **完全免费。** 默认走 Antigravity CLI 通道，无需 API key。三个备用通道（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
 - **自动故障转移。** 一个通道失败或额度耗尽时自动切换下一个。
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
 - **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
+
+## 支持的引擎
+
+下面任何一个都能让搜索跑起来。各一条命令配置，key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
+
+| 引擎 | 能做什么 | 免费额度 | 怎么开 |
+| :-- | :-- | :-- | :-- |
+| Antigravity CLI | 网页搜索 + 单页抓取 | 免费，浏览器登录 | 安装 `agy` 并登录 |
+| Tavily | 网页搜索 | 每月 1,000 credits，不绑卡 | `modsearch config set tavily.apiKey <key>` |
+| Exa | 网页搜索 | 每月 $10 循环额度（约 1,400 次），不绑卡 | `modsearch config set exa.apiKey <key>` |
+| Firecrawl | 网页搜索 + 单页抓取 | 每月 1,000 credits，搜索甚至无 key 可用 | `modsearch config set firecrawl.apiKey <key>` |
+| Grok Build | X（推特）搜索 | 随 SuperGrok 或 X Premium 订阅 | 安装 `grok` 并登录 |
+| local | 单页抓取 | 内置，零安装 | 无需任何操作 |
+
+key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`）。配了多个引擎就自动故障转移，好的优先。想用 Tavily、Exa、Firecrawl 兼容的第三方或自建端点？把引擎指过去即可：`modsearch config set tavily.baseURL <url>`。每个引擎的全部配置项见[配置指南](skills/modsearch/references/configure.zh-CN.md)。
 
 ## 安装
 
@@ -54,21 +71,6 @@ agy                                                           # 浏览器完成�
 **第二步，剩下的交给你的 AI。** 把这句话发给它，选了 key 的话把 key 一起发：
 
 > 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
-
-## 支持的引擎
-
-下面任何一个都能让搜索跑起来。各一条命令配置，key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
-
-| 引擎 | 能做什么 | 免费额度 | 怎么开 |
-| :-- | :-- | :-- | :-- |
-| Antigravity CLI | 网页搜索 + 单页抓取 | 免费，浏览器登录 | 安装 `agy` 并登录 |
-| Tavily | 网页搜索 | 每月 1,000 credits，不绑卡 | `modsearch config set tavily.apiKey <key>` |
-| Exa | 网页搜索 | 每月 $10 循环额度（约 1,400 次），不绑卡 | `modsearch config set exa.apiKey <key>` |
-| Firecrawl | 网页搜索 + 单页抓取 | 每月 1,000 credits，搜索甚至无 key 可用 | `modsearch config set firecrawl.apiKey <key>` |
-| Grok Build | X（推特）搜索 | 随 SuperGrok 或 X Premium 订阅 | 安装 `grok` 并登录 |
-| local | 单页抓取 | 内置，零安装 | 无需任何操作 |
-
-key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`）。配了多个引擎就自动故障转移，好的优先。想用 Tavily、Exa、Firecrawl 兼容的第三方或自建端点？把引擎指过去即可：`modsearch config set tavily.baseURL <url>`。每个引擎的全部配置项见[配置指南](skills/modsearch/references/configure.md)。
 
 ## 用法
 
@@ -91,12 +93,12 @@ key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API
 | 文档                                                     | 适用场景                                    |
 | :------------------------------------------------------- | :------------------------------------------ |
 | [INSTALL.md](INSTALL.md)                                 | 一步步安装 skill（为 agent 编写）           |
-| [CLI 手册](skills/modsearch/references/cli.md)           | skill 所驱动的 CLI：参数、配置与体检        |
-| [故障排查](docs/troubleshooting.md)                      | 命令报错，查成因和解法                      |
-| [配置手册](skills/modsearch/references/configure.md)     | 配置 key、切换引擎、排查配置                |
-| [输出契约](skills/modsearch/references/output-schema.md) | 解析 JSON 或构建下游工具                    |
-| [宿主接入](docs/harness-setup.md)                        | 在 Codex、Claude Code、OpenCode、Pi 中配置  |
-| [安全说明](docs/security.md)                             | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
+| [CLI 手册](skills/modsearch/references/cli.zh-CN.md)           | skill 所驱动的 CLI：参数、配置与体检        |
+| [故障排查](docs/troubleshooting.zh-CN.md)                      | 命令报错，查成因和解法                      |
+| [配置手册](skills/modsearch/references/configure.zh-CN.md)     | 配置 key、切换引擎、排查配置                |
+| [输出契约](skills/modsearch/references/output-schema.zh-CN.md) | 解析 JSON 或构建下游工具                    |
+| [宿主接入](docs/harness-setup.zh-CN.md)                        | 在 Codex、Claude Code、OpenCode、Pi 中配置  |
+| [安全说明](docs/security.zh-CN.md)                             | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
 | [更新日志](CHANGELOG.md)                                 | 查询版本变更                                |
 
 ## 参与方式

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Every user-facing doc now ships a Chinese edition (`*.zh-CN.md`): the configuration guide, CLI manual, runtime reference, output contract, harness setup, troubleshooting, and security. Each pair carries a language switcher under its title, the Chinese README links to the Chinese editions throughout, and a new drift test keeps the translated output-contract envelopes structurally identical to the English ones. The engine roster also moved onto the README's first screen: a hero line names every engine, and the "Supported engines" table now sits above Installation. Fixed a stale root-relative link in the CLI manual along the way.
+
 ## 5.4.0 - 2026-08-14
 
 - The HTTP engines (tavily, exa, firecrawl) accept a custom endpoint (#12): `modsearch config set tavily.baseURL <url>`, or `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL` in the environment, points the engine at a compatible third-party gateway, proxy, or self-hosted deployment. The engine appends its documented path to the base (`/search`, `/v2/search`, `/v2/scrape`), `config set` refuses a value that is not a full http(s) URL, an empty value unsets the override, and the API key goes to whatever host the base names, which is the point and the stated trust decision.

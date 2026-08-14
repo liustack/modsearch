@@ -1,5 +1,7 @@
 # ModSearch Output Schema
 
+English | [简体中文](output-schema.zh-CN.md)
+
 The CLI prints one JSON object to stdout. The top-level envelope is the same for
 every run:
 

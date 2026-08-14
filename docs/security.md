@@ -8,6 +8,8 @@ read_when:
 
 # Security
 
+English | [简体中文](security.zh-CN.md)
+
 ## SSRF guards on the local fetcher
 
 The `local` engine refuses, before any request goes out:

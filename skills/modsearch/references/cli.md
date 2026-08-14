@@ -1,5 +1,7 @@
 # ModSearch CLI manual
 
+English | [简体中文](cli.zh-CN.md)
+
 The skill drives this CLI through its launcher. This page is for running it directly.
 
 ## Direct usage
@@ -47,7 +49,7 @@ Output is always a `results` array, one entry per corpus:
 | `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
-Configuration is optional. `~/.modsearch/config.json` holds one main decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Fetching and X search need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` disables it, and `modsearch state clear` resets the cooldown records. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are documented in the [configuration doc](skills/modsearch/references/configure.md).
+Configuration is optional. `~/.modsearch/config.json` holds one main decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Fetching and X search need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` disables it, and `modsearch state clear` resets the cooldown records. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are documented in the [configuration doc](configure.md).
 
 `modsearch doctor` prints a local diagnosis: Node version, each task's engines with their readiness and reasons, where each config value comes from, the private-network setting, and any engines currently cooling. It spends no quota and makes no network request, and `--json` makes the output machine-readable. Run it first when routing does not behave as expected.
 
