@@ -8,6 +8,8 @@
 
 <p align="center">🌐 <b>The web plugin for DeepSeek Harness (dsh)</b> 🌐</p>
 
+<p align="center">Engines: <b>Antigravity CLI</b> (free, default) · <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok (X)</b> · <b>local</b>, with automatic failover</p>
+
 <p align="center">
   <a href="./README.zh-CN.md">简体中文</a> ·
   <a href="docs/troubleshooting.md">Troubleshooting</a> ·
@@ -40,21 +42,6 @@ Something broken, or something missing? [Open an issue](https://github.com/liust
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
 - **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
-## Installation
-
-**Step 1, set up a search engine (the only part that needs your hands).** The default engine, Antigravity CLI, requires a browser sign-in that only you can complete:
-
-```bash
-curl -fsSL https://antigravity.google/cli/install.sh | bash
-agy                                                           # sign in, then exit
-```
-
-Prefer not to install it? Register a free key with Tavily, Exa, or Firecrawl instead (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
-
-**Step 2, hand the rest to your AI.** Send it this line, along with the key if you chose one:
-
-> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
-
 ## Supported engines
 
 Any one of these makes search work. Configure with one command each, keys are stored in `~/.modsearch/config.json` (0600, masked when shown):
@@ -69,6 +56,21 @@ Any one of these makes search work. Configure with one command each, keys are st
 | local | page fetch | built in, nothing to install | nothing |
 
 Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`). Multiple engines configured means automatic failover, best first. Using a Tavily-, Exa-, or Firecrawl-compatible third-party or self-hosted endpoint? Point the engine at it: `modsearch config set tavily.baseURL <url>`. Every knob, engine by engine, is in the [configuration guide](skills/modsearch/references/configure.md).
+
+## Installation
+
+**Step 1, set up a search engine (the only part that needs your hands).** The default engine, Antigravity CLI, requires a browser sign-in that only you can complete:
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+agy                                                           # sign in, then exit
+```
+
+Prefer not to install it? Register a free key with Tavily, Exa, or Firecrawl instead (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
+
+**Step 2, hand the rest to your AI.** Send it this line, along with the key if you chose one:
+
+> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
 
 ## Usage
 
