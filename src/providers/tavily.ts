@@ -7,9 +7,10 @@
 // chain with known advisories) to wrap a single POST, so it is gone. See
 // https://docs.tavily.com/documentation/api-reference/endpoint/search
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { resolveEndpoint } from './endpoint.ts';
 
 const DEFAULT_MAX_RESULTS = 8;
-const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
+const TAVILY_DEFAULT_BASE = 'https://api.tavily.com';
 
 interface TavilyResult {
   title?: string;
@@ -49,20 +50,23 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
 
   let response: Response;
   try {
-    response = await fetch(TAVILY_SEARCH_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
+    response = await fetch(
+      resolveEndpoint(options.settings.baseURL, TAVILY_DEFAULT_BASE, '/search'),
+      {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          query: options.query,
+          search_depth: 'basic',
+          include_answer: true,
+          max_results: maxResults,
+        }),
       },
-      body: JSON.stringify({
-        query: options.query,
-        search_depth: 'basic',
-        include_answer: true,
-        max_results: maxResults,
-      }),
-    });
+    );
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error(`tavily timed out after ${options.timeoutMs} ms.`);

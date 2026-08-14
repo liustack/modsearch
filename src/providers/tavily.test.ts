@@ -72,6 +72,31 @@ describe('tavily provider', () => {
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('posts to a configured baseURL, trailing slash folded', async () => {
+    const calls = mockFetchJson({ answer: 'a', results: [] });
+    await executeTavilySearch({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 1000,
+      settings: { apiKey: 'tvly-test', baseURL: 'https://gw.example.com/tavily/' },
+    });
+    expect(calls[0].url).toBe('https://gw.example.com/tavily/search');
+  });
+
+  it('refuses a baseURL that is not a full http(s) URL', async () => {
+    // config set validates at write time; an env var skips that gate, so the
+    // engine names the problem itself instead of failing as a fetch error.
+    mockFetchJson({});
+    await expect(
+      executeTavilySearch({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 1000,
+        settings: { apiKey: 'tvly-test', baseURL: 'gw.example.com' },
+      }),
+    ).rejects.toThrow(/Invalid engine baseURL/);
+  });
+
   it('maps tavily results into the v2 contract without relevance scores', async () => {
     mockFetchJson({
       answer: 'synthesized answer',

@@ -5,9 +5,10 @@
 // so the summary here is mechanical and a warning tells the reader to work from
 // items directly.
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { resolveEndpoint } from './endpoint.ts';
 
 const DEFAULT_NUM_RESULTS = 10;
-const EXA_SEARCH_URL = 'https://api.exa.ai/search';
+const EXA_DEFAULT_BASE = 'https://api.exa.ai';
 
 interface ExaResult {
   title?: string;
@@ -49,7 +50,7 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
 
   let response: Response;
   try {
-    response = await fetch(EXA_SEARCH_URL, {
+    response = await fetch(resolveEndpoint(options.settings.baseURL, EXA_DEFAULT_BASE, '/search'), {
       method: 'POST',
       signal: controller.signal,
       headers: {

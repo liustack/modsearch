@@ -7,10 +7,7 @@ afterEach(() => {
 });
 
 /** Mock the global fetch with a JSON response, capturing the request. */
-function mockFetchJson(
-  body: unknown,
-  init: { ok?: boolean; status?: number; text?: string } = {},
-) {
+function mockFetchJson(body: unknown, init: { ok?: boolean; status?: number; text?: string } = {}) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fn = vi.fn(async (url: string, requestInit: RequestInit) => {
     calls.push({ url, init: requestInit });
@@ -73,6 +70,17 @@ describe('exa provider', () => {
       contents: { highlights: true },
     });
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('posts to a configured baseURL, trailing slash folded', async () => {
+    const calls = mockFetchJson({ results: [] });
+    await executeExaSearch({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 1000,
+      settings: { apiKey: 'exa-test', baseURL: 'https://gw.example.com/exa/' },
+    });
+    expect(calls[0].url).toBe('https://gw.example.com/exa/search');
   });
 
   it('maps exa results into the search contract with a mechanical summary', async () => {
@@ -150,7 +158,10 @@ describe('exa provider', () => {
   });
 
   it('treats 401/403 as a key problem with a config-set fix, not a quota error', async () => {
-    mockFetchJson({ error: 'invalid api key' }, { ok: false, status: 401, text: 'invalid api key' });
+    mockFetchJson(
+      { error: 'invalid api key' },
+      { ok: false, status: 401, text: 'invalid api key' },
+    );
     await expect(
       executeExaSearch({
         mode: 'search',

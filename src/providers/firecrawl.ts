@@ -11,11 +11,11 @@
 // carry through: it authorizes local access, never cloud disclosure.
 import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
+import { resolveEndpoint } from './endpoint.ts';
 import { MAX_CONTENT_CHARS } from './limits.ts';
 
 const DEFAULT_LIMIT = 10;
-const FIRECRAWL_SEARCH_URL = 'https://api.firecrawl.dev/v2/search';
-const FIRECRAWL_SCRAPE_URL = 'https://api.firecrawl.dev/v2/scrape';
+const FIRECRAWL_DEFAULT_BASE = 'https://api.firecrawl.dev';
 const MAX_LINKS = 20;
 // Firecrawl's documented timeout contract is 1000-300000 ms; clamp both ends
 // so a caller's tighter --timeout cannot produce a request Firecrawl rejects.
@@ -107,10 +107,7 @@ async function ensureOk(response: Response): Promise<void> {
   }
   const detail = (await response.text().catch(() => '')).trim();
   // A 402 or a credit/quota message is the quota class the cooldown layer reads.
-  if (
-    response.status === 402 ||
-    /credit|quota|insufficient|payment required/i.test(detail)
-  ) {
+  if (response.status === 402 || /credit|quota|insufficient|payment required/i.test(detail)) {
     throw new Error(
       `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit or set your own key at https://firecrawl.dev, or search with another engine.`,
     );
@@ -136,7 +133,7 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
   const startedAt = Date.now();
 
   const response = await firecrawlPost(
-    FIRECRAWL_SEARCH_URL,
+    resolveEndpoint(options.settings.baseURL, FIRECRAWL_DEFAULT_BASE, '/v2/search'),
     apiKey,
     {
       query: options.query,
@@ -200,7 +197,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
 
   const startedAt = Date.now();
   const response = await firecrawlPost(
-    FIRECRAWL_SCRAPE_URL,
+    resolveEndpoint(options.settings.baseURL, FIRECRAWL_DEFAULT_BASE, '/v2/scrape'),
     apiKey,
     {
       url: target.toString(),
@@ -225,9 +222,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   const metadata = data.data?.metadata ?? {};
   const statusCode = metadata.statusCode;
   if (typeof statusCode === 'number' && (statusCode < 200 || statusCode >= 300)) {
-    throw new Error(
-      `firecrawl fetched ${target.toString()} but the page returned ${statusCode}.`,
-    );
+    throw new Error(`firecrawl fetched ${target.toString()} but the page returned ${statusCode}.`);
   }
 
   // Cap the markdown at the same ceiling the local engine uses, so a huge page

@@ -52,7 +52,7 @@ Full structure. Every field is optional, and so is the file itself:
   "allowPrivateNetwork": false,
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
-    "tavily":          { "apiKey": "tvly-..." },
+    "tavily":          { "apiKey": "tvly-...", "baseURL": "https://gw.example.com/tavily" },
     "exa":             { "apiKey": "..." },
     "firecrawl":       { "apiKey": "fc-..." },
     "grok-cli":        { "bin": "grok" }
@@ -69,6 +69,7 @@ JSON has no comments, so here is every field:
 | `allowPrivateNetwork` | boolean | top level | Local network policy: allow the local fetcher to reach reserved and private address ranges. It never affects firecrawl: a target that is, or resolves to, a reserved address is kept off the cloud regardless, because the switch authorizes local access, not disclosing internal hostnames to a third-party service. `false` by default. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
+| `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`. Empty unsets it. See the endpoint section below. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
 | `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.6-flash-low`. |
 
@@ -78,6 +79,7 @@ JSON has no comments, so here is every field:
 modsearch config set engine tavily            # choose the search engine
 modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
+modsearch config set tavily.baseURL <url>     # a compatible third-party endpoint
 modsearch config set cooldown off             # turn off quota cooldown failover
 modsearch config set allowPrivateNetwork true # reach reserved/private ranges
 ```
@@ -131,6 +133,18 @@ modsearch config set firecrawl.apiKey <key>
 Firecrawl search works with no key at all: the REST API accepts unauthenticated calls against a shared free allowance (1,000 credits/month), so it closes every search chain as the zero-setup floor. Set a key to get your own quota. Fetch stays keyed on purpose: pages should not flow through a third-party cloud unless you opted in by configuring it. Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. Any private or reserved target is always skipped and read by the local engine instead, even with `--allow-private-network` on: a literal one (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) and equally a public-looking host that resolves to a reserved IP. A VPN fake-ip and a real internal name cannot be told apart from here, so neither is handed to the cloud; the switch only lets the local engine reach them. On search it sits last.
 
 Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends `maxAge: 0`, which disables Firecrawl's default multi-day cache, so a fetch can never return stale content. The trade is deliberate: a credit per fetch in exchange for currency, which is the point of the tool. If you would rather trade freshness for credits, Firecrawl is not the engine to reach for.
+
+### Third-party compatible endpoints (tavily, exa, firecrawl)
+
+The three HTTP engines can point at any endpoint that speaks the same API as the official one: a reseller gateway, a regional proxy, a self-hosted deployment. Set `baseURL` and the engine appends its documented path to it (`/search` for tavily and exa, `/v2/search` and `/v2/scrape` for firecrawl), so a base of `https://gw.example.com/tavily` posts to `https://gw.example.com/tavily/search`.
+
+```bash
+modsearch config set tavily.baseURL https://gw.example.com/tavily
+modsearch config set tavily.baseURL ""        # back to the official endpoint
+# or per run: export TAVILY_BASE_URL=... / EXA_BASE_URL=... / FIRECRAWL_BASE_URL=...
+```
+
+The API key is sent to whatever host the base names. That is the point, and it is also the trust decision: only name a host you would hand that key to.
 
 ### grok-cli (X, rides a SuperGrok or X Premium subscription)
 

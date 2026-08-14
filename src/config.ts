@@ -21,6 +21,14 @@ export interface EngineSettings {
   apiKey?: string;
   model?: string;
   bin?: string;
+  /**
+   * Endpoint base for the HTTP engines (tavily, exa, firecrawl), replacing the
+   * official host: a third-party compatible gateway, a proxy, a self-hosted
+   * deployment. The engine appends its documented path (`/search`, `/v2/scrape`)
+   * and sends its API key to whatever host this names, which is exactly the
+   * point and exactly the risk: only name a host you trust with that key.
+   */
+  baseURL?: string;
 }
 
 export interface ModsearchConfig {
@@ -56,12 +64,12 @@ export function currentConfigPath(): string {
 }
 
 const ENV_BINDINGS: Record<string, Partial<Record<keyof EngineSettings, string>>> = {
-  tavily: { apiKey: 'TAVILY_API_KEY' },
-  exa: { apiKey: 'EXA_API_KEY' },
-  firecrawl: { apiKey: 'FIRECRAWL_API_KEY' },
+  tavily: { apiKey: 'TAVILY_API_KEY', baseURL: 'TAVILY_BASE_URL' },
+  exa: { apiKey: 'EXA_API_KEY', baseURL: 'EXA_BASE_URL' },
+  firecrawl: { apiKey: 'FIRECRAWL_API_KEY', baseURL: 'FIRECRAWL_BASE_URL' },
 };
 
-const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = ['apiKey', 'model', 'bin'];
+const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = ['apiKey', 'model', 'bin', 'baseURL'];
 
 /** Engines that used to be pinned globally, mapped to the role they serve. */
 const LEGACY_ENGINE_ROLES: Record<string, Role> = {
@@ -133,7 +141,9 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   const hasLegacy = Boolean(raw.providers || raw.provider || raw.search || raw.fetch || raw.social);
 
   // A top-level string form ("true"/"false") is coerced here too.
-  let allowPrivateNetwork = coerceBoolean((raw as { allowPrivateNetwork?: unknown }).allowPrivateNetwork);
+  let allowPrivateNetwork = coerceBoolean(
+    (raw as { allowPrivateNetwork?: unknown }).allowPrivateNetwork,
+  );
 
   // Merge per engine, not per map: a new `engines.tavily.model` next to an old
   // `providers.tavily.apiKey` used to drop the key entirely. The retired
@@ -294,11 +304,32 @@ export function setConfigValue(
         `Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`,
       );
     }
+    if (field === 'baseURL') {
+      const trimmed = value.trim();
+      // Empty unsets the override, back to the official endpoint. Anything else
+      // must be a full origin, refused here rather than as a confusing fetch
+      // failure at search time.
+      if (trimmed === '') {
+        delete config.engines?.[engineName]?.baseURL;
+        writeConfigFile(config, configPath);
+        return;
+      }
+      if (!/^https?:\/\//i.test(trimmed)) {
+        throw new Error(
+          `Invalid baseURL: ${value}. Use a full http(s) URL, e.g. https://api.example.com`,
+        );
+      }
+      value = trimmed;
+    }
     config.engines ??= {};
     config.engines[engineName] ??= {};
     config.engines[engineName][field as keyof EngineSettings] = value;
   }
 
+  writeConfigFile(config, configPath);
+}
+
+function writeConfigFile(config: ModsearchConfig, configPath: string): void {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
   try {
@@ -378,7 +409,9 @@ export function renderEffectiveConfig(
   // value wins over the file, so it overwrites the tag too.
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
     const canonical = CANONICAL_ENGINE[engineName] ?? engineName;
-    for (const [field, envName] of Object.entries(bindings) as Array<[keyof EngineSettings, string]>) {
+    for (const [field, envName] of Object.entries(bindings) as Array<
+      [keyof EngineSettings, string]
+    >) {
       const value = env[envName]?.trim();
       if (!value) {
         continue;

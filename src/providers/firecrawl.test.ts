@@ -19,10 +19,7 @@ afterEach(() => {
 });
 
 /** Mock the global fetch with a JSON response, capturing each request. */
-function mockFetchJson(
-  body: unknown,
-  init: { ok?: boolean; status?: number; text?: string } = {},
-) {
+function mockFetchJson(body: unknown, init: { ok?: boolean; status?: number; text?: string } = {}) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fn = vi.fn(async (url: string, requestInit: RequestInit) => {
     calls.push({ url, init: requestInit });
@@ -71,7 +68,12 @@ describe('firecrawl search path', () => {
 
   it('still requires an API key for fetch', async () => {
     await expect(
-      executeFirecrawl({ mode: 'fetch', url: 'https://example.com/', timeoutMs: 1000, settings: {} }),
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'https://example.com/',
+        timeoutMs: 1000,
+        settings: {},
+      }),
     ).rejects.toThrow(/needs an API key \(search works keyless\)/);
   });
 
@@ -95,6 +97,29 @@ describe('firecrawl search path', () => {
     expect(sent.sources).toEqual(['web']);
     expect(sent.timeout).toBeGreaterThan(0);
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('posts both roles to a configured baseURL, trailing slash folded', async () => {
+    const searchCalls = mockFetchJson({ success: true, data: { web: [] } });
+    await executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: { baseURL: 'https://gw.example.com/fc/' },
+    });
+    expect(searchCalls[0].url).toBe('https://gw.example.com/fc/v2/search');
+
+    const scrapeCalls = mockFetchJson({
+      success: true,
+      data: { markdown: '# t', links: [], metadata: { statusCode: 200 } },
+    });
+    await executeFirecrawl({
+      mode: 'fetch',
+      url: 'http://93.184.216.34/page',
+      timeoutMs: 30000,
+      settings: { apiKey: 'fc-test', baseURL: 'https://gw.example.com/fc' },
+    });
+    expect(scrapeCalls[0].url).toBe('https://gw.example.com/fc/v2/scrape');
   });
 
   it('maps web results into the search contract with description as snippet', async () => {
@@ -154,7 +179,12 @@ describe('firecrawl search path', () => {
     );
     vi.stubGlobal('fetch', fn);
     await expect(
-      executeFirecrawl({ mode: 'search', query: 'q', timeoutMs: 20, settings: { apiKey: 'fc-test' } }),
+      executeFirecrawl({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 20,
+        settings: { apiKey: 'fc-test' },
+      }),
     ).rejects.toThrow(/firecrawl timed out after 20 ms/);
     expect(sawAbort).toBe(true);
   });
@@ -207,7 +237,10 @@ describe('firecrawl fetch path', () => {
     expect(result.content).toContain('Body text');
     // Links are trimmed to 20 to match the http engine.
     expect(result.links).toHaveLength(20);
-    expect(result.links[0]).toEqual({ text: 'https://a.example.com/l0', url: 'https://a.example.com/l0' });
+    expect(result.links[0]).toEqual({
+      text: 'https://a.example.com/l0',
+      url: 'https://a.example.com/l0',
+    });
     expect(result.summary).toContain('Title');
     expect(result.warnings.join(' ')).toMatch(/Firecrawl|JavaScript|cloud/i);
     // Content under the cap is never flagged as truncated.
@@ -234,7 +267,11 @@ describe('firecrawl fetch path', () => {
   it('treats a non-2xx page statusCode as a failure', async () => {
     mockFetchJson({
       success: true,
-      data: { markdown: '', links: [], metadata: { statusCode: 404, sourceURL: 'http://93.184.216.34/x' } },
+      data: {
+        markdown: '',
+        links: [],
+        metadata: { statusCode: 404, sourceURL: 'http://93.184.216.34/x' },
+      },
     });
     await expect(
       executeFirecrawl({
@@ -284,7 +321,11 @@ describe('firecrawl fetch path', () => {
     lookupMock.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
     const calls = mockFetchJson({
       success: true,
-      data: { markdown: 'ok content here that is long enough', links: [], metadata: { statusCode: 200 } },
+      data: {
+        markdown: 'ok content here that is long enough',
+        links: [],
+        metadata: { statusCode: 200 },
+      },
     });
     await expect(
       executeFirecrawl({
@@ -321,14 +362,24 @@ describe('firecrawl error classification', () => {
       { ok: false, status: 402, text: 'insufficient credits' },
     );
     await expect(
-      executeFirecrawl({ mode: 'search', query: 'q', timeoutMs: 30000, settings: { apiKey: 'fc-test' } }),
+      executeFirecrawl({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+      }),
     ).rejects.toThrow(/credit|quota|payment/i);
   });
 
   it('treats 401 as a key problem with a config-set fix', async () => {
     mockFetchJson({ error: 'unauthorized' }, { ok: false, status: 401, text: 'unauthorized' });
     await expect(
-      executeFirecrawl({ mode: 'search', query: 'q', timeoutMs: 30000, settings: { apiKey: 'bad' } }),
+      executeFirecrawl({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 30000,
+        settings: { apiKey: 'bad' },
+      }),
     ).rejects.toThrow(/config set firecrawl\.apiKey/);
   });
 });

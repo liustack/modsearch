@@ -124,9 +124,9 @@ describe('config file', () => {
   });
 
   it('renders the top-level allowPrivateNetwork with its source', () => {
-    expect(JSON.parse(renderEffectiveConfig({ allowPrivateNetwork: true }, {})).allowPrivateNetwork).toBe(
-      'true (file)',
-    );
+    expect(
+      JSON.parse(renderEffectiveConfig({ allowPrivateNetwork: true }, {})).allowPrivateNetwork,
+    ).toBe('true (file)');
     expect(JSON.parse(renderEffectiveConfig({}, {})).allowPrivateNetwork).toBe('false (default)');
   });
 
@@ -136,6 +136,26 @@ describe('config file', () => {
       engineSettings('tavily', config, { TAVILY_API_KEY: 'from-env' } as NodeJS.ProcessEnv).apiKey,
     ).toBe('from-env');
     expect(engineSettings('tavily', config, {} as NodeJS.ProcessEnv).apiKey).toBe('from-file');
+  });
+
+  it('stores, env-overrides, validates, and unsets an engine baseURL', () => {
+    const p = tempConfigPath();
+    setConfigValue('tavily.baseURL', 'https://gw.example.com/tavily/', p);
+    expect(loadConfigFile(p).engines?.tavily?.baseURL).toBe('https://gw.example.com/tavily/');
+
+    const config = loadConfigFile(p);
+    expect(
+      engineSettings('tavily', config, {
+        TAVILY_BASE_URL: 'https://env.example.com',
+      } as NodeJS.ProcessEnv).baseURL,
+    ).toBe('https://env.example.com');
+
+    // Not a URL: refused at write time, not as a fetch failure at search time.
+    expect(() => setConfigValue('exa.baseURL', 'api.example.com', p)).toThrow(/full http\(s\) URL/);
+
+    // Empty unsets the override, back to the official endpoint.
+    setConfigValue('tavily.baseURL', '', p);
+    expect(loadConfigFile(p).engines?.tavily?.baseURL).toBeUndefined();
   });
 
   it('init writes only the shape, never baked-in defaults', () => {
@@ -175,9 +195,12 @@ describe('config file', () => {
   });
 
   it('lets an env key override the file key, keeping the env tag', () => {
-    const rendered = renderEffectiveConfig({ engines: { tavily: { apiKey: 'tvly-fromfile12345' } } }, {
-      TAVILY_API_KEY: 'tvly-fromenv123456',
-    } as NodeJS.ProcessEnv);
+    const rendered = renderEffectiveConfig(
+      { engines: { tavily: { apiKey: 'tvly-fromfile12345' } } },
+      {
+        TAVILY_API_KEY: 'tvly-fromenv123456',
+      } as NodeJS.ProcessEnv,
+    );
     const parsed = JSON.parse(rendered);
     expect(parsed.engines.tavily.apiKey).toMatch(/\(env\)$/);
     expect(parsed.engines.tavily.apiKey).not.toContain('fromfile');
