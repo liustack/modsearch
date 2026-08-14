@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 5.4.1 - 2026-08-14
 
+- The positioning is corrected everywhere it was wrong: modsearch is for models **without native web access**, not for "text-only LLMs" (text-only describes missing vision, which is modlens's problem; a fully multimodal model behind a provider that ships no search tool needs modsearch just the same). Reworded: both READMEs' taglines and demo captions, the npm package description, the skill description, the CLI help line, the engine prompts, the GitHub About and topics, and the four image assets that carried the old subtitle (banner, social preview, both flow diagrams).
 - Every user-facing doc now ships a Chinese edition (`*.zh-CN.md`): the configuration guide, CLI manual, runtime reference, output contract, harness setup, troubleshooting, and security. Each pair carries a language switcher under its title, the Chinese README links to the Chinese editions throughout, and a new drift test keeps the translated output-contract envelopes structurally identical to the English ones. The engine roster also moved onto the README's first screen: a hero line names every engine, and the "Supported engines" table now sits above Installation. Fixed a stale root-relative link in the CLI manual along the way.
 
 ## 5.4.0 - 2026-08-14

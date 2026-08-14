@@ -22,7 +22,7 @@ const program = new Command();
 program
   .name('modsearch')
   .description(
-    'Plug-in web search and page fetch for text-only LLMs: query or URL in, structured JSON evidence out',
+    'Plug-in web search and page fetch for models without native web access: query or URL in, structured JSON evidence out',
   )
   .version(__APP_VERSION__);
 

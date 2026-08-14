@@ -35,7 +35,7 @@ export function buildXSearchPrompt(query: string, maxResults: number): string {
   const capped = Math.max(1, Math.floor(maxResults));
   return `Search X (formerly Twitter) for: ${query.trim()}
 
-You are an X evidence engine for a text-only LLM.
+You are an X evidence engine for an LLM that has no web access of its own.
 Use your X search capability to find real, current posts. Web search may only supplement context around them.
 
 Rules:

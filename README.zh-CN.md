@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>为纯文本模型补上联网能力：网页搜索、X 搜索、单页抓取。</b></p>
+<p align="center"><b>为不能联网的模型补上联网能力：网页搜索、X 搜索、单页抓取。</b></p>
 
 <p align="center">🌐 <b>DeepSeek Harness (dsh) 的 web 插件</b> 🌐</p>
 
@@ -78,11 +78,11 @@ agy                                                           # 浏览器完成�
 
 ## 实测
 
-两张截图均为 Codex 桌面 App 中的原样记录，驱动的是纯文本的 DeepSeek-V4-Flash。
+两张截图均为 Codex 桌面 App 中的原样记录，驱动的是自身不能联网的 DeepSeek-V4-Flash。
 
 给出一个博客链接，询问文章内容。25 秒后返回全文的结构化摘要，全程未打开浏览器。
 
-![纯文本 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+![不能联网的 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
 
 不指定目标，只问「今天有什么有趣的 AI 新闻」。36 秒后返回六条带来源的结果，并在结尾说明哪些信息来自检索聚合、细节可能有出入。该提醒来自 `uncertainty` 字段。
 

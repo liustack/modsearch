@@ -1,6 +1,6 @@
 ---
 name: modsearch
-description: "Plug-in web search, X (Twitter) search, and page fetch for text-only models. Use whenever the task needs current information, external facts, source links, posts from X, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also use when the user asks how to install or configure modsearch, or wants to switch engines or add a key."
+description: "Plug-in web search, X (Twitter) search, and page fetch for models without native web access. Use whenever the task needs current information, external facts, source links, posts from X, or the content of a specific URL, and the active model/harness has no native search or fetch tool. Runs the modsearch CLI to return structured JSON evidence. Also use when the user asks how to install or configure modsearch, or wants to switch engines or add a key."
 compatibility: Requires network access and one of node 22+/npx, bun/bunx, or a preinstalled modsearch binary on PATH.
 allowed-tools: Bash
 ---

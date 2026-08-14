@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>Give a text-only model the web: search, X, and any page.</b></p>
+<p align="center"><b>Give the web to any model without it: search, X, and any page.</b></p>
 
 <p align="center">🌐 <b>The web plugin for DeepSeek Harness (dsh)</b> 🌐</p>
 
@@ -78,7 +78,7 @@ Once installed, just chat. Ask anything that needs checking, or paste a URL, and
 
 ## See it work
 
-Both screenshots are unedited runs from the Codex desktop app, driving a text-only DeepSeek-V4-Flash.
+Both screenshots are unedited runs from the Codex desktop app, driving a DeepSeek-V4-Flash that has no web access of its own.
 
 Give it a blog link and ask what the post says. Twenty-five seconds later: a structured summary of the whole post, with no browser involved.
 
