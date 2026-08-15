@@ -27,6 +27,8 @@ npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest
 
 引擎、key、路由继续放在 `~/.modsearch/config.json`，与其他所有宿主共用。dsh 还在开发者预览期，插件接口可能变化。这个插件刻意把接触面压到最小（一次 provider 注册，两次原始工具注册），任何一处变了都会在宿主日志里大声降级。dsh 提示 `declares no dsh.bundle` 的话，是 pnpm 的发布时长门槛装到了旧版本：带上显式 `@latest` 重跑一遍。
 
+dsh 跑在 Electron 桌面宿主里时，插件也能正常工作。Electron 会让 `process.execPath` 指向桌面应用本身，因此插件启动 CLI 子进程时会显式设置 `ELECTRON_RUN_AS_NODE=1`。这样随包附带的 `dist/main.js` 会由 Node 执行，不会作为参数重新交给桌面应用。
+
 ## Codex（以及其他 DeepSeek 环境）
 
 DeepSeek 官方端点自带服务端 `web_search` 工具，由 Codex 说的 Responses API 和 Claude Code 说的 Anthropic 兼容端点承载。把两者之一指向 `api.deepseek.com` 并设 `web_search = "live"`，搜索就已经有了（见[官方接入指南](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)）。

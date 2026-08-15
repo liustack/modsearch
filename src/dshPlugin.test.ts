@@ -100,9 +100,16 @@ function toolNamed(tools: Map<string, RegisteredTool>, name: string): Registered
 }
 
 const created: string[] = [];
+const originalElectronRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
 
 afterEach(() => {
   delete process.env.MODSEARCH_DSH_CLI;
+  if (originalElectronRunAsNode === undefined) {
+    delete process.env.ELECTRON_RUN_AS_NODE;
+  } else {
+    process.env.ELECTRON_RUN_AS_NODE = originalElectronRunAsNode;
+  }
+  Reflect.deleteProperty(process.versions, 'electron');
   while (created.length > 0) {
     fs.rmSync(created.pop() as string, { recursive: true, force: true });
   }
@@ -139,6 +146,26 @@ const okSearchEntry = {
 };
 
 describe('dsh web search provider', () => {
+  it('runs the CLI in Node mode when the plugin is hosted by Electron', async () => {
+    delete process.env.ELECTRON_RUN_AS_NODE;
+    Object.defineProperty(process.versions, 'electron', {
+      value: '43.4.0',
+      configurable: true,
+    });
+    fakeCli(`
+      if (process.env.ELECTRON_RUN_AS_NODE !== '1') {
+        process.stderr.write('Electron Node mode was not enabled');
+        process.exit(1);
+      }
+      console.log(JSON.stringify({ results: [${JSON.stringify(okSearchEntry)}] }));
+    `);
+
+    const { providers } = await load();
+    await expect(providers[0].search({ query: 'anything' })).resolves.toMatchObject({
+      content: expect.stringContaining('What the web says.'),
+    });
+  });
+
   it('maps the CLI envelope to the seam result shape', async () => {
     const { providers } = await load();
     expect(providers).toHaveLength(1);

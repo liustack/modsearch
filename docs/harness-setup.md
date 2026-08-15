@@ -27,6 +27,8 @@ Three things land at once:
 
 Engines, keys, and routing keep living in `~/.modsearch/config.json`, shared with every other harness. dsh is in developer preview and its plugin surface may change; the plugin keeps its touch small (one provider registration, two raw tool registrations) and degrades loudly in the harness log if any of it moves. If dsh warns `declares no dsh.bundle`, pnpm's release-age gate installed an old version: repeat the command with the explicit `@latest`.
 
+The plugin also works when dsh runs inside an Electron desktop host. Electron exposes the desktop application as `process.execPath`, so the plugin explicitly starts its CLI child with `ELECTRON_RUN_AS_NODE=1`. The bundled `dist/main.js` then runs under Node instead of being passed back to the desktop application as arguments.
+
 ## Codex (and other DeepSeek setups)
 
 DeepSeek's official endpoints ship a server-side `web_search` tool, carried by the Responses API that Codex speaks and the Anthropic-compatible endpoint that Claude Code speaks. Point either at `api.deepseek.com` with `web_search = "live"` and you already have search (see the [official integration guide](https://api-docs.deepseek.com/quick_start/agent_integrations/codex/)).

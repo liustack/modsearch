@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.4.2 - 2026-08-15
+
+- The dsh plugin now launches its bundled CLI correctly from Electron desktop hosts on Windows. Electron makes `process.execPath` point at the desktop executable, so the child launch explicitly enables `ELECTRON_RUN_AS_NODE=1` when `process.versions.electron` is present. This prevents `dist/main.js` and the search flags from being handed back to `DeepSeek Harness.exe` as application arguments. A regression test simulates the Electron host boundary and fails unless the CLI child receives Node mode.
+
 ## 5.4.1 - 2026-08-14
 
 - The positioning is corrected everywhere it was wrong: modsearch is for models **without native web access**, not for "text-only LLMs" (text-only describes missing vision, which is modlens's problem; a fully multimodal model behind a provider that ships no search tool needs modsearch just the same). Reworded: both READMEs' taglines and demo captions, the npm package description, the skill description, the CLI help line, the engine prompts, the GitHub About and topics, and the four image assets that carried the old subtitle (banner, social preview, both flow diagrams).

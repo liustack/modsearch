@@ -230,7 +230,12 @@ function registerReadPageTool(ctx) {
  */
 async function runCli(args, signal) {
   const cli = process.env.MODSEARCH_DSH_CLI || CLI_PATH;
-  const { stdout, stderr, code } = await run(process.execPath, [cli, ...args], signal);
+  // Electron exposes the desktop executable as process.execPath. Its child
+  // must enter Node mode or the CLI path and flags are handed back to the app.
+  const env = process.versions.electron
+    ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    : process.env;
+  const { stdout, stderr, code } = await run(process.execPath, [cli, ...args], signal, env);
   if (code !== 0) {
     throw new Error(`modsearch failed (exit ${code}): ${(stderr || stdout).trim().slice(0, 500)}`);
   }
@@ -326,9 +331,9 @@ function renderFetchEvidence(value) {
   return lines.join('\n');
 }
 
-function run(command, args, signal) {
+function run(command, args, signal, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], signal });
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], signal, env });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {
