@@ -71,6 +71,12 @@ The Antigravity CLI search path requires `agy` installed and signed in. A run ta
 - `pnpm typecheck && pnpm test` for unit-level checks (mode resolution, invocation building, output parsing).
 - Real end-to-end runs consume the user's agy quota. Ask before running them in bulk.
 
+## Release Policy
+
+- Use patch releases for routine fixes and features. After `5.4.1`, the next release is `5.4.2`.
+- Do not bump the minor or major version unless the user explicitly changes this policy.
+- Prepare releases with `pnpm release patch`.
+
 ## Evals (`evals/`)
 
 Unit tests stay offline and prove the logic. Evals run the built CLI end to end
