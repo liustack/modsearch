@@ -1,7 +1,6 @@
-// Version stamping for the skill launchers. `scripts/release.mjs` calls
-// stampLaunchers() at release time so the pinned version inside run.sh,
-// run.ps1, references/runtime.md, and the SKILL.md no-script fallback can
-// never drift from package.json by hand. The drift test
+// Version stamping for the skill launchers and dsh install docs.
+// `scripts/release.mjs` calls stampLaunchers() at release time so every pinned
+// package version moves with package.json. The drift test
 // (scripts/stamp.test.mjs) reads the same files back and asserts they match.
 // Keeping the read and the write in one module is what keeps the two in step.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -79,13 +78,36 @@ export function stampTargets(base, pkgName) {
   ];
 }
 
+/** The README and harness guide commands that install a named dsh version. */
+export function dshInstallTargets(root, pkgName) {
+  const escaped = pkgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const target = (name, file, profile) => ({
+    name,
+    file: join(root, file),
+    pattern: new RegExp(`--profile ${profile} add ${escaped}@(\\d+\\.\\d+\\.\\d+)`),
+    format: (version) => `--profile ${profile} add ${pkgName}@${version}`,
+  });
+  return [
+    target('README.md dsh install', 'README.md', 'web'),
+    target('README.zh-CN.md dsh install', 'README.zh-CN.md', 'web'),
+    target('harness-setup.md dsh install', 'docs/harness-setup.md', 'web'),
+    target('harness-setup.md dsh update', 'docs/harness-setup.md', '<name>'),
+    target('harness-setup.zh-CN.md dsh install', 'docs/harness-setup.zh-CN.md', 'web'),
+    target('harness-setup.zh-CN.md dsh update', 'docs/harness-setup.zh-CN.md', '<name>'),
+  ];
+}
+
+function allStampTargets(root, pkg) {
+  const base = join(root, 'skills', pkg.name.split('/').pop());
+  return [...stampTargets(base, pkg.name), ...dshInstallTargets(root, pkg.name)];
+}
+
 /** Rewrite every launcher/reference version line to the package version. */
 export function stampLaunchers(root = repoRoot) {
   const pkg = readPackage(root);
   const version = pkg.version;
-  const base = join(root, 'skills', skillName(root));
   const stamped = [];
-  for (const target of stampTargets(base, pkg.name)) {
+  for (const target of allStampTargets(root, pkg)) {
     const before = readFileSync(target.file, 'utf-8');
     if (!target.pattern.test(before)) {
       throw new Error(`No version line to stamp in ${target.file}`);
@@ -101,8 +123,8 @@ export function stampLaunchers(root = repoRoot) {
 
 /** The version currently written in each launcher/reference file. */
 export function readStampedVersions(root = repoRoot) {
-  const base = join(root, 'skills', skillName(root));
-  return stampTargets(base, readPackage(root).name).map((target) => {
+  const pkg = readPackage(root);
+  return allStampTargets(root, pkg).map((target) => {
     const match = readFileSync(target.file, 'utf-8').match(target.pattern);
     return { name: target.name, file: target.file, version: match ? match[1] : null };
   });

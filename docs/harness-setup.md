@@ -16,7 +16,7 @@ English | [简体中文](harness-setup.zh-CN.md)
 dsh is different from the other harnesses: modsearch plugs in natively, not as a prompt-triggered skill. The package itself is a dsh bundle, so one command installs it into a profile:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.2
 ```
 
 Three things land at once:
@@ -25,9 +25,27 @@ Three things land at once:
 - **`x_search`** covers the corpus dsh has no seam for. Routed to Grok Build when it is installed and signed in; a web stand-in answer is marked degraded in the tool output, never silent.
 - **`read_page`** reads one URL into structured evidence (summary, extracted content, links, uncertainty), with an optional answer focus. dsh ships its own `web_fetch` disabled because that provider defers SSRF protection; modsearch's fetch blocks private-network targets by default, and the tool exposes no override for that.
 
-Engines, keys, and routing keep living in `~/.modsearch/config.json`, shared with every other harness. dsh is in developer preview and its plugin surface may change; the plugin keeps its touch small (one provider registration, two raw tool registrations) and degrades loudly in the harness log if any of it moves. If dsh warns `declares no dsh.bundle`, pnpm's release-age gate installed an old version: repeat the command with the explicit `@latest`.
+Engines, keys, and routing keep living in `~/.modsearch/config.json`, shared with every other harness. dsh is in developer preview and its plugin surface may change. The plugin keeps its touch small (one provider registration and two raw tool registrations) and degrades loudly in the harness log if any of it moves. If dsh warns `declares no dsh.bundle`, pnpm's release-age gate installed an old version. Reinstall with the named version below.
 
 The plugin also works when dsh runs inside an Electron desktop host. Electron exposes the desktop application as `process.execPath`, so the plugin explicitly starts its CLI child with `ELECTRON_RUN_AS_NODE=1`. The bundled `dist/main.js` then runs under Node instead of being passed back to the desktop application as arguments.
+
+### Keeping it up to date
+
+To install the current release or refresh an existing profile, rerun `add` with the version named:
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.4.2
+```
+
+`npm view @liustack/modsearch version` prints the current version. This page is stamped with the package version by the release process. Reusing `add` is deliberate because it replaces the profile's recorded request with the exact version named above. Do not substitute `update`, which stays inside the recorded semver request and lets pnpm select through its release-age filter again.
+
+The named version rather than `@latest` is deliberate. pnpm 11 holds back releases published in the last 24 hours through `minimumReleaseAge`, which is enabled by default, then resolves the dist-tag against the versions that survive the filter. As a result, `@latest` silently installs an older release instead of skipping the gate. An exact version avoids that dist-tag resolution. Since pnpm 11.1.3, the default loose mode records an immature exact pick under `minimumReleaseAgeExclude` in the profile's `pnpm-workspace.yaml` and continues, while leaving the release-age window in place for everything else.
+
+Restart dsh, then confirm what actually landed:
+
+```sh
+npx -y @deepseek-ai/dsh plugin --profile <name> list
+```
 
 ## Codex (and other DeepSeek setups)
 

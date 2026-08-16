@@ -80,8 +80,8 @@ runLoud('pnpm', ['build']);
 // --- from here on it is real ---
 
 writeFileSync(pkgPath, pkgRaw.replace(`"version": "${pkg.version}"`, `"version": "${next}"`));
-// Stamp the new version into the skill launchers and runtime.md, so the pinned
-// version can never drift from package.json. The commit below picks them up.
+// Stamp the new version into the skill launchers, runtime reference, and dsh
+// install docs so every pinned version moves with package.json.
 stampLaunchers(root);
 run('git', ['commit', '-am', `chore(release): v${next}`]);
 run('git', ['tag', '-a', `v${next}`, '-m', `v${next}`]);
