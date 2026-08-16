@@ -6,7 +6,7 @@
 
 <p align="center"><b>为不能联网的模型补上联网能力：网页搜索、X 搜索、单页抓取。</b></p>
 
-<p align="center">🌐 <b>DeepSeek Harness (dsh) 的 web 插件</b> 🌐</p>
+<p align="center">🌐 <b>全网最强的 DeepSeek Harness (dsh) 联网搜索插件</b> 🌐</p>
 
 <p align="center">引擎：<b>Antigravity CLI</b>（免费，默认）· <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok（X）</b> · <b>local</b>，自动故障转移</p>
 
@@ -36,7 +36,7 @@ DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch �
 
 ## 特性
 
-- **🌐 DeepSeek Harness (dsh) 的 web 插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
+- **🌐 全网最强的 DeepSeek Harness (dsh) 联网搜索插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
 - **完全免费。** 默认走 Antigravity CLI 通道，无需 API key。三个备用通道（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
 - **自动故障转移。** 一个通道失败或额度耗尽时自动切换下一个。
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。

@@ -6,7 +6,7 @@
 
 <p align="center"><b>Give the web to any model without it: search, X, and any page.</b></p>
 
-<p align="center">🌐 <b>The web plugin for DeepSeek Harness (dsh)</b> 🌐</p>
+<p align="center">🌐 <b>The most powerful web search plugin for DeepSeek Harness (dsh)</b> 🌐</p>
 
 <p align="center">Engines: <b>Antigravity CLI</b> (free, default) · <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok (X)</b> · <b>local</b>, with automatic failover</p>
 
@@ -36,7 +36,7 @@ Something broken, or something missing? [Open an issue](https://github.com/liust
 
 ## Features
 
-- **🌐 The web plugin for DeepSeek Harness (dsh):** one command, `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`, and dsh's built-in `web_search` runs on the modsearch engine chain with no API key, keeping its native citation cards. Two tools dsh does not have land beside it: `x_search` for X (Twitter) and `read_page` for focused single-page reading. Details in [harness setup](docs/harness-setup.md#deepseek-harness-dsh).
+- **🌐 The most powerful web search plugin for DeepSeek Harness (dsh):** one command, `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@latest`, and dsh's built-in `web_search` runs on the modsearch engine chain with no API key, keeping its native citation cards. Two tools dsh does not have land beside it: `x_search` for X (Twitter) and `read_page` for focused single-page reading. Details in [harness setup](docs/harness-setup.md#deepseek-harness-dsh).
 - **Completely free.** The default channel is Antigravity CLI, no API key needed. All three fallback channels (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
 - **Automatic failover.** When a channel fails or exhausts its quota, the next one takes over.
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
