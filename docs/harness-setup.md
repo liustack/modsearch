@@ -16,7 +16,7 @@ English | [简体中文](harness-setup.zh-CN.md)
 dsh is different from the other harnesses: modsearch plugs in natively, not as a prompt-triggered skill. The package itself is a dsh bundle, so one command installs it into a profile:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.2
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.3
 ```
 
 Three things land at once:
@@ -34,7 +34,7 @@ The plugin also works when dsh runs inside an Electron desktop host. Electron ex
 To install the current release or refresh an existing profile, rerun `add` with the version named:
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.4.2
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.4.3
 ```
 
 `npm view @liustack/modsearch version` prints the current version. This page is stamped with the package version by the release process. Reusing `add` is deliberate because it replaces the profile's recorded request with the exact version named above. Do not substitute `update`, which stays inside the recorded semver request and lets pnpm select through its release-age filter again.

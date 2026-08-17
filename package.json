@@ -1,6 +1,6 @@
 {
   "name": "@liustack/modsearch",
-  "version": "5.4.2",
+  "version": "5.4.3",
   "description": "Plug-in web search, X search, and page fetch for models without native web access, powered by the free Antigravity CLI",
   "type": "module",
   "bin": {
