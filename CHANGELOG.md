@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.4.3 - 2026-08-17
+
+- The CLI now forces Commander's Node argument layout when it runs through an Electron executable with `ELECTRON_RUN_AS_NODE=1`. This keeps the script path out of the default search command's positional arguments, so the dsh plugin can use `web_search`, `x_search`, and `read_page` from Electron desktop hosts.
+
 ## 5.4.2 - 2026-08-15
 
 - The dsh plugin now launches its bundled CLI correctly from Electron desktop hosts on Windows. Electron makes `process.execPath` point at the desktop executable, so the child launch explicitly enables `ELECTRON_RUN_AS_NODE=1` when `process.versions.electron` is present. This prevents `dist/main.js` and the search flags from being handed back to `DeepSeek Harness.exe` as application arguments. A regression test simulates the Electron host boundary and fails unless the CLI child receives Node mode.
