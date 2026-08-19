@@ -36,11 +36,11 @@ Nothing else needs setting up first: modsearch works with no config file. Web se
 
 ### If you cannot run the launcher script
 
-Some harnesses forbid running scripts. Reason through the same order by hand and run the first line that works (the pinned version is 5.5.0):
+Some harnesses forbid running scripts. Reason through the same order by hand and run the first line that works (the pinned version is 5.6.0):
 
-1. A `modsearch` on `PATH` whose major version is 5 and is at least 5.5.0: `modsearch <args>`.
-2. Otherwise, if `npx` exists: `npx --yes --package @liustack/modsearch@5.5.0 modsearch <args>`.
-3. Otherwise, if `bunx` exists: `bunx --bun @liustack/modsearch@5.5.0 <args>`.
+1. A `modsearch` on `PATH` whose major version is 5 and is at least 5.6.0: `modsearch <args>`.
+2. Otherwise, if `npx` exists: `npx --yes --package @liustack/modsearch@5.6.0 modsearch <args>`.
+3. Otherwise, if `bunx` exists: `bunx --bun @liustack/modsearch@5.6.0 <args>`.
 4. Otherwise none of these runtimes is here. Tell the user no JavaScript runtime was found and that installing Node 22.13+ (https://nodejs.org) or Bun (https://bun.sh) is the next step. Do not claim modsearch itself failed.
 
 `references/runtime.md` documents the version pin, the compatibility rule, and the diagnostic fields.

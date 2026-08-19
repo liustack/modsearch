@@ -18,7 +18,7 @@ dsh 和其他宿主不一样：modsearch 以原生插件接入，不走提示词
 插件开关、profile patch、运行时验证、更新方法和兼容性检查见独立的 [dsh 插件指南](dsh.zh-CN.md)。
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.5.0
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.6.0
 ```
 
 一次落地三件事：
@@ -36,7 +36,7 @@ dsh 跑在 Electron 桌面宿主里时，插件也能正常工作。Electron 会
 安装当前版本或刷新已有 profile 时，重跑 `add` 并点名版本号：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.5.0
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.6.0
 ```
 
 `npm view @liustack/modsearch version` 可以查到当前版本号。本页的版本号由发布流程自动同步。这里继续使用 `add` 也是有意的，因为它会用上面点名的精确版本替换 profile 中记录的安装请求。不要换成 `update`，后者只在已记录的 semver 请求内更新，还会再次让 pnpm 经过发布时长过滤来选版本。
