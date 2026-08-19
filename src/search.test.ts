@@ -358,6 +358,28 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
     }
   }, 40_000);
 
+  itSpawn('scrubs token-shaped secrets from attempts and warnings', async () => {
+    // A failing CLI's stderr loves to echo credentials. The final JSON travels
+    // into terminals and model contexts, so no channel may carry the token.
+    const secret = 'sk-leaked1234567890ABCDEF';
+    const page = await startLocalPage('<html><body><p>a body long enough to not look empty</p></body></html>');
+    try {
+      const bin = fakeEngine({ name: 'agy', code: 1, stderr: `auth failed for ${secret}` });
+      const config: ModsearchConfig = {
+        engine: 'antigravity-cli',
+        allowPrivateNetwork: true,
+        engines: { 'antigravity-cli': { bin } },
+      };
+      const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
+      const rendered = JSON.stringify(result);
+      expect(rendered).not.toContain(secret);
+      // The scrub replaces rather than deletes, so the error stays actionable.
+      expect(rendered).toContain('[redacted]');
+    } finally {
+      await page.close();
+    }
+  }, 40_000);
+
   it('http sorts a thin page into uncertainty and its method notice into warnings', async () => {
     const page = await startLocalPage('<html><body>hi</body></html>');
     try {

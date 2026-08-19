@@ -6,6 +6,7 @@
 // official @tavily/core SDK dragged in ~30 production dependencies (an axios
 // chain with known advisories) to wrap a single POST, so it is gone. See
 // https://docs.tavily.com/documentation/api-reference/endpoint/search
+import { redactSecrets } from '../util/redact.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
 
@@ -72,14 +73,22 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
       throw new Error(`tavily timed out after ${options.timeoutMs} ms.`);
     }
     throw new Error(
-      `tavily request failed: ${error instanceof Error ? error.message : String(error)}`,
+      `tavily request failed: ${redactSecrets(
+        error instanceof Error ? error.message : String(error),
+        [options.settings.apiKey, options.settings.baseURL],
+      )}`,
     );
   } finally {
     clearTimeout(timer);
   }
 
   if (!response.ok) {
-    const detail = (await response.text().catch(() => '')).trim();
+    // The gateway's error body is foreign text that loves to echo the
+    // Authorization header; scrub it before it travels into messages.
+    const detail = redactSecrets((await response.text().catch(() => '')).trim(), [
+      options.settings.apiKey,
+      options.settings.baseURL,
+    ]);
     // Tavily returns 432 (plan usage cap) and 433 (PAYGO cap) for a spent monthly
     // budget. Carry the status code into the message so the cooldown layer reads
     // it as the monthly quota class and holds the engine for a day, not the

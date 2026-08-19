@@ -10,6 +10,7 @@ import {
 } from './providers/index.ts';
 import { parseSources, planRun, SOURCE_ROLE, type SourcePlan } from './router.ts';
 import { runCommand } from './subprocess.ts';
+import { redactSecrets } from './util/redact.ts';
 
 export interface RunSearchOptions {
   query?: string;
@@ -296,7 +297,9 @@ async function runOneSource(
         timeoutMs,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Engines redact their own errors, but attempts and warnings travel into
+      // output and model contexts, so the record gets the belt too.
+      const message = redactSecrets(error instanceof Error ? error.message : String(error));
       failures.push(`${engine.name}: ${message}`);
       attempts.push({
         engine: engine.name,

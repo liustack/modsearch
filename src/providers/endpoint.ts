@@ -1,6 +1,8 @@
 // Endpoint resolution for the HTTP engines (tavily, exa, firecrawl). Its own
-// module with no imports, so providers can use it at runtime without creating
-// a value-level cycle through the registry in index.ts.
+// module (importing only the dependency-free redact util), so providers can
+// use it at runtime without creating a value-level cycle through the registry
+// in index.ts.
+import { maskUrlCredentials } from '../util/redact.ts';
 /**
  * The endpoint an HTTP engine posts to: its documented path on the configured
  * `baseURL` when one is set (a third-party compatible gateway or self-hosted
@@ -15,8 +17,10 @@ export function resolveEndpoint(
 ): string {
   const base = baseURL?.trim() || defaultBase;
   if (!/^https?:\/\//i.test(base)) {
+    // The echoed value goes into logs and issues, so its credentials (if the
+    // malformed string carries any) are masked first.
     throw new Error(
-      `Invalid engine baseURL "${base}". Use a full http(s) URL, e.g. https://api.example.com`,
+      `Invalid engine baseURL "${maskUrlCredentials(base)}". Use a full http(s) URL, e.g. https://api.example.com`,
     );
   }
   return `${base.replace(/\/+$/, '')}${pathname}`;

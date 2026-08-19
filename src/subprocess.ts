@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import type { ProviderInvocation } from './providers/index.ts';
+import { redactSecrets } from './util/redact.ts';
 
 export interface CommandResult {
   stdout: string;
@@ -88,10 +89,15 @@ export function runCommand(
       }
       if (code !== 0) {
         const explained = describeFailure?.({ stdout, stderr, code }) ?? null;
+        // A failing CLI's stderr is foreign text: auth errors love to echo
+        // tokens, so the whole message is scrubbed before it travels into
+        // errors, attempts, and model contexts.
         reject(
           new Error(
-            explained ??
-              `${engineName} engine failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+            redactSecrets(
+              explained ??
+                `${engineName} engine failed with code ${code}.${stderr ? ` stderr: ${stderr.trim()}` : ''}`,
+            ),
           ),
         );
         return;

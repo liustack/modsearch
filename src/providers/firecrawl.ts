@@ -9,6 +9,7 @@
 // or reserved address is meaningless to a cloud crawler, so firecrawl declines
 // it. An automatic chain can then try local. A forced run returns an error.
 // --allow-private-network authorizes local access, never cloud disclosure.
+import { redactSecrets } from '../util/redact.ts';
 import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
@@ -96,7 +97,9 @@ async function ensureOk(response: Response, apiKey: string | null): Promise<void
   if (response.ok) {
     return;
   }
-  const detail = (await response.text().catch(() => '')).trim();
+  // The API's error body is foreign text that loves to echo the Authorization
+  // header; scrub it before it travels into messages.
+  const detail = redactSecrets((await response.text().catch(() => '')).trim(), [apiKey]);
   // A 402 or a credit/quota message is the quota class the cooldown layer reads.
   if (response.status === 402 || /credit|quota|insufficient|payment required/i.test(detail)) {
     throw new Error(

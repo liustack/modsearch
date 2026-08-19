@@ -74,6 +74,7 @@ export const BARE_ENV: NodeJS.ProcessEnv = { PATH: '/nonexistent' };
 export function fakeEngine(options: {
   name?: string;
   stdout?: string;
+  stderr?: string;
   code?: number;
   lingerSeconds?: number;
   /** Sleep this long before printing, to model a slow engine (timing tests). */
@@ -87,6 +88,9 @@ export function fakeEngine(options: {
   }
   if (options.stdout !== undefined) {
     lines.push(`cat <<'ENGINE_EOF'\n${options.stdout}\nENGINE_EOF`);
+  }
+  if (options.stderr !== undefined) {
+    lines.push(`cat >&2 <<'ENGINE_ERR_EOF'\n${options.stderr}\nENGINE_ERR_EOF`);
   }
   if (options.lingerSeconds) {
     // Inherits stdout, which is how agy's language server keeps the pipe open.

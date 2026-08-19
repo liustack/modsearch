@@ -4,6 +4,7 @@
 // score. Exa returns ranked links with highlight snippets but writes no answer,
 // so the summary here is mechanical and a warning tells the reader to work from
 // items directly.
+import { redactSecrets } from '../util/redact.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
 
@@ -68,14 +69,22 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
       throw new Error(`exa timed out after ${options.timeoutMs} ms.`);
     }
     throw new Error(
-      `exa request failed: ${error instanceof Error ? error.message : String(error)}`,
+      `exa request failed: ${redactSecrets(
+        error instanceof Error ? error.message : String(error),
+        [options.settings.apiKey, options.settings.baseURL],
+      )}`,
     );
   } finally {
     clearTimeout(timer);
   }
 
   if (!response.ok) {
-    const detail = (await response.text().catch(() => '')).trim();
+    // The gateway's error body is foreign text that loves to echo the
+    // Authorization header; scrub it before it travels into messages.
+    const detail = redactSecrets((await response.text().catch(() => '')).trim(), [
+      options.settings.apiKey,
+      options.settings.baseURL,
+    ]);
     // A spent balance is a quota error, not a broken key: judge by the response
     // text first, since Exa can return it under several status codes. The
     // cooldown layer reads this wording to recognize the quota class.

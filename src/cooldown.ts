@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { canonicalEngineName, cooldownEnabled, type ModsearchConfig } from './config.ts';
+import { redactSecrets } from './util/redact.ts';
 
 export interface CooldownEntry {
   /** ISO time the engine may be worth trying again. */
@@ -208,7 +209,12 @@ export function recordQuotaCooldown(
   if (!until) {
     return null;
   }
-  const reason = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+  // Redact before truncating: a cut placed inside a secret would hide it from
+  // the exact-match scrub, and doctor renders this reason back to humans.
+  const reason = redactSecrets(error instanceof Error ? error.message : String(error)).slice(
+    0,
+    300,
+  );
   const entry: CooldownEntry = {
     until: until.toISOString(),
     reason,
