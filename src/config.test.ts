@@ -120,6 +120,48 @@ describe('config file', () => {
     expect(parsed.notes?.join(' ')).toContain('unknown engine entry');
   });
 
+  it('scrubs a token-shaped secret nobody declared as a key', () => {
+    // An sk- credential in a model note, and a gateway URL's api_key=
+    // parameter: neither is this engine's apiKey, both are recognizably
+    // secrets, so the shape net removes them.
+    const p = tempConfigPath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engines: {
+          tavily: {
+            apiKey: 'tvly-aaaaaaaaaaaaaaaa',
+            model: 'note sk-secretsecretsecret123 here',
+            baseURL: 'https://gw.example.com/v1?api_key=gateway-token-xyz-123456',
+          },
+        },
+      }),
+    );
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    expect(view).not.toContain('sk-secretsecretsecret123');
+    expect(view).not.toContain('gateway-token-xyz-123456');
+    expect(view).toContain('gw.example.com');
+  });
+
+  it('still scrubs a key the alias fold displaced', () => {
+    // Two alias spellings of one engine each brought a key; the merge keeps
+    // one. The displaced key is gone from the config object but may survive
+    // in another field's text, so the wash set must remember it.
+    const p = tempConfigPath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engines: {
+          agy: { apiKey: 'KEY1-aaaaaaaaaa', model: 'note KEY1-aaaaaaaaaa' },
+          'antigravity-cli': { apiKey: 'KEY2-bbbbbbbbbb' },
+        },
+      }),
+    );
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    expect(view).not.toContain('KEY1-aaaaaaaaaa');
+    expect(view).not.toContain('KEY2-bbbbbbbbbb');
+  });
+
   it('keeps the view valid JSON when a key collides with JSON syntax', () => {
     const p = tempConfigPath();
     setConfigValue('exa.apiKey', '"engines"', p);

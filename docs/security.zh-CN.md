@@ -14,7 +14,7 @@ read_when:
 
 - key 存在 `~/.modsearch/config.json`，文件 0600 权限，目录 0700。`modsearch doctor` 会判定文件权限，权限过宽时给出可直接复制的 `chmod` 修复命令（Windows 没有 POSIX 权限位，跳过判定）。
 - `modsearch config set <engine>.apiKey` 不带值时弹出不回显的输入提示（管道喂一行也行），key 不进 argv、不进 shell 历史、不进 agent 对话的落盘记录。
-- `config show` 可以放心贴进 issue：key 在自己的字段里打码，同时从视图的每一个字符串里洗掉，URL 里的凭据用真实 URL 解析器打码。
+- `config show` 可以放心贴进 issue：key 在自己的字段里打码，同时从视图的每一个字符串里洗掉，URL 里的凭据用真实 URL 解析器打码，token 形状的字符串（`sk-...`、`api_key=...`）即使没人声明它是 key 也会被移除。唯一的诚实边界：一个没有可识别形状、只存在于非密钥字段里的秘密（比如贴进 `model` 的裸 token）无法与普通数据区分，所以不要把秘密存进 `apiKey` 以外的字段。
 - 引用外部文本的错误信息（网关错误体、子进程 stderr）在到达终端、JSON 输出的 `attempts` 与 `warnings`、冷却状态文件之前，都先经过统一脱敏器。
 - 没有 keychain 或凭据管理器集成，也没有静态加密：保护手段就是文件权限加上述输出边界。环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`）可替代文件，且永远不落盘。
 

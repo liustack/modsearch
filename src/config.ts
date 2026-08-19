@@ -4,7 +4,7 @@ import * as path from 'path';
 // Runtime-safe: providers/index.ts imports nothing from this module at runtime
 // (its config import is type-only), so this does not create an import cycle.
 import { findEngine, listEngines } from './providers/index.ts';
-import { maskUrlCredentials } from './util/redact.ts';
+import { maskUrlCredentials, redactSecrets } from './util/redact.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
@@ -164,8 +164,18 @@ export function coerceBoolean(value: unknown): boolean | undefined {
  *   The old `engines.<name>.allowPrivateNetwork` position and the old `"true"`/
  *   `"false"` string form are both read and promoted to the new top-level key.
  */
+/**
+ * Every string apiKey the raw file carried, including ones the alias fold
+ * displaced (two alias spellings of one engine can each bring a key; the merge
+ * keeps one). A displaced key is gone from the config object but may survive
+ * in another field's text, so config show must still know to scrub it. Keyed
+ * by the migrated config object: this never touches the JSON shape.
+ */
+const SEEN_API_KEYS = new WeakMap<ModsearchConfig, string[]>();
+
 export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): ModsearchConfig {
   const hasLegacy = Boolean(raw.providers || raw.provider || raw.search || raw.fetch || raw.social);
+  const seenApiKeys = new Set<string>();
 
   // A top-level string form ("true"/"false") is coerced here too.
   let allowPrivateNetwork = coerceBoolean(
@@ -193,6 +203,9 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
       // fields to merge; skip it rather than spreading its characters.
       if (!isPlainObject(rawSettings)) {
         continue;
+      }
+      if (typeof rawSettings.apiKey === 'string') {
+        seenApiKeys.add(rawSettings.apiKey);
       }
       const canonical = canonicalEngineName(name);
       const {
@@ -242,6 +255,9 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   }
   if (allowPrivateNetwork !== undefined) {
     config.allowPrivateNetwork = allowPrivateNetwork;
+  }
+  if (seenApiKeys.size > 0) {
+    SEEN_API_KEYS.set(config, [...seenApiKeys]);
   }
   return config;
 }
@@ -486,9 +502,9 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
   writePrivateFile(configPath, `${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`);
 }
 
-/** Every API key the file or environment holds. */
+/** Every API key the file or environment holds, displaced fold casualties included. */
 function knownApiKeys(config: ModsearchConfig, env: NodeJS.ProcessEnv): string[] {
-  const keys = new Set<string>();
+  const keys = new Set<string>(SEEN_API_KEYS.get(config) ?? []);
   const enginesRoot = isPlainObject(config.engines) ? config.engines : {};
   for (const entry of Object.values(enginesRoot)) {
     if (isPlainObject(entry) && typeof entry.apiKey === 'string') {
@@ -531,7 +547,12 @@ function redactValues<T>(value: T, keys: string[]): T {
     return out;
   };
   const walk = (node: unknown): unknown => {
-    if (typeof node === 'string') return scrub(node);
+    // The known-key split runs with no length floor, then the shape net
+    // (redactSecrets) catches token-shaped strings nobody declared as a key:
+    // an sk- credential pasted into a model note, an api_key= parameter in a
+    // gateway URL. A secret with no known shape living only in a non-secret
+    // field stays unknowable; the security doc says so.
+    if (typeof node === 'string') return redactSecrets(scrub(node));
     if (Array.isArray(node)) return node.map(walk);
     if (node && typeof node === 'object') {
       const out: Record<string, unknown> = Object.create(null);

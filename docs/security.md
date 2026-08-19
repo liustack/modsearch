@@ -20,8 +20,12 @@ English | [简体中文](security.zh-CN.md)
   muted (or reads one line from a pipe), so the key never enters argv, shell
   history, or an agent conversation's transcript.
 - `config show` is safe to paste into an issue: keys are masked in their own
-  field and scrubbed from every other string in the view, and URL credentials
-  are masked through a real URL parser.
+  field, scrubbed from every other string in the view, URL credentials are
+  masked through a real URL parser, and token-shaped strings (`sk-...`,
+  `api_key=...`) are removed even when nothing declared them as a key. The one
+  honest limit: a secret with no recognizable shape that lives only in a
+  non-secret field (say, a bare token pasted into `model`) cannot be told
+  apart from data, so do not store secrets in fields that are not `apiKey`.
 - Error messages that quote foreign text (gateway error bodies, subprocess
   stderr) pass through a shared redactor before reaching terminals, the JSON
   output's `attempts` and `warnings`, or the cooldown state file.
