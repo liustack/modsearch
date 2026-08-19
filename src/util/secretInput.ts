@@ -21,6 +21,9 @@ export async function readSecret(
     // chunks re-decodes each one alone, and a multibyte character split
     // across two chunks turns into replacement characters.
     stdin.setEncoding('utf8');
+    // No real key approaches this size; a newline-free stream (a binary file,
+    // an endless pipe) must fail bounded instead of buffering forever.
+    const MAX_CHARS = 64 * 1024;
     let data = '';
     for await (const chunk of stdin) {
       data += chunk;
@@ -28,6 +31,9 @@ export async function readSecret(
       // multi-megabyte accidental pipe should not be buffered whole.
       if (data.includes('\n')) {
         break;
+      }
+      if (data.length > MAX_CHARS) {
+        throw new Error('stdin exceeded 64KB with no newline; that is not a key');
       }
     }
     const value = data.split('\n')[0].trim();

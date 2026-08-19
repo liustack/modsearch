@@ -345,11 +345,20 @@ export function setConfigValue(
   const parts = dottedKey.split('.').filter(Boolean);
 
   // `engine <name>` is the whole role surface. `search.engine` still works so
-  // muscle memory from the previous shape does not hit an error.
-  if (parts.length === 1 && parts[0] === 'engine') {
-    config.engine = value;
-  } else if (parts.length === 2 && parts[0] === 'search' && parts[1] === 'engine') {
-    config.engine = value;
+  // muscle memory from the previous shape does not hit an error. A non-empty
+  // value must name a real engine: the router tolerates a typo in a
+  // hand-edited file with a warning, but the CLI has no reason to create one,
+  // and doctor would echo the bad value back (which, pasted secrets included,
+  // is text better refused than displayed). Empty returns to automatic.
+  const isEngineKey =
+    (parts.length === 1 && parts[0] === 'engine') ||
+    (parts.length === 2 && parts[0] === 'search' && parts[1] === 'engine');
+  if (isEngineKey) {
+    const trimmed = value.trim();
+    if (trimmed !== '' && !findEngine(trimmed)) {
+      throw new Error(`Unknown engine: ${value}. Known engines: ${listEngines().join(', ')}.`);
+    }
+    config.engine = trimmed === '' ? '' : canonicalEngineName(trimmed);
   } else if (parts.length === 1 && parts[0] === 'cooldown') {
     const normalized = value.trim().toLowerCase();
     if (normalized !== 'on' && normalized !== 'off') {

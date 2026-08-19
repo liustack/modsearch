@@ -59,6 +59,19 @@ describe('config file', () => {
     expect(loadConfigFile(p).engines?.['antigravity-cli']?.bin).toBe('/opt/agy');
   });
 
+  it('validates the engine choice on set, folding aliases, empty meaning automatic', () => {
+    // The router tolerates a typo in a hand-edited file with a warning, but
+    // the CLI has no reason to create one, and doctor would echo the bad
+    // value (pasted secrets included) back in its report.
+    const p = tempConfigPath();
+    expect(() => setConfigValue('engine', 'tavly', p)).toThrow(/Unknown engine.*tavily/s);
+    expect(() => setConfigValue('engine', 'tvly-SECRET-1234567890', p)).toThrow('Unknown engine');
+    setConfigValue('engine', 'agy', p);
+    expect(chosenEngine(loadConfigFile(p))).toBe('antigravity-cli');
+    setConfigValue('engine', '', p);
+    expect(chosenEngine(loadConfigFile(p))).toBeUndefined();
+  });
+
   it('refuses prototype-chain engine names and pollutes nothing', () => {
     // "constructor" used to resolve through the alias table's prototype chain
     // to Object's constructor: the write printed success and saved nothing,

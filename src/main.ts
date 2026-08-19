@@ -14,7 +14,7 @@ import {
 } from './config.ts';
 import { buildCooldownController, clearAllCooldowns, currentStatePath } from './cooldown.ts';
 import { formatDoctorReport, runDoctor } from './doctor.ts';
-import { listEngines } from './providers/index.ts';
+import { findEngine, listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
 import { readSecret } from './util/secretInput.ts';
 
@@ -159,6 +159,16 @@ config
         // configuration, and omitting its value is a mistake worth naming.
         if (!key.endsWith('.apiKey')) {
           throw new Error(`${key} needs a value: modsearch config set ${key} <value>`);
+        }
+        // Validate the engine name BEFORE prompting: a typo must fail here,
+        // not after the user has typed their key in (or, on a pipe, after a
+        // line of someone's stdin has been consumed).
+        const parts = key.split('.').filter(Boolean);
+        const engineName = parts[0] === 'engines' ? parts[1] : parts[0];
+        if (!engineName || !findEngine(engineName)) {
+          throw new Error(
+            `Unknown engine: ${engineName ?? key}. Known engines: ${listEngines().join(', ')}.`,
+          );
         }
         value = await readSecret(`Enter the value for ${key} (input hidden): `);
       }
