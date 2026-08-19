@@ -4,6 +4,7 @@ import * as path from 'path';
 // Runtime-safe: providers/index.ts imports nothing from this module at runtime
 // (its config import is type-only), so this does not create an import cycle.
 import { findEngine, listEngines } from './providers/index.ts';
+import { maskUrlCredentials } from './util/redact.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
@@ -441,12 +442,79 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
   }
 }
 
+/** Every API key the file or environment holds. */
+function knownApiKeys(config: ModsearchConfig, env: NodeJS.ProcessEnv): string[] {
+  const keys = new Set<string>();
+  const enginesRoot = isPlainObject(config.engines) ? config.engines : {};
+  for (const entry of Object.values(enginesRoot)) {
+    if (isPlainObject(entry) && typeof entry.apiKey === 'string') {
+      keys.add(entry.apiKey);
+    }
+  }
+  for (const bindings of Object.values(ENV_BINDINGS)) {
+    const variable = bindings.apiKey;
+    const value = variable ? env[variable]?.trim() : undefined;
+    if (value) {
+      keys.add(value);
+    }
+  }
+  return [...keys];
+}
+
+/**
+ * Redact every known key from a value tree's strings, longest key first so an
+ * overlapping shorter key cannot split a longer one into survivable halves.
+ * No length assumption at all: the config layer imposes no minimum on an
+ * apiKey and gateways issue what they issue, so even a one-character key is
+ * scrubbed from every string it appears in. A short key shreds the view's
+ * readability, and that is the right failure: this output exists to be pasted
+ * into issues, and a shredded view is safe where a readable one leaking a
+ * credential is not.
+ *
+ * Values ONLY, by structural contract: every property name in the rendered
+ * view is a compile-time constant or a registry engine name, and user data
+ * (hand-written engine spellings included) lives inside values.
+ */
+function redactValues<T>(value: T, keys: string[]): T {
+  const ordered = [...keys].sort((a, b) => b.length - a.length);
+  const scrub = (text: string): string => {
+    let out = text;
+    for (const key of ordered) {
+      if (key.length > 0) {
+        out = out.split(key).join('[redacted]');
+      }
+    }
+    return out;
+  };
+  const walk = (node: unknown): unknown => {
+    if (typeof node === 'string') return scrub(node);
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === 'object') {
+      const out: Record<string, unknown> = Object.create(null);
+      for (const [key, entry] of Object.entries(node)) {
+        out[key] = walk(entry);
+      }
+      return out;
+    }
+    return node;
+  };
+  return walk(value) as T;
+}
+
 /**
  * Render the effective config: what modsearch will actually use, not just what
  * the file says. Environment variables are merged in the way `engineSettings`
  * merges them, every value is tagged with where it came from (`file` or `env`),
  * alias engine keys (agy, antigravity, grok, direct) are shown under their
  * canonical name, and API keys stay masked.
+ *
+ * Redaction is a boundary here, not a per-field habit: this output's product
+ * contract is being safe to paste into an issue. A key is masked in its own
+ * field, scrubbed from every other field on the same row (a key pasted into a
+ * gateway URL or a model note used to print in full one field over from its
+ * own mask), URL credentials are masked, unknown engine names become note
+ * values rather than property names, and a final pass scrubs every known key
+ * from every string in the tree.
  */
 export function renderEffectiveConfig(
   config: ModsearchConfig,
@@ -463,21 +531,45 @@ export function renderEffectiveConfig(
       : tag(String(config.allowPrivateNetwork), 'file');
 
   const engines: Record<string, Record<string, string>> = {};
+  const notes: string[] = [];
   const ensure = (name: string) => {
     engines[name] ??= {};
     return engines[name];
   };
 
-  // File settings first, alias keys folded onto their canonical engine.
+  const shown = (field: string, value: unknown, entryKey: string | undefined): string => {
+    if (field === 'apiKey') {
+      return maskKey(String(value));
+    }
+    let text = String(value);
+    if (field === 'baseURL') {
+      text = maskUrlCredentials(text);
+    }
+    // Same-row wash: the row's own key must not survive in its other fields.
+    return entryKey && entryKey.length > 0 ? text.split(entryKey).join('[redacted]') : text;
+  };
+
+  // File settings first, alias keys folded onto their canonical engine. An
+  // engine name the registry does not know never becomes a property name: a
+  // hand-written spelling is user data, and user data lives in values only.
   for (const [rawName, settings] of Object.entries(config.engines ?? {})) {
+    if (!isPlainObject(settings)) {
+      notes.push(`engines entry is not an object and was ignored`);
+      continue;
+    }
     const canonical = canonicalEngineName(rawName);
+    if (!findEngine(canonical)) {
+      notes.push(`unknown engine entry (not one of: ${listEngines().join(', ')})`);
+      continue;
+    }
     const target = ensure(canonical);
+    const entryKey = typeof settings.apiKey === 'string' ? settings.apiKey : undefined;
     for (const field of SETTABLE_ENGINE_FIELDS) {
       const value = settings[field];
       if (value === undefined) {
         continue;
       }
-      target[field] = tag(field === 'apiKey' ? maskKey(String(value)) : value, 'file');
+      target[field] = tag(shown(field, value, entryKey), 'file');
     }
   }
 
@@ -485,6 +577,7 @@ export function renderEffectiveConfig(
   // value wins over the file, so it overwrites the tag too.
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
     const canonical = canonicalEngineName(engineName);
+    const entryKey = bindings.apiKey ? env[bindings.apiKey]?.trim() : undefined;
     for (const [field, envName] of Object.entries(bindings) as Array<
       [StringEngineSetting, string]
     >) {
@@ -492,12 +585,17 @@ export function renderEffectiveConfig(
       if (!value) {
         continue;
       }
-      ensure(canonical)[field] = tag(field === 'apiKey' ? maskKey(value) : value, 'env');
+      ensure(canonical)[field] = tag(shown(field, value, entryKey), 'env');
     }
   }
 
   out.engines = engines;
-  return JSON.stringify(out, null, 2);
+  if (notes.length > 0) {
+    out.notes = notes;
+  }
+  // The last line of defense: no known key survives in any string of the view,
+  // whatever field or note it was pasted into.
+  return JSON.stringify(redactValues(out, knownApiKeys(config, env)), null, 2);
 }
 
 function maskKey(key: string): string {

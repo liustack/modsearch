@@ -74,6 +74,59 @@ describe('config file', () => {
     expect(fs.existsSync(p)).toBe(false);
   });
 
+  it('config show is safe to paste: no known key survives anywhere in the view', () => {
+    const p = tempConfigPath();
+    const key = 'tvly-SECRETKEY1234567890';
+    setConfigValue('tavily.apiKey', key, p);
+    setConfigValue('tavily.model', `note ${key} in a model field`, p);
+    setConfigValue('tavily.baseURL', `https://user:hunter2@gw.example.com/${key}`, p);
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    expect(view).not.toContain(key);
+    expect(view).not.toContain('hunter2');
+    // Masked, not deleted: the view still says which key and which host.
+    expect(view).toContain('tvly-S...90');
+    expect(view).toContain('gw.example.com');
+    expect(() => JSON.parse(view)).not.toThrow();
+  });
+
+  it('scrubs an environment key that was pasted into a file field', () => {
+    const p = tempConfigPath();
+    setConfigValue('exa.model', 'copied exa-env-key-123456 here', p);
+    const view = renderEffectiveConfig(loadConfigFile(p), {
+      EXA_API_KEY: 'exa-env-key-123456',
+    } as NodeJS.ProcessEnv);
+    expect(view).not.toContain('exa-env-key-123456');
+  });
+
+  it('scrubs even a two-character key from every string of the view', () => {
+    // No length assumption: a short key shreds readability, and that is the
+    // right failure for an output whose contract is being safe to paste.
+    const p = tempConfigPath();
+    setConfigValue('exa.apiKey', 'k2', p);
+    setConfigValue('exa.model', 'prefix k2 suffix', p);
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    expect(JSON.stringify(JSON.parse(view))).not.toContain('k2');
+  });
+
+  it('never uses an unknown engine name as a property name in the view', () => {
+    // A hand-written engine name is user data, and a name can BE a key.
+    const p = tempConfigPath();
+    const secretName = 'tvly-NAMEISAKEY123456';
+    fs.writeFileSync(p, JSON.stringify({ engines: { [secretName]: { model: 'x' } } }));
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    const parsed = JSON.parse(view) as { engines: Record<string, unknown>; notes?: string[] };
+    expect(Object.keys(parsed.engines)).not.toContain(secretName);
+    expect(view).not.toContain(secretName);
+    expect(parsed.notes?.join(' ')).toContain('unknown engine entry');
+  });
+
+  it('keeps the view valid JSON when a key collides with JSON syntax', () => {
+    const p = tempConfigPath();
+    setConfigValue('exa.apiKey', '"engines"', p);
+    const view = renderEffectiveConfig(loadConfigFile(p), {} as NodeJS.ProcessEnv);
+    expect(() => JSON.parse(view)).not.toThrow();
+  });
+
   it('survives a hand-written file with non-object engine entries', () => {
     const p = tempConfigPath();
     fs.writeFileSync(
