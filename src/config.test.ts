@@ -127,6 +127,22 @@ describe('config file', () => {
     expect(() => JSON.parse(view)).not.toThrow();
   });
 
+  it('keeps a hand-written __proto__ entry as data, never as the prototype', () => {
+    // On a normal object literal, engines["__proto__"] = {...} sets the
+    // prototype: the entry hides from Object.entries and JSON.stringify while
+    // dot-access still sees it, so doctor reported an inherited key as present
+    // and the next write silently dropped it.
+    const raw = JSON.parse('{"engines": {"__proto__": {"apiKey": "sk-hidden-key-123456"}}}');
+    const migrated = migrateLegacyConfig(raw);
+    // Nothing is inherited: an arbitrary engine lookup finds no smuggled key.
+    expect((migrated.engines as Record<string, { apiKey?: string }>).firecrawl?.apiKey)
+      .toBeUndefined();
+    expect(Object.getPrototypeOf(migrated.engines)).toBeNull();
+    // The entry is ordinary visible data, judged like any unknown engine.
+    expect(Object.keys(migrated.engines ?? {})).toContain('__proto__');
+    expect(JSON.stringify(migrated)).toContain('sk-hidden-key-123456');
+  });
+
   it('survives a hand-written file with non-object engine entries', () => {
     const p = tempConfigPath();
     fs.writeFileSync(

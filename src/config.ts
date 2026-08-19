@@ -175,7 +175,15 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   // Merge per engine, not per map: a new `engines.tavily.model` next to an old
   // `providers.tavily.apiKey` used to drop the key entirely. The retired
   // per-engine allowPrivateNetwork flag is lifted out to the top level.
-  const engines: Record<string, EngineSettings> = {};
+  //
+  // Null prototype on purpose: the entry names come from a hand-editable file,
+  // and on a normal object literal `engines["__proto__"] = {...}` does not
+  // define a property, it SETS THE PROTOTYPE. The entry then hides from
+  // Object.entries and JSON.stringify (doctor would report an inherited key as
+  // present, and the next write would silently drop it) while dot-access still
+  // sees it. On a null-prototype object the same name is an ordinary own
+  // property: visible, serialized, and judged like any unknown engine.
+  const engines: Record<string, EngineSettings> = Object.create(null);
   const fold = (source: Record<string, Record<string, unknown>> | undefined) => {
     if (!isPlainObject(source)) {
       return;
