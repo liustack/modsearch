@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+// Runtime-safe: providers/index.ts imports nothing from this module at runtime
+// (its config import is type-only), so this does not create an import cycle.
+import { findEngine, listEngines } from './providers/index.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
@@ -104,10 +107,21 @@ const CANONICAL_ENGINE: Record<string, string> = {
   direct: 'local',
 };
 
-/** The canonical name for an engine, folding aliases (agy, http, direct, ...). */
+/**
+ * The canonical name for an engine, folding aliases (agy, http, direct, ...).
+ * Own properties only: the aliases table is a plain object, and a bare index
+ * walks the prototype chain, so "constructor" resolved to Object's constructor
+ * function, read as truthy, and a `config set constructor.apiKey` wrote the
+ * key onto that global, printed success, and saved nothing.
+ */
 export function canonicalEngineName(name: string): string {
   const trimmed = name.trim().toLowerCase();
-  return CANONICAL_ENGINE[trimmed] ?? trimmed;
+  return Object.hasOwn(CANONICAL_ENGINE, trimmed) ? CANONICAL_ENGINE[trimmed] : trimmed;
+}
+
+/** JSON-parsed objects only: null, arrays, and prototype residents are not settings. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 interface LegacyConfig {
@@ -162,8 +176,16 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   // per-engine allowPrivateNetwork flag is lifted out to the top level.
   const engines: Record<string, EngineSettings> = {};
   const fold = (source: Record<string, Record<string, unknown>> | undefined) => {
-    for (const [name, rawSettings] of Object.entries(source ?? {})) {
-      const canonical = CANONICAL_ENGINE[name] ?? name;
+    if (!isPlainObject(source)) {
+      return;
+    }
+    for (const [name, rawSettings] of Object.entries(source)) {
+      // A hand-edited entry that is not an object (a string, an array) has no
+      // fields to merge; skip it rather than spreading its characters.
+      if (!isPlainObject(rawSettings)) {
+        continue;
+      }
+      const canonical = canonicalEngineName(name);
       const {
         allowPrivateNetwork: legacyFlag,
         keylessFetch: rawKeylessFetch,
@@ -197,8 +219,8 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   const legacySearch = raw.search?.engine?.trim();
   const pinned = raw.provider?.trim();
   const fromPin =
-    pinned && LEGACY_ENGINE_ROLES[pinned] === 'search'
-      ? (CANONICAL_ENGINE[pinned] ?? pinned)
+    pinned && Object.hasOwn(LEGACY_ENGINE_ROLES, pinned) && LEGACY_ENGINE_ROLES[pinned] === 'search'
+      ? canonicalEngineName(pinned)
       : undefined;
   const engine = hasLegacy ? raw.engine?.trim() || legacySearch || fromPin : raw.engine;
 
@@ -265,8 +287,11 @@ export function engineSettings(
   config: ModsearchConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): EngineSettings {
-  const fromFile = config.engines?.[engineName] ?? {};
-  const bindings = ENV_BINDINGS[engineName] ?? {};
+  const engines = isPlainObject(config.engines) ? config.engines : {};
+  const fromFile = Object.hasOwn(engines, engineName) && isPlainObject(engines[engineName])
+    ? (engines[engineName] as EngineSettings)
+    : {};
+  const bindings = Object.hasOwn(ENV_BINDINGS, engineName) ? ENV_BINDINGS[engineName] : {};
 
   const settings: EngineSettings = { ...fromFile };
   for (const [field, envName] of Object.entries(bindings) as Array<
@@ -313,16 +338,35 @@ export function setConfigValue(
     }
     config.allowPrivateNetwork = parsed;
   } else {
-    const [engineName, field] =
+    const [rawEngineName, field] =
       parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
-    if (!engineName || !field) {
+    if (!rawEngineName || !field) {
       throw new Error(
         `Invalid config key: ${dottedKey}. Use "engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
+      );
+    }
+    // The file is read back by exact lowercase canonical key, so an unknown or
+    // miscased name would be stored, reported saved, and never read again.
+    // Refusing here turns silent data loss into an immediate, fixable error.
+    const engineName = canonicalEngineName(rawEngineName);
+    if (!findEngine(engineName)) {
+      throw new Error(
+        `Unknown engine: ${rawEngineName}. Known engines: ${listEngines().join(', ')}.`,
       );
     }
     if (!SETTABLE_ENGINE_FIELDS.includes(field as keyof EngineSettings)) {
       throw new Error(
         `Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`,
+      );
+    }
+    // A hand-edited file can put anything at these positions. Refuse to spread
+    // a non-object rather than corrupting the write.
+    if (config.engines !== undefined && !isPlainObject(config.engines)) {
+      throw new Error(`The "engines" section of the config file is not an object. Fix or remove it.`);
+    }
+    if (config.engines?.[engineName] !== undefined && !isPlainObject(config.engines[engineName])) {
+      throw new Error(
+        `The "engines.${engineName}" entry of the config file is not an object. Fix or remove it.`,
       );
     }
     if (field === 'keylessFetch') {
@@ -426,7 +470,7 @@ export function renderEffectiveConfig(
 
   // File settings first, alias keys folded onto their canonical engine.
   for (const [rawName, settings] of Object.entries(config.engines ?? {})) {
-    const canonical = CANONICAL_ENGINE[rawName] ?? rawName;
+    const canonical = canonicalEngineName(rawName);
     const target = ensure(canonical);
     for (const field of SETTABLE_ENGINE_FIELDS) {
       const value = settings[field];
@@ -440,7 +484,7 @@ export function renderEffectiveConfig(
   // Environment overrides, exactly the bindings engineSettings applies. An env
   // value wins over the file, so it overwrites the tag too.
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
-    const canonical = CANONICAL_ENGINE[engineName] ?? engineName;
+    const canonical = canonicalEngineName(engineName);
     for (const [field, envName] of Object.entries(bindings) as Array<
       [StringEngineSetting, string]
     >) {

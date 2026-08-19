@@ -45,6 +45,47 @@ describe('config file', () => {
     expect(() => setConfigValue('noDotHere', 'x', p)).toThrow('Invalid config key');
   });
 
+  it('rejects an unknown engine name instead of storing an unreachable setting', () => {
+    // The file is read back by canonical lowercase key: a typo'd name would be
+    // saved, reported saved, and never read again.
+    const p = tempConfigPath();
+    expect(() => setConfigValue('tavly.apiKey', 'k', p)).toThrow(/Unknown engine: tavly.*tavily/s);
+    expect(fs.existsSync(p)).toBe(false);
+  });
+
+  it('folds alias engine names to canonical on write', () => {
+    const p = tempConfigPath();
+    setConfigValue('agy.bin', '/opt/agy', p);
+    expect(loadConfigFile(p).engines?.['antigravity-cli']?.bin).toBe('/opt/agy');
+  });
+
+  it('refuses prototype-chain engine names and pollutes nothing', () => {
+    // "constructor" used to resolve through the alias table's prototype chain
+    // to Object's constructor: the write printed success and saved nothing,
+    // and "__proto__" polluted Object.prototype for the whole process.
+    const p = tempConfigPath();
+    expect(() => setConfigValue('constructor.apiKey', 'sk-secret-12345678', p)).toThrow(
+      'Unknown engine',
+    );
+    expect(() => setConfigValue('__proto__.apiKey', 'sk-secret-12345678', p)).toThrow(
+      'Unknown engine',
+    );
+    expect(({} as Record<string, unknown>).apiKey).toBeUndefined();
+    expect(fs.existsSync(p)).toBe(false);
+  });
+
+  it('survives a hand-written file with non-object engine entries', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({ engines: { tavily: 'not-an-object', exa: { apiKey: 'k' } } }),
+    );
+    const config = loadConfigFile(p);
+    expect(config.engines?.tavily).toBeUndefined();
+    expect(config.engines?.exa?.apiKey).toBe('k');
+    expect(engineSettings('tavily', config, {} as NodeJS.ProcessEnv)).toEqual({});
+  });
+
   it('reads configs written before roles existed', () => {
     // The old shape pinned one global provider next to a providers map.
     const migrated = migrateLegacyConfig({

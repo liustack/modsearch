@@ -115,7 +115,7 @@ export const ROLE_PREFERENCE: Record<Role, string[]> = {
 export const FETCH_FLOOR = 'local';
 
 export function resolveEngine(engineName: string): SearchEngine {
-  const engine = ENGINES[engineName.trim().toLowerCase()];
+  const engine = findEngine(engineName);
   if (!engine) {
     throw new Error(`Unknown engine: ${engineName}. Known engines: ${listEngines().join(', ')}.`);
   }
@@ -123,7 +123,11 @@ export function resolveEngine(engineName: string): SearchEngine {
 }
 
 export function findEngine(engineName: string): SearchEngine | undefined {
-  return ENGINES[engineName.trim().toLowerCase()];
+  // Own properties only: the registry is a plain object, and a bare index
+  // walks the prototype chain, so a name like "constructor" would come back
+  // as Object's constructor function and read as a truthy "engine".
+  const key = engineName.trim().toLowerCase();
+  return Object.hasOwn(ENGINES, key) ? ENGINES[key] : undefined;
 }
 
 /** Every registered engine, once each, in registration order. */
