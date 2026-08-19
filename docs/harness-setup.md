@@ -15,15 +15,17 @@ English | [简体中文](harness-setup.zh-CN.md)
 
 dsh is different from the other harnesses: modsearch plugs in natively, not as a prompt-triggered skill. The package itself is a dsh bundle, so one command installs it into a profile:
 
+For plugin switches, profile patches, runtime verification, updating, and compatibility checks, use the dedicated [dsh plugin guide](dsh.md).
+
 ```sh
 npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.3
 ```
 
 Three things land at once:
 
-- **`web_search` starts running on modsearch.** dsh already ships a native `web_search` tool over a provider seam, pinned to DeepSeek's keyed search API. The bundle registers the modsearch engine chain as a provider and repoints the seam at it (`searchProvider: modsearch`), so search works with no API key wherever agy is signed in, and the Web UI keeps its native citation cards. To switch back, pin `searchProvider` to another provider in a later profile patch.
+- **`web_search` starts running on modsearch.** dsh already ships a native `web_search` tool over a provider seam, pinned to DeepSeek's keyed search API. The bundle registers the modsearch engine chain as a provider and repoints the seam at it (`searchProvider: modsearch`), so search works with no API key at all: Firecrawl's keyless free quota answers out of the box, signed-in agy and configured keys take over when present, and the Web UI keeps its native citation cards. To switch back, pin `searchProvider` to another provider in a later profile patch.
 - **`x_search`** covers the corpus dsh has no seam for. Routed to Grok Build when it is installed and signed in; a web stand-in answer is marked degraded in the tool output, never silent.
-- **`read_page`** reads one URL into structured evidence (summary, extracted content, links, uncertainty), with an optional answer focus. dsh ships its own `web_fetch` disabled because that provider defers SSRF protection; modsearch's fetch blocks private-network targets by default, and the tool exposes no override for that.
+- **`read_page`** reads one URL into structured evidence (summary, extracted content, links, uncertainty), with an optional answer focus. dsh ships its own `web_fetch` disabled because that provider defers SSRF protection. ModSearch blocks private-network targets by default, and the tool exposes no override. Public URLs go through Firecrawl's keyless cloud browser by default, which reads JavaScript-rendered pages; the result carries a warning naming the cloud route, and `modsearch config set firecrawl.keylessFetch false` keeps automatic fetch local instead.
 
 Engines, keys, and routing keep living in `~/.modsearch/config.json`, shared with every other harness. dsh is in developer preview and its plugin surface may change. The plugin keeps its touch small (one provider registration and two raw tool registrations) and degrades loudly in the harness log if any of it moves. If dsh warns `declares no dsh.bundle`, pnpm's release-age gate installed an old version. Reinstall with the named version below.
 

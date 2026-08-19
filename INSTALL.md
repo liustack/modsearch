@@ -9,7 +9,7 @@ The whole install is four steps:
 
 1. Find the skill directory for your harness.
 2. Put the `skills/modsearch` folder into it.
-3. Give search one engine (fetch and, with a subscription, X need no key).
+3. Optionally add engines (search and fetch already work keyless out of the box).
 4. Verify with `doctor` and one real search.
 
 ---
@@ -102,23 +102,26 @@ your harness's skill directory): fall back to Path A, which needs only git.
 
 ---
 
-## Step 3: Give search one engine
+## Step 3 (optional): Add more engines
 
-modsearch does three jobs, and only search needs setup:
+modsearch does three jobs, and none of them blocks on setup:
 
-- **Page fetch (`-u <url>`) needs nothing.** A dependency-free local fetcher is
-  always available. Skip to Step 4 if the user only needs to read pages.
+- **Web search and page fetch (`-q`, `-u`) work as installed.** The default
+  engine is Firecrawl's keyless tier: 1,000 free credits/month, no account, no
+  key. A dependency-free local fetcher backs page fetch as the floor. If the
+  user wants nothing more, skip to Step 4.
 - **X (Twitter) search needs Grok Build** (SuperGrok or X Premium), installed and
   signed in. Set it up only if the user wants X. It needs no key beyond that login.
-- **Web search needs one of the engines below.** Pick the first one that fits.
+- **More engines mean more quota and better failover.** Add them below when the
+  user asked for one or handed you a key.
 
-The README asks the user to prepare an engine before handing you this install.
-If they gave you an engine key, jump to the keyed-engine block at the end of
+If the user gave you an engine key, jump to the keyed-engine block at the end of
 this step and configure it now.
 
-The recommended default is Antigravity CLI (`agy`): it needs no API key and also
-reads pages. It requires a one-time browser sign-in that only the user can
-complete. Handle it in three idempotent steps, each safe to re-run.
+The strongest free upgrade is Antigravity CLI (`agy`): it writes synthesized,
+cited answers, needs no API key, and also reads pages. It requires a one-time
+browser sign-in that only the user can complete. Handle it in three idempotent
+steps, each safe to re-run.
 
 1. **Probe.** Is `agy` already installed?
 
@@ -155,14 +158,16 @@ complete. Handle it in three idempotent steps, each safe to re-run.
    agy   # opens the browser for the user's one-time sign-in, then they exit
    ```
 
-If a browser sign-in is not possible, use a keyed engine instead. All three have a
-monthly free tier and need no card. Run one through the launcher (replace the path
-with your TARGET from Step 1), so it works even on a host without npx:
+If a browser sign-in is not possible, the keyless Firecrawl default already keeps
+the CLI fully usable. Add a key only when the user wants a personal quota on top.
+All three keyed services have a free tier and need no card. Run settings through
+the launcher (replace the path with your TARGET from Step 1), so they work even on
+a host without npx:
 
 ```bash
 bash ~/.claude/skills/modsearch/scripts/run.sh config set tavily.apiKey <key>       # 1,000 credits/month
 bash ~/.claude/skills/modsearch/scripts/run.sh config set exa.apiKey <key>          # $10/month credit, ~1,400 searches
-bash ~/.claude/skills/modsearch/scripts/run.sh config set firecrawl.apiKey <key>    # 1,000 credits/month, reads JavaScript pages
+bash ~/.claude/skills/modsearch/scripts/run.sh config set firecrawl.apiKey <key>    # personal 1,000 credits/month on top of the keyless quota
 ```
 
 **If it fails:**
@@ -174,8 +179,8 @@ bash ~/.claude/skills/modsearch/scripts/run.sh config set firecrawl.apiKey <key>
 
 > **Windows:** the `curl | bash` installer is for macOS and Linux. On Windows,
 > agy and grok are usable only if the tool ships a native Windows build on PATH
-> (see "Platform support" in the README). A keyed engine (Tavily, Exa, Firecrawl)
-> is pure HTTP and works the same on Windows.
+> (see "Platform support" in the README). The HTTP engines (Tavily, Exa, Firecrawl)
+> work the same on Windows.
 
 ---
 
@@ -191,8 +196,8 @@ bash ~/.claude/skills/modsearch/scripts/run.sh doctor   # replace with your TARG
 
 The launcher prints its runtime selection first (whether it chose a `modsearch`
 on PATH, `npx`, or `bunx`), then chains modsearch's own report below a
-`--- modsearch doctor ---` line. That report, on a healthy machine with agy
-signed in, looks like this (trimmed):
+`--- modsearch doctor ---` line. That report, on a healthy bare machine, looks
+like this (trimmed):
 
 ```
 Node
@@ -200,11 +205,12 @@ Node
   status:  OK
 
 search (search the web)
-  resolved: antigravity-cli
-  - antigravity-cli   READY    binary "agy" found and runnable
+  resolved: firecrawl
+  - firecrawl         READY    keyless: works with no key and no signup ...
 
 fetch (fetch a page)
-  resolved: local
+  resolved: firecrawl
+  - firecrawl         READY    keyless fetch (default): public pages are read by a cloud browser ...
   - local             READY    built in, needs nothing installed
 
 social (search X)
@@ -215,10 +221,13 @@ How to read it:
 
 - **`Node status: OK`** means the runtime meets the floor (22.13+). If it says
   `TOO OLD`, upgrade Node and stop here, because nothing else will work.
-- **`search resolved: <engine>`** means a web engine is ready. If it reads
-  `(none available)`, no search engine is set up: go back to Step 3. Each
-  not-ready engine prints a `fix:` line with the exact command to make it ready.
-- **`fetch resolved: local`** means page fetch is ready. This is always true.
+- **`search resolved: <engine>`** means a web engine is ready. Keyless Firecrawl
+  makes this true on a bare install; agy or a configured key resolves ahead of
+  it when present. If it reads `(none available)`, the installation is
+  inconsistent: reinstall this exact release before adding credentials. Each
+  not-ready engine prints a `fix:` line when setup can help.
+- **`fetch resolved: <engine>`** means page fetch is ready. This is always true:
+  keyless Firecrawl leads and the built-in `local` engine is the floor.
 - **`social`** is only relevant if the user wants X. `(none available)` just means
   Grok Build is not installed.
 
@@ -238,9 +247,10 @@ who answered and an `items` list with `url`s. That is a working install.
   install Node 22.13+ (https://nodejs.org) or Bun (https://bun.sh), then re-run
   this step, since no native artifact is published yet. Do not report modsearch
   as broken.
-- `No engine on this machine can search the web` -> Step 3 was skipped or did not
-  take. The message lists every way to enable search. Run `doctor` again to see
-  which engines it now sees.
+- `Every engine for the web source failed` -> the engines themselves errored at
+  runtime (no network, a timeout, or spent quotas), not a setup gap: keyless
+  Firecrawl means a bare install always has a search engine. Read the per-engine
+  attempt lines for the actual cause.
 - A timeout -> retry once with `--timeout 300000`. agy runs take 10-30 seconds.
 - Any other message -> it is catalogued with its cause and fix in
   [`docs/troubleshooting.md`](docs/troubleshooting.md). Read the message first,

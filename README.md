@@ -4,11 +4,11 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>Give the web to any model without it: search, X, and any page.</b></p>
+<p align="center"><b>Give the web to any model without it: search, X, and any page. Free, no signup, no API key.</b></p>
 
 <p align="center">🥇 <b>The most powerful web search plugin for DeepSeek Harness (dsh)</b> 🥇</p>
 
-<p align="center">Engines: <b>Antigravity CLI</b> (free, default) · <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok (X)</b> · <b>local</b>, with automatic failover</p>
+<p align="center">Engines: <b>Firecrawl</b> (keyless, default) · <b>Antigravity CLI</b> · <b>Tavily</b> · <b>Exa</b> · <b>Grok (X)</b> · <b>local</b>, with automatic failover</p>
 
 <p align="center">
   <a href="./README.zh-CN.md">简体中文</a> ·
@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
-Models like DeepSeek-V4-Flash have no web access, or a weak one. ModSearch is a plug-in that greatly strengthens the model's web search, X search, and single-page fetch.
+Models like DeepSeek-V4-Flash have no web access, or a weak one. ModSearch is a plug-in that greatly strengthens the model's web search, X search, and single-page fetch. It works the moment it lands: the default engine is Firecrawl's keyless tier, [1,000 free credits every month](https://www.firecrawl.dev/blog/firecrawl-keyless-launch) with no account, no API key, and no card.
 
 ## Talk to us
 
@@ -37,21 +37,21 @@ Something broken, or something missing? [Open an issue](https://github.com/liust
 ## Features
 
 - **🥇 The most powerful web search plugin for DeepSeek Harness (dsh):** one command, `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.3`, and dsh's built-in `web_search` runs on the modsearch engine chain with no API key, keeping its native citation cards. Two tools dsh does not have land beside it: `x_search` for X (Twitter) and `read_page` for focused single-page reading. Updating is the same command again. The version is named rather than `@latest` because pnpm 11 holds back releases published in the last 24 hours and resolves the tag against the older versions that remain. Details in [harness setup](docs/harness-setup.md#deepseek-harness-dsh).
-- **Completely free.** The default channel is Antigravity CLI, no API key needed. All three fallback channels (Tavily, Exa, Firecrawl) offer monthly free tiers with no card required.
+- **Free out of the box, no signup.** Search and page fetch run on Firecrawl Keyless by default: [1,000 free credits/month](https://www.firecrawl.dev/blog/firecrawl-keyless-launch), no account, no API key, no card. Every fallback channel is free too: Antigravity CLI needs only a browser sign-in, and Tavily, Exa, and a free Firecrawl key each add their own monthly quota with no card required.
 - **Automatic failover.** When a channel fails or exhausts its quota, the next one takes over.
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
 - **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
 ## Supported engines
 
-Any one of these makes search work. Configure with one command each, keys are stored in `~/.modsearch/config.json` (0600, masked when shown):
+Firecrawl works with zero setup; every other engine is one command away. Keys are stored in `~/.modsearch/config.json` (0600, masked when shown):
 
 | Engine | Does | Free tier | Turn it on |
 | :-- | :-- | :-- | :-- |
+| Firecrawl (default) | web search + page fetch | keyless: 1,000 free credits/month, no signup. A free key adds your own 1,000/month | nothing, it works as installed |
 | Antigravity CLI | web search + page fetch | free, browser sign-in | install `agy` and sign in |
 | Tavily | web search | 1,000 credits/month, no card | `modsearch config set tavily.apiKey <key>` |
 | Exa | web search | $10/month recurring credit (~1,400 searches), no card | `modsearch config set exa.apiKey <key>` |
-| Firecrawl | web search + page fetch | 1,000 credits/month, search even works keyless | `modsearch config set firecrawl.apiKey <key>` |
 | Grok Build | X (Twitter) search | rides SuperGrok or X Premium | install `grok` and sign in |
 | local | page fetch | built in, nothing to install | nothing |
 
@@ -59,18 +59,18 @@ Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIREC
 
 ## Installation
 
-**Step 1, set up a search engine (the only part that needs your hands).** The default engine, Antigravity CLI, requires a browser sign-in that only you can complete:
+**Step 1, hand it to your AI.** Search and page fetch work as soon as the skill lands, on Firecrawl's free keyless quota, so installation is one message:
+
+> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
+
+**Step 2 (optional), add more free engines.** Antigravity CLI writes better synthesized answers, and a free Tavily, Exa, or Firecrawl key adds a personal quota on top of the keyless one. None requires a card. agy's browser sign-in is the only step that needs your hands:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy                                                           # sign in, then exit
 ```
 
-Prefer not to install it? Register a free key with Tavily, Exa, or Firecrawl instead (Tavily 1,000 credits a month, Exa about 1,400 searches a month, Firecrawl 1,000 credits a month, no card required by any of them).
-
-**Step 2, hand the rest to your AI.** Send it this line, along with the key if you chose one:
-
-> Install and configure the modsearch skill following https://github.com/liustack/modsearch/blob/main/INSTALL.md, then run the health check and tell me the result.
+Chose a key instead? Send it to your AI with one line: "set my tavily key to tvly-...".
 
 ## Usage
 
@@ -97,6 +97,7 @@ Give it no target at all, just "anything interesting in AI today?". Thirty-six s
 | [Troubleshooting](docs/troubleshooting.md) | A command failed and the message needs decoding |
 | [Configuration](skills/modsearch/references/configure.md) | Setting a key, switching engines, fixing config |
 | [Output contract](skills/modsearch/references/output-schema.md) | Parsing the JSON or building on it |
+| [dsh plugin](docs/dsh.md) | Installing, configuring, verifying, and updating the native dsh bundle |
 | [Harness setup](docs/harness-setup.md) | Wiring it into Codex, Claude Code, OpenCode, or Pi |
 | [Security](docs/security.md) | SSRF guards, DNS-rebinding protection, untrusted input |
 | [CHANGELOG](CHANGELOG.md) | Finding what changed in a version |

@@ -16,27 +16,24 @@ read_when:
 
 解读报错之前先跑 `modsearch doctor`。它报告 Node 版本、每个角色下各引擎的就绪状态和原因（二进制在不在 PATH、key 来自环境还是文件、Grok 登录文件在不在）、配置来自哪里、文件权限、私有网络状态，全程不花额度、不发请求。缺什么会附一条可直接复制的修复命令。大多数配置问题在这里一眼可见。加 `--json` 可把报告喂给工具。
 
-## 什么都搜不了
+## 所有搜索引擎都失败
 
 ```
-No engine on this machine can search the web. Any one of these enables it:
-  - antigravity-cli: install Antigravity CLI and sign in once (free, no key)
-  - tavily: set a Tavily key (free tier: 1,000 credits/month, no card)
-  - exa: set an Exa key ($10/month recurring free credit, ~1,400 searches, no card)
-  - firecrawl: set a Firecrawl key (1,000 free credits/month, no card)
+Every engine for the web source failed.
+  - firecrawl: ...
 ```
 
-没有配置任何搜索引擎。每条出路都列出来是因为每条都是真的：agy 不要 key 但有每周额度，其余要 key 但各带免费预算。
+Firecrawl 的免注册端点会收住普通搜索链，所以裸安装也有可用引擎。现在看到这条信息，表示所有候选都在运行时失败。按尝试列表找真实原因，常见情况是网络不可用、超时、免注册每日额度耗尽，或已配置引擎的账号额度用完。
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # 然后登录
-# 或任一带 key 的引擎：
+# 或增加一份个人 API 额度：
 modsearch config set tavily.apiKey <key>
 modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
 ```
 
-单页抓取（`-u`）不受影响：它永远可用。
+云端引擎失败时，单页抓取（`-u`）仍会落到内置本地引擎。
 
 ## 额度耗尽
 
@@ -50,14 +47,15 @@ agy 的免费额度是 Antigravity 桌面应用、CLI、SDK 共享的每周配�
 - 加一个带 key 的搜索引擎（Tavily、Exa 或 Firecrawl）。之后搜索自动落到它，你不用再做任何事。
 - 冷却开着时（默认），agy 会被记为耗尽并挪到链末尾直到重置，后续运行先走别家。见下文「某个引擎总被跳过」。
 
-## Exa 或 Firecrawl 的 key 被拒
+## Exa 或 Firecrawl 鉴权被拒
 
 ```
 exa rejected the API key (401). Fix it: modsearch config set exa.apiKey <key>
 firecrawl rejected the API key (401). Fix it: modsearch config set firecrawl.apiKey <key>
+firecrawl rejected the keyless request (401). Anonymous access may be unavailable or rate-limited.
 ```
 
-key 缺失、写错或已吊销。按报错里的命令设一个有效的，或导出 `EXA_API_KEY` / `FIRECRAWL_API_KEY`。被拒的 key 是配置问题不是额度问题，所以不会进冷却。
+前两条表示已配置的 key 错误或被吊销。按报错里的命令设一个有效值，或导出 `EXA_API_KEY` / `FIRECRAWL_API_KEY`。免注册报错表示 Firecrawl 没有接受这次匿名请求。等待每日额度恢复，配置免费 key 提高限制，或换其他引擎。鉴权失败不会进入冷却。
 
 ## Exa 或 Firecrawl 额度用完
 
@@ -66,7 +64,7 @@ exa is out of credits: ...
 firecrawl is out of credits: ...
 ```
 
-该引擎本周期的免费预算花完了。其他带 key 的搜索引擎会自动接手，冷却开着时耗尽的引擎被挪到链末尾直到恢复，你不会再撞它。加钱、换引擎，或等每月重置。
+当前额度已经用完。对 Firecrawl 而言，它可能是免注册每日额度，也可能是账号额度。其他搜索引擎会自动接手，冷却开着时耗尽的引擎会被挪到链末尾直到恢复。加额度、换引擎，或等待对应周期重置。
 
 ## Tavily 月度额度用完（432/433）
 

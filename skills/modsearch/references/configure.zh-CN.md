@@ -10,24 +10,24 @@
 
 | 工作 | 引擎 | 可配置吗 |
 | :-- | :-- | :-- |
-| 搜公开网页 | `antigravity-cli`、`tavily`、`exa`、`firecrawl` | 可以，`engine` 这一个设置就是管它的 |
-| 读一个 URL | 所选引擎（若它能抓取），然后是配了 key 的 `firecrawl`，最后 `local` | 不可以，跟随上面的选择 |
+| 搜公开网页 | `firecrawl`、`antigravity-cli`、`tavily`、`exa` | 可以，`engine` 这一个设置就是管它的 |
+| 读一个 URL | 所选引擎（若它能抓取），然后是免注册的 `firecrawl`，最后 `local` | 不可以，跟随上面的选择 |
 | 搜 X（推特） | `grok-cli` | 不可以，别的引擎看不到 X 里面 |
 
-搜索顺序固定为 `antigravity-cli`、`tavily`、`exa`、`firecrawl`，好的在前。抓取顺序是 `antigravity-cli`、`firecrawl`、`local`。可用性会过滤这份名单，额度冷却会重新排序（见下文），但基础顺序不变。
+搜索顺序固定为 `firecrawl`、`antigravity-cli`、`tavily`、`exa`。抓取顺序是 `firecrawl`、`antigravity-cli`、`local`。可用性会过滤这份名单，额度冷却会重新排序（见下文），但基础顺序不变。Firecrawl 领跑两条链，因为它的免注册通道在裸机上就能用，不要账号不要 key。
 
 从这张表能推出两个事实，它们回答大多数问题：
 
 - **单页抓取永远可用。** `local` 引擎零安装，无论其他引擎配没配、坏没坏，它都是抓取的兜底。
-- **网页搜索需要一个引擎。** Antigravity CLI（免费无 key），或者一个 Tavily、Exa、Firecrawl 的 key。一个都没有时，`-q` 会把每条出路列出来，而不是悄悄失败。
+- **网页搜索无需配置。** Firecrawl 的免注册免费额度（每月 1,000 credits，无需注册）开箱就能扛。配置了 `engine` 时以配置为准。
 
 X 是独立语料，不是竞争的搜索引擎，所以它永远不会顶替网页搜索。`--source` 选语料，`--engine` 选工具。
 
 ## 零配置
 
-modsearch 没有配置文件也能跑。它看这台机器上有什么，用最好的那个。只有用户想改变这一点时才需要建配置。
+modsearch 没有配置文件也能跑：装完就在 Firecrawl 的免注册免费额度上搜索和抓取。它看这台机器上有什么，用最好的那个。只有用户想改变这一点时才需要建配置。
 
-最快跑通的路径是 Antigravity CLI，一个工具同时覆盖搜索和抓取，还不要 key：
+最强的免费升级是 Antigravity CLI，它写带引用的综述，一个工具同时覆盖搜索和抓取，还不要 key：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
@@ -56,7 +56,7 @@ modsearch config show     # 生效配置：文件与环境变量合并，每个�
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "tvly-...", "baseURL": "https://gw.example.com/tavily" },
     "exa":             { "apiKey": "..." },
-    "firecrawl":       { "apiKey": "fc-..." },
+    "firecrawl":       { "apiKey": "fc-...", "keylessFetch": false },
     "grok-cli":        { "bin": "grok" }
   }
 }
@@ -72,6 +72,7 @@ JSON 不支持注释，所以每个字段的说明在这里：
 | `engines` | object | 顶层 | 按引擎正式名分组的每引擎设置。 |
 | `engines.<name>.apiKey` | string | `tavily`、`exa`、`firecrawl` | 该引擎的 API key。也可用环境变量 `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`，环境变量优先于文件。 |
 | `engines.<name>.baseURL` | string | `tavily`、`exa`、`firecrawl` | 替换官方主机的接口地址：兼容的第三方网关、代理、自建部署。必须是完整的 http(s) URL。也可用环境变量 `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`。设为空即取消。详见下方端点一节。 |
+| `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | 允许 Firecrawl 在无 key 时抓取公网页面。默认 `true`（免注册抓取开箱即开）。设为 `false` 可让自动抓取远离 Firecrawl 云端。配置了 key 或显式选择 Firecrawl 引擎时仍会启用。 |
 | `engines.<name>.bin` | string | `antigravity-cli`、`grok-cli` | 该引擎 CLI 的路径。默认在 `PATH` 上找 `agy` 和 `grok`。 |
 | `engines.<name>.model` | string | `antigravity-cli` | 引擎使用的模型。默认 `gemini-3.6-flash-low`。 |
 
@@ -86,7 +87,7 @@ modsearch config set cooldown off             # 关闭额度冷却故障转移
 modsearch config set allowPrivateNetwork true # 允许访问保留/私有地址段
 ```
 
-抓取和 X 没有任何可配置项，这是故意的。抓取用所选引擎（若它能抓），否则用内置本地抓取器。X 只有一个可能的引擎，没有需要存的选择。
+抓取只有一个开关（上文的 `firecrawl.keylessFetch`），X 一个都没有，这是故意的。抓取用所选引擎（若它能抓），然后是免注册的 Firecrawl，最后是内置本地抓取器。X 只有一个可能的引擎，没有需要存的选择。
 
 角色概念出现之前写的配置（一个全局 `provider` 加一个 `providers` 表）会被自动读取并映射，不用手动迁移。
 
@@ -110,7 +111,7 @@ modsearch config set tavily.apiKey <key>
 # 或环境变量：export TAVILY_API_KEY=<key>
 ```
 
-给 agy 额度耗尽上的好保险：有 key 在，网页搜索会自动落到 Tavily。
+给免注册额度和 agy 都耗尽时上的好保险：有 key 在，网页搜索会自动落到 Tavily。
 
 ### exa（搜索，每月免费额度）
 
@@ -123,16 +124,17 @@ modsearch config set exa.apiKey <key>
 
 Exa 返回排好序的链接和高亮片段，但不写综述，所以它的 summary 是机械拼的，证据在 `items` 里。它在搜索顺序中排在 Tavily 之后。
 
-### firecrawl（搜索 + 抓取，每月免费额度）
+### firecrawl（搜索 + 抓取，默认免注册）
 
-每月 1,000 credits，不绑卡。key 在 https://firecrawl.dev 领。
+默认引擎，也是裸安装能直接干活的原因：Firecrawl 的免注册通道[每月送 1,000 免费 credits，无需注册](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)。免注册请求不发送 Authorization header，按 IP 计量，受每日请求数和 credits 两项上限约束（[限流文档](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)没有公开每日上限的具体数字）。在 https://firecrawl.dev 领一个免费 key，可以再得独享的每月 1,000 credits 和更高限额：
 
 ```bash
 modsearch config set firecrawl.apiKey <key>
 # 或环境变量：export FIRECRAWL_API_KEY=<key>
+modsearch config set firecrawl.keylessFetch false   # 让自动抓取不走云端
 ```
 
-Firecrawl 搜索连 key 都不用：REST API 接受匿名调用，走一个共享的免费月度额度（每月 1,000 credits），所以它是每条搜索链的零配置兜底。配自己的 key 就用自己的额度。抓取则必须有 key，这是故意的：页面不该流经第三方云，除非用户配置了 key 表示同意。Firecrawl 在抓取上的价值是它在云端跑真实浏览器，能读本地引擎读不了的 JavaScript 渲染页面。抓取顺序上它排在 agy 和 `local` 兜底之间。私有或保留地址的目标一律跳过它、交给本地引擎，即使 `--allow-private-network` 开着也一样：URL 里写的保留段 IP、天生本地的名字（`localhost`、`*.local`、`*.internal`），以及解析到保留 IP 的公网样子主机，都不发给云端。VPN 的假 IP 和真内部名从这里分不出来，所以都不上线，开关只让本地引擎去碰它们。搜索顺序上它排最后。
+两个角色开箱都免 key 运行。抓取正是 Firecrawl 领跑的原因：它在云端跑真实浏览器，JavaScript 渲染的页面能带着本地引擎看不到的内容回来。这也意味着公网 URL 会被交给第三方，每次云端抓取的结果 warning 都会标明这条边界。想让自动抓取只走本地，设 `firecrawl.keylessFetch false`：搜索照常免 key，抓取则跳过 Firecrawl，除非配置了 key 或用 `-e firecrawl` 显式选它。私有或保留地址的目标一律跳过它、交给本地引擎，即使 `--allow-private-network` 开着也一样：URL 里写的保留段 IP、天生本地的名字（`localhost`、`*.local`、`*.internal`），以及解析到保留 IP 的公网样子主机，都不发给云端。VPN 的假 IP 和真内部名从这里分不出来，所以都不上线。开关只让本地引擎访问它们。
 
 每次 Firecrawl 抓取花一个 credit 并强制重新爬。modsearch 发送 `maxAge: 0`，关掉 Firecrawl 默认的多天缓存，所以抓取永远不会拿到过期内容。这个取舍是故意的：一次抓取一个 credit，换来内容是新的，这正是工具的意义。想省 credits 不要新鲜度的话，Firecrawl 不是该选的引擎。
 
@@ -189,9 +191,9 @@ modsearch state clear               # 立即忘掉所有冷却
 
 ## 故障排查
 
-- `No engine on this machine can search the web`：没有配置任何搜索引擎。报错会把每条出路列全（agy、Tavily、Exa、Firecrawl）。提供选项，不要强推。
+- `firecrawl rejected the keyless request`：免注册访问暂不可用或达到限额。配置免费 Firecrawl key，等待每日额度恢复，或改用其他引擎。
 - agy 的额度报错：每周免费额度用完了。加一个带 key 的搜索引擎，或等报错里写的重置时间。冷却开着时，agy 会被自动挪到最后直到重置。
-- `exa is out of credits` / `firecrawl is out of credits`：该周期的 key 额度用完了。其他搜索引擎会自动接手，冷却把耗尽的挪到最后直到恢复。
+- `exa is out of credits` / `firecrawl is out of credits`：当前额度用完了。其他搜索引擎会自动接手，冷却把耗尽的挪到最后直到恢复。
 - `Blocked private network target`：SSRF 防护。用户在 VPN 后面的话，用 `--allow-private-network` 重试。
 - 配置里引擎名写错：modsearch 在 `warnings` 里说明，并照常用一个能干活的引擎。用户想要回那个引擎时把名字改对。
 - 超时：先用 `--timeout 300000` 重试一次再上报失败。

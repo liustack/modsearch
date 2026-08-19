@@ -28,6 +28,8 @@ The pin is IP-level, not port-level, and only the local engine is affected. The 
 
 ## VPNs and reserved ranges
 
+Firecrawl public-page fetch is a cloud boundary: the URL of a public page is sent to Firecrawl's service, which reads it with a cloud browser. This is on by default (it is what makes a bare install fetch JavaScript pages), and every cloud-fetched result carries a warning naming the route. To keep automatic page fetch local-only, run `modsearch config set firecrawl.keylessFetch false`; a configured Firecrawl key or an explicit Firecrawl engine choice still enables it. Private and reserved targets never go to the cloud in any configuration, as described below.
+
 Split-tunnel VPN clients often map public hostnames into reserved ranges such as `198.18.0.0/15`, which trips the guard on ordinary sites. `--allow-private-network` (or the top-level `modsearch config set allowPrivateNetwork true`) opens it for the local fetcher only: firecrawl never receives a target that is, or resolves to, a reserved address, because the switch authorizes local access, not disclosing internal hostnames to a cloud service. Do not use it to reach genuinely internal addresses.
 
 ## Untrusted page content

@@ -15,15 +15,17 @@ read_when:
 
 dsh 和其他宿主不一样：modsearch 以原生插件接入，不走提示词触发的 skill。这个包本身就是一个 dsh bundle，一条命令装进 profile：
 
+插件开关、profile patch、运行时验证、更新方法和兼容性检查见独立的 [dsh 插件指南](dsh.zh-CN.md)。
+
 ```sh
 npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.3
 ```
 
 一次落地三件事：
 
-- **`web_search` 开始跑在 modsearch 上。** dsh 本就带一个原生 `web_search` 工具，架在可插拔的 provider 接缝上，默认钉在 DeepSeek 的带 key 搜索 API。bundle 把 modsearch 引擎链注册为 provider 并把接缝指过来（`searchProvider: modsearch`），于是只要 agy 登录了，搜索无需任何 API key，Web UI 的原生引用卡片也全部保留。想切回去，在更后面的 profile patch 里把 `searchProvider` 钉回其他 provider。
+- **`web_search` 开始跑在 modsearch 上。** dsh 本就带一个原生 `web_search` 工具，架在可插拔的 provider 接缝上，默认钉在 DeepSeek 的带 key 搜索 API。bundle 把 modsearch 引擎链注册为 provider 并把接缝指过来（`searchProvider: modsearch`），于是搜索完全不需要 API key：Firecrawl 免注册免费额度开箱就能答，装了 agy 或配了 key 时它们优先，Web UI 的原生引用卡片也全部保留。想切回去，在更后的 profile patch 里把 `searchProvider` 钉回其他 provider。
 - **`x_search`** 覆盖 dsh 没有接缝的语料。Grok Build 装好并登录时路由给它，网页顶替的答案会在工具输出里标注降级，绝不无声。
-- **`read_page`** 把一个 URL 读成结构化证据（summary、正文提取、外链、不确定项），可带答案焦点。dsh 自带的 `web_fetch` 默认关闭，因为那个 provider 把 SSRF 防护推给了别人。modsearch 的抓取默认拦截私网目标，且这个工具不暴露任何绕开的开关。
+- **`read_page`** 把一个 URL 读成结构化证据（summary、正文提取、外链、不确定项），可带答案焦点。dsh 自带的 `web_fetch` 默认关闭，因为那个 provider 把 SSRF 防护推给了别人。ModSearch 默认拦截私网目标，这个工具也不暴露绕开开关。公网 URL 默认走 Firecrawl 免注册云端浏览器，能读 JavaScript 渲染的页面。结果会带一条注明云端路径的 warning，`modsearch config set firecrawl.keylessFetch false` 可让自动抓取只走本地。
 
 引擎、key、路由继续放在 `~/.modsearch/config.json`，与其他所有宿主共用。dsh 还在开发者预览期，插件接口可能变化。这个插件刻意把接触面压到最小（一次 provider 注册和两次原始工具注册），任何一处变了都会在宿主日志里大声降级。dsh 提示 `declares no dsh.bundle` 的话，是 pnpm 的发布时长门槛装到了旧版本，请按下方点名版本号重装。
 

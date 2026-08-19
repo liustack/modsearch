@@ -4,11 +4,11 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>为不能联网的模型补上联网能力：网页搜索、X 搜索、单页抓取。</b></p>
+<p align="center"><b>为不能联网的模型补上联网能力：网页搜索、X 搜索、单页抓取。免费，免注册，免 API key。</b></p>
 
 <p align="center">🥇 <b>全网最强的 DeepSeek Harness (dsh) 联网搜索插件</b> 🥇</p>
 
-<p align="center">引擎：<b>Antigravity CLI</b>（免费，默认）· <b>Tavily</b> · <b>Exa</b> · <b>Firecrawl</b> · <b>Grok（X）</b> · <b>local</b>，自动故障转移</p>
+<p align="center">引擎：<b>Firecrawl</b>（免注册，默认）· <b>Antigravity CLI</b> · <b>Tavily</b> · <b>Exa</b> · <b>Grok（X）</b> · <b>local</b>，自动故障转移</p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
-DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型网页搜索、X 搜索、单页抓取能力。
+DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型网页搜索、X 搜索、单页抓取能力。装完即用：默认引擎是 Firecrawl 的免注册通道，[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，不用注册账号，不用 API key，不用绑卡。
 
 ## 交流
 
@@ -37,21 +37,21 @@ DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch �
 ## 特性
 
 - **🥇 全网最强的 DeepSeek Harness (dsh) 联网搜索插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.4.3`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。更新就是再跑一遍同一条命令。这里点名版本号而不用 `@latest`，是因为 pnpm 11 会扣住最近 24 小时内发布的版本，并让 dist-tag 在剩余的旧版本中解析。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
-- **完全免费。** 默认走 Antigravity CLI 通道，无需 API key。三个备用通道（Tavily、Exa、Firecrawl）均有月度免费额度，注册均不要求绑卡。
+- **开箱免费，免注册。** 搜索和单页抓取默认跑在 Firecrawl 免注册通道上：[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，没有账号、没有 API key、没有绑卡。后备通道也全部免费：Antigravity CLI 只需浏览器登录，Tavily、Exa 和免费的 Firecrawl key 各带独立的月度额度，均不要求绑卡。
 - **自动故障转移。** 一个通道失败或额度耗尽时自动切换下一个。
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
 - **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
 
 ## 支持的引擎
 
-下面任何一个都能让搜索跑起来。各一条命令配置，key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
+Firecrawl 零配置直接可用，其余引擎各一条命令。key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
 
 | 引擎 | 能做什么 | 免费额度 | 怎么开 |
 | :-- | :-- | :-- | :-- |
+| Firecrawl（默认） | 网页搜索 + 单页抓取 | 免注册每月 1,000 免费 credits。注册免费 key 再得独享的每月 1,000 | 无需任何操作，装完即用 |
 | Antigravity CLI | 网页搜索 + 单页抓取 | 免费，浏览器登录 | 安装 `agy` 并登录 |
 | Tavily | 网页搜索 | 每月 1,000 credits，不绑卡 | `modsearch config set tavily.apiKey <key>` |
 | Exa | 网页搜索 | 每月 $10 循环额度（约 1,400 次），不绑卡 | `modsearch config set exa.apiKey <key>` |
-| Firecrawl | 网页搜索 + 单页抓取 | 每月 1,000 credits，搜索甚至无 key 可用 | `modsearch config set firecrawl.apiKey <key>` |
 | Grok Build | X（推特）搜索 | 随 SuperGrok 或 X Premium 订阅 | 安装 `grok` 并登录 |
 | local | 单页抓取 | 内置，零安装 | 无需任何操作 |
 
@@ -59,18 +59,18 @@ key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API
 
 ## 安装
 
-**第一步，准备搜索引擎（唯一需要你亲手做的）。** 默认引擎 Antigravity CLI 需要本人在浏览器完成登录：
+**第一步，交给你的 AI。** skill 一装好，搜索和单页抓取就跑在 Firecrawl 的免注册免费额度上，所以安装只是一句话：
+
+> 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
+
+**第二步（可选），再加免费引擎。** Antigravity CLI 的综述质量更高，Tavily、Exa 或免费 Firecrawl key 能在免注册额度之上再加一份个人额度，都不要求绑卡。只有 agy 的浏览器登录需要你亲手完成：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy                                                           # 浏览器完成登录后退出
 ```
 
-不想装它就注册一个免费 key，Tavily、Exa、Firecrawl 任选一家（Tavily 每月 1,000 次，Exa 每月约 1,400 次，Firecrawl 每月 1,000 点，注册均无需绑卡）。
-
-**第二步，剩下的交给你的 AI。** 把这句话发给它，选了 key 的话把 key 一起发：
-
-> 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
+选了 key 的话，发一句话给 AI 即可：「把我的 tavily key 设成 tvly-...」。
 
 ## 用法
 
@@ -97,6 +97,7 @@ agy                                                           # 浏览器完成�
 | [故障排查](docs/troubleshooting.zh-CN.md)                      | 命令报错，查成因和解法                      |
 | [配置手册](skills/modsearch/references/configure.zh-CN.md)     | 配置 key、切换引擎、排查配置                |
 | [输出契约](skills/modsearch/references/output-schema.zh-CN.md) | 解析 JSON 或构建下游工具                    |
+| [dsh 插件](docs/dsh.zh-CN.md)                                | 安装、配置、验证与更新原生 dsh bundle       |
 | [宿主接入](docs/harness-setup.zh-CN.md)                        | 在 Codex、Claude Code、OpenCode、Pi 中配置  |
 | [安全说明](docs/security.zh-CN.md)                             | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
 | [更新日志](CHANGELOG.md)                                 | 查询版本变更                                |

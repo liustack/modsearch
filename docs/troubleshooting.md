@@ -16,27 +16,24 @@ Every message below is one modsearch actually prints. Search this file for the w
 
 Before decoding a message, run `modsearch doctor`. It reports your Node version, every engine's readiness per role and why (binary on PATH, key from env or file, Grok login file present), where your config comes from, its file permissions, and the private-network state, all without spending quota or making a request. Missing pieces come with a copyable fix command. Most setup problems are visible there at a glance. Add `--json` to feed the report to a tool.
 
-## Nothing can search
+## Every search engine failed
 
 ```
-No engine on this machine can search the web. Any one of these enables it:
-  - antigravity-cli: install Antigravity CLI and sign in once (free, no key)
-  - tavily: set a Tavily key (free tier: 1,000 credits/month, no card)
-  - exa: set an Exa key ($10/month recurring free credit, ~1,400 searches, no card)
-  - firecrawl: set a Firecrawl key (1,000 free credits/month, no card)
+Every engine for the web source failed.
+  - firecrawl: ...
 ```
 
-No search engine is set up. Every fix is listed because each is real: agy needs no key but has a weekly quota, the others need a key but each carry their own free budget.
+Firecrawl closes the normal search chain with a keyless endpoint, so a bare installation has an engine. This message now means every candidate failed at runtime. Read the attempt lines for the actual causes, commonly no network, a timeout, exhausted anonymous daily limits, or a configured engine's quota.
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash && agy   # then sign in
-# or any keyed engine:
+# or add a personal API quota:
 modsearch config set tavily.apiKey <key>
 modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
 ```
 
-Page fetch (`-u`) is unaffected by this: it always works.
+Page fetch (`-u`) still ends at the built-in local engine when cloud engines fail.
 
 ## Quota exhausted
 
@@ -50,14 +47,15 @@ agy's free tier is one weekly grant shared by the Antigravity desktop app, the C
 - Add a keyed search engine (Tavily, Exa, or Firecrawl). Search then falls through to it automatically, with no further action from you.
 - With cooldown on (the default), agy is remembered as spent and moved to the back of the chain until it resets, so later runs fail over first. See "An engine keeps getting skipped" below.
 
-## Exa or Firecrawl key rejected
+## Exa or Firecrawl authentication rejected
 
 ```
 exa rejected the API key (401). Fix it: modsearch config set exa.apiKey <key>
 firecrawl rejected the API key (401). Fix it: modsearch config set firecrawl.apiKey <key>
+firecrawl rejected the keyless request (401). Anonymous access may be unavailable or rate-limited.
 ```
 
-The key is missing, wrong, or revoked. Set a valid one with the command in the message, or export `EXA_API_KEY` / `FIRECRAWL_API_KEY`. A rejected key is a setup problem, not a quota problem, so it is not put on cooldown.
+The first two messages mean a configured key is wrong or revoked. Set a valid one with the command in the message, or export `EXA_API_KEY` / `FIRECRAWL_API_KEY`. The keyless message means Firecrawl did not accept anonymous access for this request. Wait for the daily allowance to recover, configure a free key for higher limits, or use another engine. Authentication failures are not put on cooldown.
 
 ## Exa or Firecrawl out of credits
 
@@ -66,7 +64,7 @@ exa is out of credits: ...
 firecrawl is out of credits: ...
 ```
 
-The engine's free budget for the period is spent. Another keyed search engine picks up the work on its own, and with cooldown on the spent engine is moved to the back of the chain until it recovers, so you stop hitting it. Add credit, switch engines, or wait for the monthly reset.
+The current budget is spent. For Firecrawl this can be an anonymous daily allowance or an account quota. Another search engine picks up the work on its own, and with cooldown on the spent engine is moved to the back of the chain until it recovers. Add credit, switch engines, or wait for the relevant reset.
 
 ## Tavily out of monthly quota (432/433)
 

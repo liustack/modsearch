@@ -44,9 +44,11 @@ Each file in `cases/` default-exports one object:
 `requirement` semantics:
 
 - `none` — no engine, no network, no quota. Always runs (SSRF).
-- `fetch` — uses the built-in local engine, so it always runs, but it needs
-  network. A network failure is recorded as a fail with the error.
-- `search` — runs only when a search engine (agy or a Tavily key) is set up.
+- `fetch` — page fetch always has an engine (keyless Firecrawl by default, the
+  built-in local engine as the floor), so it always runs, but it needs network.
+  A network failure is recorded as a fail with the error.
+- `search` — runs when doctor resolves the search role. A normal installation
+  resolves at least Firecrawl's keyless endpoint.
 - `search-no-social` — runs only when search is set up **and** Grok is not, since
   the point is to observe the degrade. Skipped where Grok is signed in.
 
@@ -80,9 +82,9 @@ A skipped case writes a short artifact with `skipped: true` and the reason.
 | `x-degrade` | With no Grok, an X query is answered by the web and says so |
 | `js-render` | A client-rendered page comes back thin and the result flags it |
 | `search-exa` | A forced `-e exa` search returns ranked results with links (when exa is keyed) |
-| `fetch-firecrawl` | A forced `-e firecrawl` fetch reads a page as markdown (when firecrawl is keyed) |
+| `fetch-firecrawl` | A forced `-e firecrawl` fetch reads a page as markdown, keyless or keyed |
 
-`search-exa` and `fetch-firecrawl` force one specific engine. The runner has no per-engine skip, so when that engine is not keyed on the machine the forced run errors on the missing key, and the case's own check treats that as "not exercised" (a pass with a note) rather than a red, so a normal `pnpm eval` run stays green. They only exercise the engine when its key is present.
+`search-exa` and `fetch-firecrawl` force one specific engine. The Exa case treats a missing key as not exercised. Firecrawl supports keyless fetch, so its case always exercises the engine when network access is available. Either case reports a spent quota as blocked rather than presenting it as a product failure or a pass.
 
 ## Adding a case
 

@@ -59,7 +59,7 @@ CLI 向 stdout 打印一个 JSON 对象。顶层信封对每次运行都一样�
 | `model` | 使用的模型，引擎有模型时才有值（没有时是空字符串） |
 | `status` | `ok`、`degraded` 或 `unavailable`（见下文） |
 | `warnings` | 这个语料的路由与运行警告：一次回退、一条降级说明、一个配置笔误、本地引擎的「无综述」和「已放行私有网络」提示。说的是答案怎么产生的，不是答案里的事实。永远是数组，常为空 |
-| `attempts` | 这个语料按顺序试过的每个引擎：`{ engine, ok, error?, durationSeconds, cost?, credits? }`。`ok: false` 的条目带失败 `error`。上报消耗的 key 引擎会附 `cost`（exa，美元）或 `credits`（firecrawl）。两个字段都可选，不上报的引擎上没有。成功的运行末尾恰有一条 `ok: true` |
+| `attempts` | 这个语料按顺序试过的每个引擎：`{ engine, ok, error?, durationSeconds, cost?, credits? }`。`ok: false` 的条目带失败 `error`。会上报消耗的引擎会附 `cost`（exa，美元）或 `credits`（firecrawl）。两个字段都可选，不上报的引擎上没有。成功的运行末尾恰有一条 `ok: true` |
 | `durationSeconds` | 这一个语料花了多久，什么都没跑时为 `null` |
 
 其余字段取决于模式。

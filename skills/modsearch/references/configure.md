@@ -10,24 +10,24 @@ Three jobs, called roles. Each role has engines that can do it:
 
 | Job | Engines | Configurable? |
 | :-- | :-- | :-- |
-| search the public web | `antigravity-cli`, `tavily`, `exa`, `firecrawl` | yes, this is the one `engine` setting |
-| read one URL | the chosen engine if it can fetch, then `firecrawl` when keyed, else `local` | no, it follows the choice above |
+| search the public web | `firecrawl`, `antigravity-cli`, `tavily`, `exa` | yes, this is the one `engine` setting |
+| read one URL | the chosen engine if it can fetch, then keyless `firecrawl`, then `local` | no, it follows the choice above |
 | search X (Twitter) | `grok-cli` | no, nothing else can see inside X |
 
-The search order is fixed at `antigravity-cli` then `tavily` then `exa` then `firecrawl`, best first, and fetch is `antigravity-cli` then `firecrawl` then `local`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change.
+The search order is fixed at `firecrawl` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `antigravity-cli` then `local`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change. Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key.
 
 Two facts follow from this table, and they answer most questions:
 
 - **Page fetch always works.** The `local` engine needs nothing installed, and it is the last resort for `fetch` no matter what else is configured or broken.
-- **Web search needs one engine.** Antigravity CLI (free, no key), or a Tavily, Exa, or Firecrawl key. With none of them, `-q` explains the options instead of failing silently.
+- **Web search needs no setup.** Firecrawl's keyless free quota (1,000 credits/month, no signup) serves it out of the box. A configured `engine` choice takes precedence when set.
 
 X is a separate corpus, not a competing search engine, so it never replaces web search. `--source` chooses corpora, `--engine` chooses the tool.
 
 ## Zero setup
 
-modsearch runs with no config file at all. It looks at what is on the machine and uses the best thing available. Only create a config when the user wants to change that.
+modsearch runs with no config file at all: search and fetch work as installed on Firecrawl's keyless free quota. It looks at what is on the machine and uses the best thing available. Only create a config when the user wants to change that.
 
-The fastest path to a fully working setup is Antigravity CLI, because it covers both search and fetch with no key:
+Antigravity CLI is the strongest free upgrade, because it synthesizes cited answers and covers both search and fetch with no key:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash
@@ -56,7 +56,7 @@ Full structure. Every field is optional, and so is the file itself:
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "tvly-...", "baseURL": "https://gw.example.com/tavily" },
     "exa":             { "apiKey": "..." },
-    "firecrawl":       { "apiKey": "fc-..." },
+    "firecrawl":       { "apiKey": "fc-...", "keylessFetch": false },
     "grok-cli":        { "bin": "grok" }
   }
 }
@@ -72,6 +72,7 @@ JSON has no comments, so here is every field:
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
 | `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`. Empty unsets it. See the endpoint section below. |
+| `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | Allow public-page fetch through Firecrawl without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off Firecrawl's cloud; a configured key or an explicit Firecrawl engine choice still enables it. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
 | `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.6-flash-low`. |
 
@@ -86,7 +87,7 @@ modsearch config set cooldown off             # turn off quota cooldown failover
 modsearch config set allowPrivateNetwork true # reach reserved/private ranges
 ```
 
-Nothing configures page fetch or X, on purpose. Fetching uses the chosen engine when that engine can fetch, and the built-in local fetcher otherwise. X has exactly one possible engine, so there is no choice to store.
+Page fetch has one switch (`firecrawl.keylessFetch`, above) and X has none, on purpose. Fetching uses the chosen engine when that engine can fetch, then keyless Firecrawl, then the built-in local fetcher. X has exactly one possible engine, so there is no choice to store.
 
 A config written before roles existed (one global `provider` plus a `providers` map) is read and mapped automatically. Nothing to migrate by hand.
 
@@ -110,7 +111,7 @@ modsearch config set tavily.apiKey <key>
 # or environment: export TAVILY_API_KEY=<key>
 ```
 
-Good insurance when agy's quota runs dry: with a key present, web search falls to Tavily on its own.
+Good insurance when the keyless quota and agy both run dry: with a key present, web search falls to Tavily on its own.
 
 ### exa (search, free monthly credit)
 
@@ -123,16 +124,17 @@ modsearch config set exa.apiKey <key>
 
 Exa ranks and links with highlight snippets but writes no synthesis, so its summary is mechanical and the evidence is in `items`. It sits after Tavily in the search order.
 
-### firecrawl (search + fetch, free monthly credits)
+### firecrawl (search + fetch, keyless by default)
 
-1,000 credits a month, no card. Key from https://firecrawl.dev.
+The default engine, and the reason a bare install works: Firecrawl's keyless tier grants [1,000 free credits a month with no signup](https://www.firecrawl.dev/blog/firecrawl-keyless-launch). Keyless requests omit the Authorization header and are metered per IP with daily request and credit caps (Firecrawl does not publish the daily numbers in its [rate-limit documentation](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key)). A free key from https://firecrawl.dev adds a personal 1,000 credits/month and higher limits:
 
 ```bash
 modsearch config set firecrawl.apiKey <key>
 # or environment: export FIRECRAWL_API_KEY=<key>
+modsearch config set firecrawl.keylessFetch false   # keep automatic page fetch off the cloud
 ```
 
-Firecrawl search works with no key at all: the REST API accepts unauthenticated calls against a shared free allowance (1,000 credits/month), so it closes every search chain as the zero-setup floor. Set a key to get your own quota. Fetch stays keyed on purpose: pages should not flow through a third-party cloud unless you opted in by configuring it. Firecrawl earns its place on fetch: it runs a real browser in the cloud, so it reads JavaScript-rendered pages the local engine cannot. On a fetch it sits between agy and the `local` floor. Any private or reserved target is always skipped and read by the local engine instead, even with `--allow-private-network` on: a literal one (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) and equally a public-looking host that resolves to a reserved IP. A VPN fake-ip and a real internal name cannot be told apart from here, so neither is handed to the cloud; the switch only lets the local engine reach them. On search it sits last.
+Both roles run keyless out of the box. Fetch is where Firecrawl earns its lead: it runs a real browser in the cloud, so JavaScript-rendered pages come back with content the local engine cannot see. That also means a public URL is sent to a third party, and the result warning names that boundary on every cloud fetch. To keep automatic page fetch local-only, set `firecrawl.keylessFetch false`: search stays keyless, and fetch skips Firecrawl unless a key is configured or `-e firecrawl` selects it explicitly. Any private or reserved target is always skipped and read by the local engine instead, even with `--allow-private-network` on: a literal one (an IP written into the URL that lands in a reserved range, or an inherently local name like `localhost`, `*.local`, `*.internal`) and equally a public-looking host that resolves to a reserved IP. A VPN fake-ip and a real internal name cannot be told apart from here, so neither is handed to the cloud. The switch only lets the local engine reach them.
 
 Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends `maxAge: 0`, which disables Firecrawl's default multi-day cache, so a fetch can never return stale content. The trade is deliberate: a credit per fetch in exchange for currency, which is the point of the tool. If you would rather trade freshness for credits, Firecrawl is not the engine to reach for.
 
@@ -189,9 +191,9 @@ modsearch state clear               # forget every cooldown now
 
 ## Troubleshooting
 
-- `No engine on this machine can search the web`: no search engine is set up. The message lists every fix (agy, Tavily, Exa, Firecrawl). Offer, do not insist.
+- `firecrawl rejected the keyless request`: anonymous access is unavailable or rate-limited. Set a free Firecrawl key, wait for the daily allowance to recover, or use another engine.
 - Quota errors from agy: the weekly free quota is spent. Add a keyed search engine, or wait for the reset named in the message. With cooldown on, agy is moved to the back on its own until it resets.
-- `exa is out of credits` / `firecrawl is out of credits`: the keyed budget for the period is spent. Another search engine picks up the work, and cooldown moves the spent one to the back until it recovers.
+- `exa is out of credits` / `firecrawl is out of credits`: the current budget is spent. Another search engine picks up the work, and cooldown moves the spent one to the back until it recovers.
 - `Blocked private network target`: SSRF guard. If the user is behind a VPN, retry with `--allow-private-network`.
 - Wrong engine name in config: modsearch says so in `warnings` and uses a working engine anyway. Fix the name when the user wants that engine back.
 - Timeouts: retry once with `--timeout 300000` before reporting failure.

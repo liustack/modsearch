@@ -22,7 +22,7 @@ pnpm typecheck                              # tsc --noEmit, run before tests
 
 ## Conventions
 
-- No network in unit tests. The keyed HTTP engines (Tavily, Exa, Firecrawl) are exercised by stubbing the global `fetch`, a page fetch runs against the loopback server from `startLocalPage`, and the `agy`/`grok` subprocess engines are replaced with fake CLIs that echo canned envelopes.
+- No network in unit tests. The HTTP engines (Tavily, Exa, Firecrawl) are exercised by stubbing the global `fetch`, a page fetch runs against the loopback server from `startLocalPage`, and the `agy`/`grok` subprocess engines are replaced with fake CLIs that echo canned envelopes.
 - To fake the home directory or PATH (grok availability checks), use `withTempHome` / `envWithBinaries` from `src/testing/helpers.ts`. They restore what they change. `withTempHome` redirects both `HOME` and `USERPROFILE`, because `os.homedir()` follows `HOME` on POSIX and `USERPROFILE` on Windows.
 - Engines with subprocess transports test `buildInvocation` / `parseOutput` as pure functions, which run on every platform. The end-to-end route-and-fallback tests spawn a fake CLI through `runSearch`, and a fake CLI is a POSIX shell script, so those suites are gated on `SPAWNS_FAKE_CLI` and skipped on Windows.
 

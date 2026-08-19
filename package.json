@@ -1,7 +1,7 @@
 {
   "name": "@liustack/modsearch",
   "version": "5.4.3",
-  "description": "Plug-in web search, X search, and page fetch for models without native web access, powered by the free Antigravity CLI",
+  "description": "Plug-in web search, X search, and page fetch for models without native web access. Free out of the box: no signup, no API key (Firecrawl keyless, 1,000 free credits/month)",
   "type": "module",
   "bin": {
     "modsearch": "./dist/main.js"

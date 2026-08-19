@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.5.0 - 2026-08-20
+
+- ModSearch is now free out of the box, with no signup and no API key. Firecrawl's keyless tier (1,000 free credits/month per its Keyless launch, metered as per-IP daily request and credit caps) becomes the default engine for both web search and page fetch, so a bare install searches and reads JavaScript pages immediately. Antigravity CLI moves from default to first fallback, since its weekly quota is small; Tavily and Exa remain keyed backups. Keyless requests omit the Authorization header. Keyless public-page fetch is on by default and every cloud-fetched result carries a warning naming the route; `firecrawl.keylessFetch false` keeps automatic fetch local-only, while a configured key or an explicit Firecrawl engine choice still enables it. Private and reserved targets never go to the cloud in any configuration, and a malformed `keylessFetch` value fails closed to the local engine. `doctor`, routing, errors, evals, the skill, and user documentation describe the same behavior.
+- DeepSeek Harness `0.1.0-rc.7` was checked against the bundle manifest, web search provider, raw tool registration, composed profile, and a real profile boot. No compatibility code change is required. A dedicated bilingual dsh guide now covers install, engine config, plugin switches, profile patches, verification, updates, removal, Electron behavior, and failure diagnosis. The `read_page` tool now preserves and renders operational warnings, including Firecrawl cloud disclosure. Its pinned package commands are included in the release version drift test.
+
 ## 5.4.3 - 2026-08-17
 
 - The CLI now forces Commander's Node argument layout when it runs through an Electron executable with `ELECTRON_RUN_AS_NODE=1`. This keeps the script path out of the default search command's positional arguments, so the dsh plugin can use `web_search`, `x_search`, and `read_page` from Electron desktop hosts.

@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -File <skill-dir>\scripts\run.ps1 -q "test"  
 
 The launcher finds a working way to run modsearch and forwards your arguments to it unchanged. It tries, in order: a compatible `modsearch` already on `PATH`, then `npx`, then `bunx`. If none of those exists it prints a JSON diagnosis to stderr and exits 78, with a `nextSteps` list for the user. Relay those steps instead of retrying. To see the full diagnosis, run `bash <skill-dir>/scripts/run.sh doctor --json` (on a machine that can launch the CLI it also chains modsearch's own engine/config `doctor`).
 
-Nothing else needs setting up first: modsearch works with no config file, and page fetch works on any machine. Web search does need one engine, and if neither is present the error names both ways to get one.
+Nothing else needs setting up first: modsearch works with no config file. Web search and page fetch run out of the box on Firecrawl's keyless free quota (no signup, no key), and a configured engine or API key takes precedence when present.
 
 ### If you cannot run the launcher script
 
@@ -69,8 +69,8 @@ Three jobs, each with its own engines:
 
 | Role | Engines (best first) | Notes |
 | :-- | :-- | :-- |
-| search the web | `antigravity-cli`, `tavily`, `exa`, `firecrawl` | agy is free with no key. Tavily, Exa, and Firecrawl each need a key and each have a free budget, none needs a card. |
-| fetch a page | `antigravity-cli`, `firecrawl`, `local` | Firecrawl, when keyed, runs a cloud browser that reads JavaScript pages. `local` needs nothing and always works. |
+| search the web | `firecrawl`, `antigravity-cli`, `tavily`, `exa` | Firecrawl works keyless with no signup (1,000 free credits/month). agy is free with a browser sign-in. Tavily, Exa, and a free Firecrawl key add personal quotas. |
+| fetch a page | `firecrawl`, `antigravity-cli`, `local` | Firecrawl runs a cloud browser, keyless by default (`firecrawl.keylessFetch false` opts out). `local` needs nothing and always works. |
 | search X | `grok-cli` | Needs Grok Build with SuperGrok or X Premium. |
 
 modsearch picks per role from what is installed and falls through on failure, so do not probe first: run the command and read `results[].engine` to see who answered.
@@ -121,7 +121,7 @@ Fetch mode replaces `items` with `content` (the page as text or markdown) and `l
 
 Every error this CLI prints names its cause, and most already name the fix, so read the message first. When setup is the suspect, run `modsearch doctor` (spends no quota): it reports each engine's readiness per role and the config in effect, with a fix command for anything missing. `--json` gives a machine-readable report.
 
-- `No engine on this machine can search the web`: the message lists the two ways to fix it. Offer them, do not insist on one.
+- `Every engine for the web source failed`: read the attempt list. A bare install includes keyless Firecrawl, so this means runtime failures such as no network, timeout, or exhausted limits rather than missing setup.
 - `Every engine for the <source> source failed`: each engine's failure is listed, and `attempts` in a returned entry carries the same per-engine errors. Act on the first fixable one.
 - Quota exhausted (agy weekly quota, or `exa`/`firecrawl` out of credits): not fatal when another search engine is set up, since search falls through on its own and cooldown moves the spent engine to the back. Otherwise relay the reset time from the message.
 - Timeouts: retry once with `--timeout 300000`. If it still fails, report the exact error instead of answering from stale memory.
