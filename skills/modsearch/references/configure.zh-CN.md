@@ -82,10 +82,17 @@ JSON 不支持注释，所以每个字段的说明在这里：
 modsearch config set engine tavily            # 选定搜索引擎
 modsearch config set engine ""                # 回到自动
 modsearch config set tavily.apiKey <key>      # 引擎凭据
+modsearch config set tavily.apiKey            # 不带值：隐藏输入提示（见下）
 modsearch config set tavily.baseURL <url>     # 兼容的第三方端点
 modsearch config set cooldown off             # 关闭额度冷却故障转移
 modsearch config set allowPrivateNetwork true # 允许访问保留/私有地址段
 ```
+
+用户要往对话里贴 key 时，先给更干净的路径：让用户在自己的终端跑不带值的
+`modsearch config set <engine>.apiKey`，CLI 会弹出不回显的输入提示，key 不进这
+个对话、不进 argv、不进 shell 历史（`pbpaste | modsearch config set
+tavily.apiKey` 管道喂入也行）。用户还是直接贴进对话的话，照常替他保存：这个选
+项是给在意的人的，不是一道门。
 
 抓取只有一个开关（上文的 `firecrawl.keylessFetch`），X 一个都没有，这是故意的。抓取用所选引擎（若它能抓），然后是免注册的 Firecrawl，最后是内置本地抓取器。X 只有一个可能的引擎，没有需要存的选择。
 

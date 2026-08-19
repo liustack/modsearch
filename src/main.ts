@@ -16,6 +16,7 @@ import { buildCooldownController, clearAllCooldowns, currentStatePath } from './
 import { formatDoctorReport, runDoctor } from './doctor.ts';
 import { listEngines } from './providers/index.ts';
 import { runSearch } from './search.ts';
+import { readSecret } from './util/secretInput.ts';
 
 const program = new Command();
 
@@ -147,10 +148,20 @@ config
   });
 
 config
-  .command('set <key> <value>')
-  .description('Set a value, e.g. tavily.apiKey <key>, or search.engine tavily')
-  .action((key: string, value: string) => {
+  .command('set <key> [value]')
+  .description(
+    'Set a value, e.g. tavily.apiKey <key>, or search.engine tavily. Omit the value for an .apiKey to be prompted with the echo muted, so the key stays out of argv and shell history (a pipe works too: pbpaste | modsearch config set tavily.apiKey)',
+  )
+  .action(async (key: string, value: string | undefined) => {
     try {
+      if (value === undefined) {
+        // Only keys may be prompted for: every other field is ordinary
+        // configuration, and omitting its value is a mistake worth naming.
+        if (!key.endsWith('.apiKey')) {
+          throw new Error(`${key} needs a value: modsearch config set ${key} <value>`);
+        }
+        value = await readSecret(`Enter the value for ${key} (input hidden): `);
+      }
       setConfigValue(key, value);
       process.stdout.write(`Saved ${key} to ${CONFIG_PATH}\n`);
     } catch (error) {
@@ -189,4 +200,5 @@ state
     }
   });
 
-program.parse(process.argv, { from: 'node' });
+// parseAsync: the hidden-prompt path in `config set` awaits user input.
+await program.parseAsync(process.argv, { from: 'node' });

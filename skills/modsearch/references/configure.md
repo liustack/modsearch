@@ -82,10 +82,18 @@ JSON has no comments, so here is every field:
 modsearch config set engine tavily            # choose the search engine
 modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
+modsearch config set tavily.apiKey            # no value: hidden prompt (see below)
 modsearch config set tavily.baseURL <url>     # a compatible third-party endpoint
 modsearch config set cooldown off             # turn off quota cooldown failover
 modsearch config set allowPrivateNetwork true # reach reserved/private ranges
 ```
+
+When the user is about to paste a key into the chat, offer the cleaner path
+first: run `modsearch config set <engine>.apiKey` with no value in their
+terminal, and the CLI prompts with the echo muted, so the key never enters
+this conversation, argv, or their shell history (`pbpaste | modsearch config
+set tavily.apiKey` pipes it too). If they paste it into the chat anyway, just
+save it for them: the offer is for the users who care, not a gate.
 
 Page fetch has one switch (`firecrawl.keylessFetch`, above) and X has none, on purpose. Fetching uses the chosen engine when that engine can fetch, then keyless Firecrawl, then the built-in local fetcher. X has exactly one possible engine, so there is no choice to store.
 
