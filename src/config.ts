@@ -22,6 +22,11 @@ export interface EngineSettings {
   model?: string;
   bin?: string;
   /**
+   * Allow Firecrawl to fetch public URLs without an API key. On by default
+   * (undefined means on); set false to keep page fetch off Firecrawl's cloud.
+   */
+  keylessFetch?: boolean;
+  /**
    * Endpoint base for the HTTP engines (tavily, exa, firecrawl), replacing the
    * official host: a third-party compatible gateway, a proxy, a self-hosted
    * deployment. The engine appends its documented path (`/search`, `/v2/scrape`)
@@ -43,9 +48,8 @@ export interface ModsearchConfig {
   cooldown?: string;
   /**
    * Global network policy, not an engine setting: allow reserved and private
-   * address ranges. It governs both the local fetcher (whether it reaches such a
-   * target) and firecrawl (whether a public host that resolves to a reserved IP
-   * is still sent to the cloud). Off by default.
+   * address ranges in the local fetcher. It never authorizes sending a target
+   * that is, or resolves to, a reserved address to Firecrawl. Off by default.
    */
   allowPrivateNetwork?: boolean;
 }
@@ -63,13 +67,21 @@ export function currentConfigPath(): string {
   return path.join(os.homedir(), '.modsearch', 'config.json');
 }
 
-const ENV_BINDINGS: Record<string, Partial<Record<keyof EngineSettings, string>>> = {
+type StringEngineSetting = 'apiKey' | 'model' | 'bin' | 'baseURL';
+
+const ENV_BINDINGS: Record<string, Partial<Record<StringEngineSetting, string>>> = {
   tavily: { apiKey: 'TAVILY_API_KEY', baseURL: 'TAVILY_BASE_URL' },
   exa: { apiKey: 'EXA_API_KEY', baseURL: 'EXA_BASE_URL' },
   firecrawl: { apiKey: 'FIRECRAWL_API_KEY', baseURL: 'FIRECRAWL_BASE_URL' },
 };
 
-const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = ['apiKey', 'model', 'bin', 'baseURL'];
+const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
+  'apiKey',
+  'model',
+  'bin',
+  'baseURL',
+  'keylessFetch',
+];
 
 /** Engines that used to be pinned globally, mapped to the role they serve. */
 const LEGACY_ENGINE_ROLES: Record<string, Role> = {
@@ -152,11 +164,20 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   const fold = (source: Record<string, Record<string, unknown>> | undefined) => {
     for (const [name, rawSettings] of Object.entries(source ?? {})) {
       const canonical = CANONICAL_ENGINE[name] ?? name;
-      const { allowPrivateNetwork: legacyFlag, ...rest } = rawSettings;
+      const {
+        allowPrivateNetwork: legacyFlag,
+        keylessFetch: rawKeylessFetch,
+        ...rest
+      } = rawSettings;
       if (legacyFlag !== undefined) {
         allowPrivateNetwork ??= coerceBoolean(legacyFlag);
       }
-      engines[canonical] = { ...engines[canonical], ...(rest as EngineSettings) };
+      const keylessFetch = coerceBoolean(rawKeylessFetch);
+      engines[canonical] = {
+        ...engines[canonical],
+        ...(rest as EngineSettings),
+        ...(keylessFetch === undefined ? {} : { keylessFetch }),
+      };
     }
   };
   fold(raw.providers as Record<string, Record<string, unknown>> | undefined);
@@ -249,7 +270,7 @@ export function engineSettings(
 
   const settings: EngineSettings = { ...fromFile };
   for (const [field, envName] of Object.entries(bindings) as Array<
-    [keyof EngineSettings, string]
+    [StringEngineSetting, string]
   >) {
     const value = env[envName]?.trim();
     if (value) {
@@ -304,6 +325,17 @@ export function setConfigValue(
         `Unknown engine setting: ${field}. Use ${SETTABLE_ENGINE_FIELDS.join(', ')}.`,
       );
     }
+    if (field === 'keylessFetch') {
+      const parsed = coerceBoolean(value);
+      if (parsed === undefined) {
+        throw new Error(`Invalid keylessFetch value: ${value}. Use true or false.`);
+      }
+      config.engines ??= {};
+      config.engines[engineName] ??= {};
+      config.engines[engineName].keylessFetch = parsed;
+      writeConfigFile(config, configPath);
+      return;
+    }
     if (field === 'baseURL') {
       const trimmed = value.trim();
       // Empty unsets the override, back to the official endpoint. Anything else
@@ -323,7 +355,7 @@ export function setConfigValue(
     }
     config.engines ??= {};
     config.engines[engineName] ??= {};
-    config.engines[engineName][field as keyof EngineSettings] = value;
+    config.engines[engineName][field as StringEngineSetting] = value;
   }
 
   writeConfigFile(config, configPath);
@@ -376,7 +408,7 @@ export function renderEffectiveConfig(
   config: ModsearchConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const tag = (value: string, source: 'file' | 'env') => `${value} (${source})`;
+  const tag = (value: string | boolean, source: 'file' | 'env') => `${value} (${source})`;
 
   const out: Record<string, unknown> = {};
   out.engine = config.engine ? tag(config.engine, 'file') : '(unset: automatic)';
@@ -401,7 +433,7 @@ export function renderEffectiveConfig(
       if (value === undefined) {
         continue;
       }
-      target[field] = tag(field === 'apiKey' ? maskKey(value) : value, 'file');
+      target[field] = tag(field === 'apiKey' ? maskKey(String(value)) : value, 'file');
     }
   }
 
@@ -410,7 +442,7 @@ export function renderEffectiveConfig(
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
     const canonical = CANONICAL_ENGINE[engineName] ?? engineName;
     for (const [field, envName] of Object.entries(bindings) as Array<
-      [keyof EngineSettings, string]
+      [StringEngineSetting, string]
     >) {
       const value = env[envName]?.trim();
       if (!value) {

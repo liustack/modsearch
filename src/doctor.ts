@@ -174,10 +174,15 @@ function diagnoseEngine(
     const fromEnv = env.FIRECRAWL_API_KEY?.trim();
     const fromFile = config.engines?.firecrawl?.apiKey?.trim();
     const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
-    // Search works keyless (Firecrawl grants 1,000 free credits/month with no
-    // signup), so for the search role the engine is ready with or without a
-    // key. Fetch stays keyed: pages should not flow through a third-party
-    // cloud unless the user opted in by configuring it.
+    const configuredEngine = chosenEngine(config);
+    // Keyless fetch is on by default; only an explicit `keylessFetch: false`
+    // turns it off, and an explicit Firecrawl engine choice overrides even
+    // that (choosing the engine is consent). Mirrors firecrawlProvider and
+    // the router's unconditional add of the configured engine.
+    const keylessFetch =
+      settings.keylessFetch === undefined ||
+      settings.keylessFetch === true ||
+      (configuredEngine !== undefined && findEngine(configuredEngine)?.name === 'firecrawl');
     if (role === 'search') {
       return {
         engine: engine.name,
@@ -185,18 +190,20 @@ function diagnoseEngine(
         keySource,
         reason: keySource
           ? `API key present (from ${keySource})`
-          : 'keyless: search needs no key (1,000 shared free credits/month; set a key for your own quota)',
+          : 'keyless: works with no key and no signup (Firecrawl grants 1,000 free credits/month, metered per IP per day). Set a free key for your own quota.',
       };
     }
-    const ready = Boolean(keySource);
+    const ready = Boolean(keySource || keylessFetch);
     return {
       engine: engine.name,
       ready,
       keySource,
-      reason: ready
+      reason: keySource
         ? `API key present (from ${keySource})`
-        : 'fetch needs an API key (search works keyless); not in FIRECRAWL_API_KEY or the config file',
-      ...(ready ? {} : { fix: 'modsearch config set firecrawl.apiKey <key>' }),
+        : keylessFetch
+          ? 'keyless fetch (default): public pages are read by a cloud browser, no key or signup needed. Opt out with: modsearch config set firecrawl.keylessFetch false'
+          : 'keyless fetch is switched off (firecrawl.keylessFetch false), so Firecrawl is excluded from automatic page fetch.',
+      ...(ready ? {} : { fix: 'modsearch config set firecrawl.keylessFetch true' }),
     };
   }
 

@@ -42,6 +42,7 @@ export const FETCH_RESULT_SCHEMA = {
       },
     },
     uncertainty: { type: 'array', items: { type: 'string' } },
+    warnings: { type: 'array', items: { type: 'string' } },
   },
   required: ['summary', 'content', 'uncertainty'],
 } as const;

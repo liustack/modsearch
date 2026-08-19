@@ -144,7 +144,7 @@ export async function assertSafeRemoteTarget(
  * cloud-fetch engine (firecrawl) skips them regardless of the allowPrivateNetwork
  * switch: forwarding one would leak an internal address to the cloud. It reads
  * nothing from DNS. A public-looking hostname that only *resolves* to a reserved
- * IP is the separate, switch-governed case handled by isReservedTarget below.
+ * IP is handled by isReservedTarget below and is also kept off the cloud.
  */
 export function isLiteralReservedTarget(url: URL): boolean {
   if (isBlockedHostname(url.hostname)) {
@@ -161,16 +161,14 @@ export function isLiteralReservedTarget(url: URL): boolean {
 }
 
 /**
- * Advisory check for cloud-fetch engines (firecrawl): is this target definitely
- * a private or reserved address, so sending it to a remote crawler is pointless?
+ * Check for cloud-fetch engines such as Firecrawl: does this target resolve to
+ * a private or reserved address that must stay off the remote crawler?
  *
  * This is not a security boundary. The local engine's assertSafeRemoteTarget
  * stays the SSRF guard: it pins the connection and refuses on any doubt. This
- * one only decides whether a cloud engine should bother, so it is the opposite
- * bias: it never connects or pins, and a DNS failure returns false (let the
- * cloud resolve it with its own DNS) rather than blocking. When the private
- * network is explicitly allowed, it returns false so firecrawl still tries,
- * matching the --allow-private-network semantics the local fetcher already has.
+ * one controls cloud disclosure. It never connects or pins. A DNS failure
+ * returns false because this process cannot prove the target is reserved. The
+ * local-only private-network switch does not change this result.
  */
 export async function isReservedTarget(url: URL): Promise<boolean> {
   if (isBlockedHostname(url.hostname)) {

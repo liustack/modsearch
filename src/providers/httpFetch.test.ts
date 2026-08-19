@@ -39,9 +39,14 @@ describe('local engine routing', () => {
     expect(resolveEngine('direct').name).toBe('local');
   });
 
-  it('takes over page fetch when agy is not installed', () => {
-    const bare = planRole('fetch', {}, undefined, { PATH: '/nonexistent' } as NodeJS.ProcessEnv);
-    expect(bare.chain[0].name).toBe('local');
+  it('takes over page fetch when keyless cloud fetch is opted out', () => {
+    const noCloud = planRole(
+      'fetch',
+      { engines: { firecrawl: { keylessFetch: false } } },
+      undefined,
+      { PATH: '/nonexistent' } as NodeJS.ProcessEnv,
+    );
+    expect(noCloud.chain.map((engine) => engine.name)).toEqual(['local']);
   });
 
   it('never takes over search', () => {

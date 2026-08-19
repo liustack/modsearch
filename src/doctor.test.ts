@@ -40,11 +40,12 @@ describe('doctor: Node version', () => {
 describe('doctor: search engines', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('reports agy ready when its binary is on PATH', () => {
+  it('reports agy ready when its binary is on PATH, behind keyless firecrawl', () => {
     const report = runDoctor({ config: {}, env: envWithBinaries('agy') });
     const agy = engine(report, 'search', 'antigravity-cli');
     expect(agy?.ready).toBe(true);
-    expect(role(report, 'search')?.resolved).toBe('antigravity-cli');
+    // Keyless firecrawl leads the default chain, so it resolves first.
+    expect(role(report, 'search')?.resolved).toBe('firecrawl');
   });
 
   it('reports tavily ready from an env key and tags the source', () => {
@@ -92,10 +93,45 @@ describe('doctor: search engines', () => {
 describe('doctor: fetch and X', () => {
   afterEach(() => cleanupTempDirs());
 
-  it('always resolves fetch to the built-in local engine', () => {
+  it('resolves fetch to keyless Firecrawl by default, with local as the floor', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
+    const firecrawl = engine(report, 'fetch', 'firecrawl');
+    expect(firecrawl?.ready).toBe(true);
+    expect(firecrawl?.reason).toMatch(/keyless/i);
     expect(engine(report, 'fetch', 'local')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
+  });
+
+  it('excludes Firecrawl from fetch after an explicit keylessFetch opt-out', () => {
+    const report = runDoctor({
+      config: { engines: { firecrawl: { keylessFetch: false } } },
+      env: BARE_ENV,
+    });
+    const firecrawl = engine(report, 'fetch', 'firecrawl');
+    expect(firecrawl?.ready).toBe(false);
+    expect(firecrawl?.reason).toMatch(/keylessFetch false/i);
     expect(role(report, 'fetch')?.resolved).toBe('local');
+  });
+
+  it('keeps keyed Firecrawl fetch ready even when keylessFetch is false', () => {
+    const report = runDoctor({
+      config: { engines: { firecrawl: { keylessFetch: false, apiKey: 'fc-x' } } },
+      env: BARE_ENV,
+    });
+    expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
+  });
+
+  it('treats choosing Firecrawl as consent for its keyless fetch path', () => {
+    const report = runDoctor({ config: { engine: 'firecrawl' }, env: BARE_ENV });
+    expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
+  });
+
+  it('matches Firecrawl consent with the router\'s case-insensitive engine lookup', () => {
+    const report = runDoctor({ config: { engine: 'Firecrawl' }, env: BARE_ENV });
+    expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
   });
 
   it('reports grok not ready when the login file is missing', () => {

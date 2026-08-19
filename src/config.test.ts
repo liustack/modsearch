@@ -103,6 +103,33 @@ describe('config file', () => {
     expect(() => setConfigValue('allowPrivateNetwork', 'maybe', p)).toThrow('Use true or false');
   });
 
+  it('sets keyless Firecrawl fetch as an explicit boolean opt-in', () => {
+    const p = tempConfigPath();
+    setConfigValue('firecrawl.keylessFetch', 'true', p);
+    expect(loadConfigFile(p).engines?.firecrawl?.keylessFetch).toBe(true);
+    setConfigValue('firecrawl.keylessFetch', 'false', p);
+    const config = loadConfigFile(p);
+    expect(config.engines?.firecrawl?.keylessFetch).toBe(false);
+    expect(JSON.parse(renderEffectiveConfig(config, {})).engines.firecrawl.keylessFetch).toBe(
+      'false (file)',
+    );
+    expect(() => setConfigValue('firecrawl.keylessFetch', 'maybe', p)).toThrow(
+      'Use true or false',
+    );
+  });
+
+  it('coerces hand-written keylessFetch strings before routing reads them', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({ engines: { firecrawl: { keylessFetch: 'false' } } }),
+    );
+    expect(loadConfigFile(p).engines?.firecrawl?.keylessFetch).toBe(false);
+
+    fs.writeFileSync(p, JSON.stringify({ engines: { firecrawl: { keylessFetch: 'true' } } }));
+    expect(loadConfigFile(p).engines?.firecrawl?.keylessFetch).toBe(true);
+  });
+
   it('migrates the retired per-engine allowPrivateNetwork string to the top-level boolean', () => {
     // Old files stored it as engines.http.allowPrivateNetwork ("true"/"false").
     // Reading promotes it to a top-level boolean and drops the hollow entry.

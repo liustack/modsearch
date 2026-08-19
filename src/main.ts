@@ -133,10 +133,10 @@ config
           `Created ${CONFIG_PATH}`,
           'Everything is optional. Things you can set:',
           '  modsearch config set engine <antigravity-cli|tavily|exa|firecrawl>   which engine searches',
-          '  modsearch config set <engine>.<apiKey|bin|model> <value>   engine settings',
+          '  modsearch config set <engine>.<apiKey|bin|model|baseURL|keylessFetch> <value>   engine settings',
           '  modsearch config set cooldown <on|off>   quota cooldown failover (default on)',
           '  modsearch config set allowPrivateNetwork <true|false>   reach reserved/private ranges (default false)',
-          'Page fetch and X need no settings at all.',
+          'Search, page fetch, and X need no settings at all: keyless Firecrawl works out of the box.',
           '',
         ].join('\n'),
       );

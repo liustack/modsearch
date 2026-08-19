@@ -63,7 +63,7 @@ function skipReason(requirement, caps) {
     case 'fetch':
       return null;
     case 'search':
-      return caps.search ? null : 'no search engine is set up (agy or a Tavily key)';
+      return caps.search ? null : 'doctor could not resolve a search engine';
     case 'search-no-social':
       if (!caps.search) return 'no search engine is set up to answer the degraded query';
       if (caps.social) return 'Grok is signed in here, so there is nothing to degrade';

@@ -63,62 +63,88 @@ describe('source selection', () => {
 });
 
 describe('engine chains per role', () => {
-  it('prefers agy for search and adds tavily when a key exists', () => {
+  it('leads search with keyless firecrawl, then agy, then tavily when keyed', () => {
     const withKey = config({ engines: { tavily: { apiKey: 'k' } } });
-    // firecrawl closes every search chain: keyless search needs no setup.
     expect(names(planRole('search', withKey, undefined, WITH_AGY).chain)).toEqual([
+      'firecrawl',
       'antigravity-cli',
       'tavily',
-      'firecrawl',
     ]);
   });
 
   it('adds exa to the search chain after tavily when an exa key exists', () => {
     const withKeys = config({ engines: { tavily: { apiKey: 't' }, exa: { apiKey: 'e' } } });
     expect(names(planRole('search', withKeys, undefined, WITH_AGY).chain)).toEqual([
+      'firecrawl',
       'antigravity-cli',
       'tavily',
       'exa',
-      'firecrawl',
     ]);
   });
 
-  it('adds firecrawl to the end of the search chain when keyed', () => {
+  it('keeps firecrawl at the front of the search chain when keyed', () => {
     const keyed = config({
       engines: { tavily: { apiKey: 't' }, exa: { apiKey: 'e' }, firecrawl: { apiKey: 'f' } },
     });
     expect(names(planRole('search', keyed, undefined, WITH_AGY).chain)).toEqual([
+      'firecrawl',
       'antigravity-cli',
       'tavily',
       'exa',
-      'firecrawl',
     ]);
   });
 
-  it('inserts firecrawl into the fetch chain before the local floor when keyed', () => {
+  it('leads the fetch chain with firecrawl, agy next, local as the floor', () => {
     const keyed = config({ engines: { firecrawl: { apiKey: 'k' } } });
     expect(names(planRole('fetch', keyed, undefined, WITH_AGY).chain)).toEqual([
-      'antigravity-cli',
       'firecrawl',
+      'antigravity-cli',
       'local',
     ]);
-    // On a bare machine with just a firecrawl key, it leads and local still floors.
+    // On a bare machine, firecrawl leads and local still floors.
     expect(names(planRole('fetch', keyed, undefined, BARE).chain)).toEqual(['firecrawl', 'local']);
   });
 
   it('searches through keyless firecrawl on a bare machine', () => {
     // Zero config, nothing installed: search still works, because Firecrawl's
-    // REST API accepts unauthenticated calls against a free monthly allowance.
+    // REST API accepts unauthenticated calls against its free keyless
+    // allowance (no signup).
     expect(names(planRole('search', config(), undefined, BARE).chain)).toEqual(['firecrawl']);
   });
 
-  it('ends page fetch at the local engine when no engine is forced', () => {
-    // Bare machine, or an unfetchable config choice: the floor still fetches.
-    expect(names(planRole('fetch', config(), undefined, BARE).chain)).toEqual(['local']);
-    expect(names(planRole('fetch', config({ engine: 'tavily' }), undefined, BARE).chain)).toEqual([
+  it('runs keyless cloud fetch by default and honors the keylessFetch opt-out', () => {
+    expect(names(planRole('fetch', config(), undefined, BARE).chain)).toEqual([
+      'firecrawl',
       'local',
     ]);
+    expect(names(planRole('fetch', config({ engine: 'tavily' }), undefined, BARE).chain)).toEqual([
+      'firecrawl',
+      'local',
+    ]);
+    // The explicit opt-out removes firecrawl from the automatic fetch chain.
+    expect(
+      names(
+        planRole(
+          'fetch',
+          config({ engines: { firecrawl: { keylessFetch: false } } }),
+          undefined,
+          BARE,
+        ).chain,
+      ),
+    ).toEqual(['local']);
+    // Choosing firecrawl as the engine is consent, even with the opt-out set.
+    expect(
+      names(
+        planRole(
+          'fetch',
+          config({ engine: 'firecrawl', engines: { firecrawl: { keylessFetch: false } } }),
+          undefined,
+          BARE,
+        ).chain,
+      ),
+    ).toEqual(['firecrawl', 'local']);
     expect(names(planRole('fetch', config(), undefined, WITH_AGY).chain)).toEqual([
+      'firecrawl',
       'antigravity-cli',
       'local',
     ]);
@@ -162,7 +188,7 @@ describe('run plans', () => {
         env,
       });
       expect(plans.map((plan) => plan.source)).toEqual(['web', 'x']);
-      expect(plans[0].engine?.name).toBe('antigravity-cli');
+      expect(plans[0].engine?.name).toBe('firecrawl');
       expect(plans[1].engine?.name).toBe('grok-cli');
     } finally {
       restoreHome();
@@ -213,13 +239,14 @@ describe('run plans', () => {
     });
     restore();
     expect(plan.source).toBe('x');
-    expect(plan.engine?.name).toBe('antigravity-cli');
+    expect(plan.engine?.name).toBe('firecrawl');
     expect(plan.notes).toContain(X_DEGRADE_NOTE);
   });
 
   it('fetch mode ignores sources and always plans a fetch chain', () => {
     const [plan] = planRun({ mode: 'fetch', config: config(), env: BARE });
-    expect(plan.engine?.name).toBe('local');
+    expect(plan.engine?.name).toBe('firecrawl');
+    expect(plan.fallbacks.map((engine) => engine.name)).toContain('local');
     expect(plan.source).toBe('web');
   });
 });
@@ -227,19 +254,20 @@ describe('run plans', () => {
 describe('fetch follows the chosen engine without being configured', () => {
   it('uses the search engine for fetching when that engine can fetch', () => {
     const chain = planRole('fetch', config({ engine: 'antigravity-cli' }), undefined, WITH_AGY);
-    expect(names(chain.chain)).toEqual(['antigravity-cli', 'local']);
+    expect(names(chain.chain)).toEqual(['antigravity-cli', 'firecrawl', 'local']);
     expect(chain.notes).toEqual([]);
   });
 
-  it('falls to the local fetcher when the search engine cannot fetch', () => {
+  it('falls through the default fetch chain when the search engine cannot fetch', () => {
     // Choosing Tavily is a normal setup, not a mistake, so it earns no warning.
     const chain = planRole('fetch', config({ engine: 'tavily' }), undefined, WITH_AGY);
-    expect(names(chain.chain)).toEqual(['antigravity-cli', 'local']);
+    expect(names(chain.chain)).toEqual(['firecrawl', 'antigravity-cli', 'local']);
     expect(chain.notes).toEqual([]);
   });
 
   it('still fetches with nothing installed at all', () => {
     expect(names(planRole('fetch', config({ engine: 'tavily' }), undefined, BARE).chain)).toEqual([
+      'firecrawl',
       'local',
     ]);
   });
@@ -273,7 +301,7 @@ describe('cooldown reorders the chain without changing the base order', () => {
 
   it('moves a cooling engine to the back and notes it, keeping the rest in order', () => {
     const { chain, notes } = planRole('search', keyed, undefined, WITH_AGY, cooling({ tavily: FUTURE }));
-    expect(names(chain)).toEqual(['antigravity-cli', 'exa', 'firecrawl', 'tavily']);
+    expect(names(chain)).toEqual(['firecrawl', 'antigravity-cli', 'exa', 'tavily']);
     expect(notes.join(' ')).toMatch(/tavily engine is cooling until 2999/);
   });
 
@@ -281,7 +309,7 @@ describe('cooldown reorders the chain without changing the base order', () => {
     const cd = cooling({ 'antigravity-cli': FUTURE, tavily: FUTURE, exa: FUTURE, firecrawl: FUTURE });
     const { chain } = planRole('search', keyed, undefined, WITH_AGY, cd);
     // All cooling means the base order is unchanged, and nothing is dropped.
-    expect(names(chain)).toEqual(['antigravity-cli', 'tavily', 'exa', 'firecrawl']);
+    expect(names(chain)).toEqual(['firecrawl', 'antigravity-cli', 'tavily', 'exa']);
   });
 
   it('demotes a cooling firecrawl below the local floor on fetch', () => {
@@ -298,7 +326,7 @@ describe('cooldown reorders the chain without changing the base order', () => {
 
   it('does not demote an engine whose cooldown has already expired', () => {
     const { chain, notes } = planRole('search', keyed, undefined, WITH_AGY, cooling({ tavily: PAST }));
-    expect(names(chain)).toEqual(['antigravity-cli', 'tavily', 'exa', 'firecrawl']);
+    expect(names(chain)).toEqual(['firecrawl', 'antigravity-cli', 'tavily', 'exa']);
     expect(notes).toEqual([]);
   });
 });

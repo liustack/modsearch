@@ -42,6 +42,21 @@ describe('firecrawl provider registration', () => {
     expect(engine.roles).toEqual(['search', 'fetch']);
     expect(engine.execute).toBeTypeOf('function');
     expect(engine.buildInvocation).toBeUndefined();
+    expect(engine.isAvailable({}, {}, 'search')).toBe(true);
+    // Keyless fetch is on by default; only an explicit false turns it off.
+    expect(engine.isAvailable({}, {}, 'fetch')).toBe(true);
+    expect(engine.isAvailable({ keylessFetch: true }, {}, 'fetch')).toBe(true);
+    expect(engine.isAvailable({ keylessFetch: false }, {}, 'fetch')).toBe(false);
+    // Malformed values fail closed: no cloud disclosure on a guess. (Config
+    // loading normalizes hand-written strings before they get here.)
+    expect(
+      engine.isAvailable({ keylessFetch: 'false' as unknown as boolean }, {}, 'fetch'),
+    ).toBe(false);
+    expect(
+      engine.isAvailable({ keylessFetch: 'true' as unknown as boolean }, {}, 'fetch'),
+    ).toBe(false);
+    // An API key enables fetch regardless of the switch.
+    expect(engine.isAvailable({ keylessFetch: false, apiKey: 'fc-x' }, {}, 'fetch')).toBe(true);
   });
 });
 
@@ -66,15 +81,20 @@ describe('firecrawl search path', () => {
     expect(headers.authorization).toBe('Bearer fc-test');
   });
 
-  it('still requires an API key for fetch', async () => {
-    await expect(
-      executeFirecrawl({
-        mode: 'fetch',
-        url: 'https://example.com/',
-        timeoutMs: 1000,
-        settings: {},
-      }),
-    ).rejects.toThrow(/needs an API key \(search works keyless\)/);
+  it('fetches keyless, sending no authorization header without a key', async () => {
+    const calls = mockFetchJson({
+      success: true,
+      data: { markdown: '# Example', links: [], metadata: { statusCode: 200 } },
+    });
+    await executeFirecrawl({
+      mode: 'fetch',
+      url: 'https://example.com/',
+      timeoutMs: 1000,
+      settings: {},
+    });
+    expect(calls).toHaveLength(1);
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
   });
 
   it('posts to the v2 search endpoint with a Bearer key and the search body', async () => {
@@ -292,7 +312,7 @@ describe('firecrawl fetch path', () => {
         timeoutMs: 30000,
         settings: { apiKey: 'fc-test' },
       }),
-    ).rejects.toThrow(/private|reserved/i);
+    ).rejects.toThrow(/private or reserved.*Use the local engine instead/i);
     // The cloud crawler was never contacted for a private address.
     expect(calls).toHaveLength(0);
   });
@@ -381,6 +401,18 @@ describe('firecrawl error classification', () => {
         settings: { apiKey: 'bad' },
       }),
     ).rejects.toThrow(/config set firecrawl\.apiKey/);
+  });
+
+  it('explains a keyless 401 without claiming an API key was rejected', async () => {
+    mockFetchJson({ error: 'unauthorized' }, { ok: false, status: 401, text: 'unauthorized' });
+    const request = executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: {},
+    });
+    await expect(request).rejects.toThrow(/keyless request/);
+    await expect(request).rejects.not.toThrow(/rejected the API key/);
   });
 });
 

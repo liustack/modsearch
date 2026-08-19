@@ -26,13 +26,19 @@ import {
 const describeSpawn = describe.runIf(SPAWNS_FAKE_CLI);
 const itSpawn = it.runIf(SPAWNS_FAKE_CLI);
 
-/** A config whose agy engine is the given fake binary (full path, so PATH is irrelevant). */
+/**
+ * A config whose agy engine is the given fake binary (full path, so PATH is
+ * irrelevant). The engine is pinned to agy: the fake is the engine under test,
+ * and without the pin the default chain leads with keyless firecrawl, whose
+ * network attempt would make these unit tests flaky and online.
+ */
 function agyConfig(
   fake: { stdout?: string; code?: number },
   extra: ModsearchConfig = {},
 ): ModsearchConfig {
   const bin = fakeEngine({ name: 'agy', ...fake });
   return {
+    engine: 'antigravity-cli',
     ...extra,
     engines: { ...extra.engines, 'antigravity-cli': { bin } },
   };
@@ -219,7 +225,10 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
       const result = await runSearch({
         query: 'anything',
         sources: 'web,x',
-        config: { engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } } },
+        config: {
+          engine: 'antigravity-cli',
+          engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } },
+        },
         env,
         timeoutMs: 20_000,
       });
@@ -249,7 +258,10 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
       const result = await runSearch({
         query: 'anything',
         sources: 'web,x',
-        config: { engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } } },
+        config: {
+          engine: 'antigravity-cli',
+          engines: { 'antigravity-cli': { bin: agyBin }, 'grok-cli': { bin: grokBin } },
+        },
         env,
         timeoutMs: 20_000,
       });
@@ -323,7 +335,8 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
   }, 40_000);
 
   itSpawn('records every engine attempt in order with per-try outcome', async () => {
-    // agy fails, http answers: two attempts, first not ok, second ok.
+    // agy fails, firecrawl declines the loopback target offline (a reserved
+    // address never goes to the cloud), then local answers.
     const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
     try {
       const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
@@ -333,11 +346,13 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
         ok: boolean;
         error?: string;
       }>;
-      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'local']);
+      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'firecrawl', 'local']);
       expect(attempts[0].ok).toBe(false);
       expect(typeof attempts[0].error).toBe('string');
-      expect(attempts[1].ok).toBe(true);
-      expect(attempts[1].error).toBeUndefined();
+      expect(attempts[1].ok).toBe(false);
+      expect(attempts[1].error).toMatch(/private or reserved/);
+      expect(attempts[2].ok).toBe(true);
+      expect(attempts[2].error).toBeUndefined();
     } finally {
       await page.close();
     }

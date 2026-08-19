@@ -56,8 +56,9 @@ export function apply(ctx, config = {}) {
 
 /**
  * The web seam's search capability, backed by the modsearch engine chain
- * (agy free and keyless, tavily/exa/firecrawl by key, with cooldown-aware
- * fallback). `available()` must stay cheap and offline, and the CLI plus its
+ * (Firecrawl keyless by default with no signup, agy by sign-in, Tavily and Exa
+ * by key, with cooldown-aware fallback). `available()` must stay cheap and
+ * offline, and the CLI plus its
  * router always ship, so it answers true and leaves the honest verdict to
  * execution: a run with no usable engine fails with the per-engine attempt
  * list, which beats a silent false here.
@@ -104,7 +105,7 @@ function registerXSearchTool(ctx) {
   ctx.tools.register({
     name: 'x_search',
     description:
-      'Search X (Twitter) posts through the modsearch bridge. Use for questions about posts, threads, accounts, or discussions on X: what someone posted, reactions to an event, sentiment in a community. Returns structured evidence with a summary, per-post items with URLs, and an uncertainty list; a degraded status means X itself was unreachable and a web search answered second-hand. Requires a configured modsearch engine (run `npx @liustack/modsearch doctor` in a terminal to check).',
+      'Search X (Twitter) posts through the modsearch bridge. Use for questions about posts, threads, accounts, or discussions on X: what someone posted, reactions to an event, sentiment in a community. Returns structured evidence with a summary, per-post items with URLs, and an uncertainty list. A degraded status means X itself was unreachable and a keyless web search answered second-hand. Run `npx @liustack/modsearch doctor` to inspect the resolved engines.',
     parameters: {
       type: 'object',
       properties: {
@@ -169,14 +170,14 @@ function registerXSearchTool(ctx) {
  * fetch provider: the seam's fetch contract is safe raw retrieval (real
  * status code, undigested body) and excludes reading focus by design, while
  * this is an LLM-processed read with a summary, extracted content, links,
- * and an uncertainty list. The CLI blocks private-network targets by
- * default, and this tool exposes no override for that.
+ * an uncertainty list, and operational warnings. The CLI blocks private-network
+ * targets by default, and this tool exposes no override for that.
  */
 function registerReadPageTool(ctx) {
   ctx.tools.register({
     name: 'read_page',
     description:
-      'Read one web page through the modsearch bridge. Use when a message references a specific http(s) URL whose content matters: docs, an article, a changelog, a thread. Returns structured evidence with a summary, the extracted content, outgoing links, and an uncertainty list; pass "query" to focus the reading on one question. Requires a configured modsearch engine (run `npx @liustack/modsearch doctor` in a terminal to check).',
+      'Read one web page through the modsearch bridge. Use when a message references a specific http(s) URL whose content matters: docs, an article, a changelog, a thread. Returns structured evidence with a summary, the extracted content, outgoing links, uncertainty, and operational warnings such as cloud fetching. Pass "query" to focus the reading on one question. Page reading needs no engine setup. Run `npx @liustack/modsearch doctor` to inspect the resolved route.',
     parameters: {
       type: 'object',
       properties: {
@@ -218,6 +219,7 @@ function registerReadPageTool(ctx) {
         content: typeof entry.content === 'string' ? entry.content : '',
         ...(Array.isArray(entry.links) ? { links: entry.links } : {}),
         uncertainty: Array.isArray(entry.uncertainty) ? entry.uncertainty : [],
+        warnings: Array.isArray(entry.warnings) ? entry.warnings : [],
       };
     },
   });
@@ -327,6 +329,10 @@ function renderFetchEvidence(value) {
   const uncertainty = value.uncertainty ?? [];
   if (uncertainty.length > 0) {
     lines.push('', `Uncertain: ${uncertainty.join('; ')}`);
+  }
+  const warnings = value.warnings ?? [];
+  if (warnings.length > 0) {
+    lines.push('', `Warnings: ${warnings.join('; ')}`);
   }
   return lines.join('\n');
 }

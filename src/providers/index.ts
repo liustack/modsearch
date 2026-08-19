@@ -34,10 +34,9 @@ export interface EngineRequest {
   timeoutMs: number;
   settings: EngineSettings;
   /**
-   * Global network policy for this run: allow reserved and private ranges. Not
-   * an engine setting, since it constrains both the local fetcher and firecrawl.
-   * Resolved by the orchestrator from the config and the --allow-private-network
-   * flag. Off when absent.
+   * Global network policy for this run: allow the local fetcher to reach
+   * reserved and private ranges. Firecrawl never receives those targets.
+   * Resolved from config and --allow-private-network. Off when absent.
    */
   allowPrivateNetwork?: boolean;
 }
@@ -98,13 +97,16 @@ const ENGINES: Record<string, SearchEngine> = {
  * machine with nothing installed still lands on something that works.
  */
 export const ROLE_PREFERENCE: Record<Role, string[]> = {
-  // agy synthesizes and cites. tavily, then exa, then firecrawl are the keyed
-  // backups when agy is spent, each with its own free budget.
-  search: ['antigravity-cli', 'tavily', 'exa', 'firecrawl'],
-  // agy extracts to a focus. firecrawl runs a cloud browser for JS-heavy pages
-  // when it is keyed. The local engine always works and returns the page as
-  // served, so it stays the floor.
-  fetch: ['antigravity-cli', 'firecrawl', 'local'],
+  // Firecrawl leads: its keyless allowance works on a bare machine with no
+  // signup, which is the product's zero-setup promise. agy synthesizes and
+  // cites but its weekly quota is small, so it backs Firecrawl up rather than
+  // fronting the chain. Tavily and Exa are keyed backups.
+  search: ['firecrawl', 'antigravity-cli', 'tavily', 'exa'],
+  // Firecrawl runs a cloud browser for JS-heavy pages, keyless by default
+  // (opt out with firecrawl.keylessFetch false). agy extracts to a focus. The
+  // local engine always works and returns the page as served, so it stays the
+  // floor.
+  fetch: ['firecrawl', 'antigravity-cli', 'local'],
   // Only xAI can see inside X.
   social: ['grok-cli'],
 };

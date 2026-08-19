@@ -1,14 +1,14 @@
 // Firecrawl (https://docs.firecrawl.dev). One file, two roles: search and fetch.
 // Both talk to the Firecrawl v2 REST API directly with the built-in fetch and an
 // AbortController that cancels on timeout. Search maps ranked results in the
-// same shape as the other keyed engines. Fetch is the point of this engine: it
+// same shape as the other HTTP engines. Fetch is the point of this engine: it
 // runs a real browser in the cloud, so JavaScript-rendered pages come back with
 // content the local engine cannot see.
 //
 // The fetch path validates the target with the network module first: a private
 // or reserved address is meaningless to a cloud crawler, so firecrawl declines
-// it and the local engine reads it instead. --allow-private-network does not
-// carry through: it authorizes local access, never cloud disclosure.
+// it. An automatic chain can then try local. A forced run returns an error.
+// --allow-private-network authorizes local access, never cloud disclosure.
 import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
@@ -56,16 +56,6 @@ export async function executeFirecrawl(options: EngineRequest): Promise<EngineOu
   return options.mode === 'fetch' ? firecrawlFetch(options) : firecrawlSearch(options);
 }
 
-function requireKey(options: EngineRequest): string {
-  const apiKey = options.settings.apiKey;
-  if (!apiKey) {
-    throw new Error(
-      'Firecrawl fetch needs an API key (search works keyless). Set FIRECRAWL_API_KEY, or run: modsearch config set firecrawl.apiKey <key> (1,000 free credits/month, no card at https://firecrawl.dev)',
-    );
-  }
-  return apiKey;
-}
-
 async function firecrawlPost(
   url: string,
   apiKey: string | null,
@@ -77,7 +67,8 @@ async function firecrawlPost(
   timer.unref?.();
   try {
     // No key means keyless mode: the endpoint accepts requests with no
-    // Authorization header against a shared monthly free allowance.
+    // Authorization header under Firecrawl's free keyless allowance (1,000
+    // credits/month per their announcement, metered as per-IP daily caps).
     const headers: Record<string, string> = { 'content-type': 'application/json' };
     if (apiKey) {
       headers.authorization = `Bearer ${apiKey}`;
@@ -101,7 +92,7 @@ async function firecrawlPost(
 }
 
 /** Turn a non-2xx API response into an actionable error, quota class included. */
-async function ensureOk(response: Response): Promise<void> {
+async function ensureOk(response: Response, apiKey: string | null): Promise<void> {
   if (response.ok) {
     return;
   }
@@ -109,10 +100,15 @@ async function ensureOk(response: Response): Promise<void> {
   // A 402 or a credit/quota message is the quota class the cooldown layer reads.
   if (response.status === 402 || /credit|quota|insufficient|payment required/i.test(detail)) {
     throw new Error(
-      `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit or set your own key at https://firecrawl.dev, or search with another engine.`,
+      `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit or set your own key at https://firecrawl.dev, or use another engine.`,
     );
   }
   if (response.status === 401 || response.status === 403) {
+    if (!apiKey) {
+      throw new Error(
+        `firecrawl rejected the keyless request (${response.status}). Anonymous access may be unavailable or rate-limited. Set your own key: modsearch config set firecrawl.apiKey <key>${detail ? ` (${detail})` : ''}`,
+      );
+    }
     throw new Error(
       `firecrawl rejected the API key (${response.status}). Fix it: modsearch config set firecrawl.apiKey <key>${detail ? ` (${detail})` : ''}`,
     );
@@ -127,7 +123,7 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
     throw new Error('Search mode requires a query.');
   }
   // Search runs keyless when no key is configured: Firecrawl's REST API
-  // accepts unauthenticated calls against a shared free monthly allowance.
+  // accepts unauthenticated calls against the free keyless allowance.
   const apiKey = options.settings.apiKey || null;
   const limit = options.maxResults ?? DEFAULT_LIMIT;
   const startedAt = Date.now();
@@ -143,7 +139,7 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
     },
     options.timeoutMs,
   );
-  await ensureOk(response);
+  await ensureOk(response, apiKey);
   const data = (await response.json()) as FirecrawlSearchResponse;
 
   const items = (data.data?.web ?? []).map((r) => ({
@@ -179,7 +175,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   if (!options.url) {
     throw new Error('Fetch mode requires a URL.');
   }
-  const apiKey = requireKey(options);
+  const apiKey = options.settings.apiKey || null;
   const target = normalizeFetchUrl(options.url);
 
   // The cloud crawler never receives a target that is, or resolves to, a
@@ -187,11 +183,11 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   // that: the switch authorizes LOCAL access to such addresses, not disclosing
   // an internal hostname, path, and query to a third-party cloud service. A
   // VPN fake-ip cannot be told apart from a real internal name from here, so
-  // both are kept off the wire. The run falls through to the local engine,
-  // which can reach the target (with the switch, when it is reserved).
+  // both are kept off the wire. An automatic chain may fall through to the
+  // local engine. A forced Firecrawl run instead returns the actionable error.
   if (isLiteralReservedTarget(target) || (await isReservedTarget(target))) {
     throw new Error(
-      `firecrawl does not fetch the private or reserved target ${target.hostname}. The local engine will read it instead.`,
+      `firecrawl does not fetch the private or reserved target ${target.hostname}. Use the local engine instead.`,
     );
   }
 
@@ -216,7 +212,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
     },
     options.timeoutMs,
   );
-  await ensureOk(response);
+  await ensureOk(response, apiKey);
   const data = (await response.json()) as FirecrawlScrapeResponse;
 
   const metadata = data.data?.metadata ?? {};
@@ -307,8 +303,17 @@ function safeHostname(url: string): string | undefined {
 export const firecrawlProvider: SearchEngine = {
   name: 'firecrawl',
   roles: ['search', 'fetch'],
-  requirement: 'for fetch, set a Firecrawl key; search works keyless (1,000 free credits/month)',
+  requirement:
+    'nothing: search and public-page fetch work keyless (free, no signup). Opt out of cloud fetch with firecrawl.keylessFetch false',
+  // Keyless fetch is on by default and switched off with an explicit
+  // `keylessFetch: false`. The check is strict on purpose: any malformed value
+  // (a hand-written string that config coercion did not normalize) counts as
+  // off, so a broken config fails closed to the local engine rather than
+  // sending URLs to the cloud on a guess. A configured key always enables it.
   isAvailable: (settings, env, role) =>
-    role === 'fetch' ? Boolean(settings.apiKey || env.FIRECRAWL_API_KEY) : true,
+    role === 'search' ||
+    Boolean(settings.apiKey || env.FIRECRAWL_API_KEY) ||
+    settings.keylessFetch === undefined ||
+    settings.keylessFetch === true,
   execute: executeFirecrawl,
 };

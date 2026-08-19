@@ -1,22 +1,16 @@
 // Firecrawl fetch: force the firecrawl engine on a real page and assert content
-// comes back through the cloud crawler, with firecrawl itself answering. Needs a
-// firecrawl key. requirement 'fetch' always runs (it needs only network), so
-// when firecrawl is not configured the forced run errors on the missing key,
-// which the check treats as "not exercised" rather than a failure, keeping a
-// normal eval run green on a machine without a firecrawl key.
+// comes back through the cloud crawler, with firecrawl itself answering. It runs
+// keyless when no API key is configured, so every networked eval exercises it.
 export default {
   id: 'fetch-firecrawl',
   title: 'Firecrawl fetch: a forced -e firecrawl run reads a page as markdown',
   requirement: 'fetch',
   args: ['-e', 'firecrawl', '-u', 'https://example.com/'],
   expectation:
-    'When firecrawl is keyed, results[0].engine is "firecrawl" and content is non-empty. When firecrawl is not set up, the run reports the missing key and the case is treated as not exercised.',
+    'With or without an API key, results[0].engine is "firecrawl" and content is non-empty. A spent anonymous or keyed quota is reported as blocked.',
   check(result, run) {
     if (run.code !== 0) {
       const stderr = run.stderr || '';
-      if (/needs an API key/i.test(stderr)) {
-        return { outcome: 'skip', detail: 'no firecrawl key on this machine' };
-      }
       if (/out of credits/i.test(stderr)) {
         return { outcome: 'blocked', detail: 'firecrawl quota is spent' };
       }

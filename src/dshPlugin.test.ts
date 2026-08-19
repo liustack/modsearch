@@ -270,7 +270,7 @@ describe('dsh read_page tool', () => {
       requestedSource: 'web',
       engine: 'antigravity-cli',
       status: 'ok',
-      warnings: [],
+      warnings: ['Fetched through Firecrawl in the cloud.'],
       attempts: [],
       durationSeconds: 2,
       summary: 'The page in one line.',
@@ -284,10 +284,12 @@ describe('dsh read_page tool', () => {
       content: 'Full extracted content.',
       links: [{ text: 'docs', url: 'https://a.example/docs' }],
       uncertainty: [],
+      warnings: ['Fetched through Firecrawl in the cloud.'],
     });
     const [block] = tool.output.render({}, value as never);
     expect(block.text).toContain('Full extracted content.');
     expect(block.text).toContain('- docs — https://a.example/docs');
+    expect(block.text).toContain('Fetched through Firecrawl in the cloud.');
   });
 
   it('rejects a non-http url before spawning anything', async () => {
