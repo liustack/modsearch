@@ -10,6 +10,26 @@ read_when:
 
 English | [简体中文](security.zh-CN.md)
 
+## How your API keys are stored and protected
+
+- Keys live in `~/.modsearch/config.json`, written with mode 0600 in a 0700
+  directory. `modsearch doctor` judges the file's permissions and prints the
+  exact `chmod` fix when they are too open (the check is skipped on Windows,
+  where POSIX modes do not apply).
+- `modsearch config set <engine>.apiKey` with no value prompts with the echo
+  muted (or reads one line from a pipe), so the key never enters argv, shell
+  history, or an agent conversation's transcript.
+- `config show` is safe to paste into an issue: keys are masked in their own
+  field and scrubbed from every other string in the view, and URL credentials
+  are masked through a real URL parser.
+- Error messages that quote foreign text (gateway error bodies, subprocess
+  stderr) pass through a shared redactor before reaching terminals, the JSON
+  output's `attempts` and `warnings`, or the cooldown state file.
+- There is no keychain or credential-manager integration, and no encryption at
+  rest: the protection is file permissions plus the output boundaries above.
+  Environment variables (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`)
+  work as an alternative to the file and are never written to disk.
+
 ## SSRF guards on the local fetcher
 
 The `local` engine refuses, before any request goes out:

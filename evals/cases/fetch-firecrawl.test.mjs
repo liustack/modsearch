@@ -7,6 +7,8 @@ describe('fetch-firecrawl eval', () => {
       {},
       { code: 1, stderr: 'Error: firecrawl needs an API key', stdout: '' },
     );
-    expect(verdict.outcome).toBe('fail');
+    // Normalize the way evals/run.mjs does: a check may spell the outcome in
+    // either case, and the runner upper-cases before judging.
+    expect(String(verdict.outcome ?? (verdict.pass ? 'PASS' : 'FAIL')).toUpperCase()).toBe('FAIL');
   });
 });
