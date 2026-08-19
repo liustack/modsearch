@@ -18,6 +18,12 @@ describe('launcher version stamping', () => {
         'harness-setup.md dsh update',
         'harness-setup.zh-CN.md dsh install',
         'harness-setup.zh-CN.md dsh update',
+        'dsh.md install',
+        'dsh.md doctor',
+        'dsh.md update',
+        'dsh.zh-CN.md install',
+        'dsh.zh-CN.md doctor',
+        'dsh.zh-CN.md update',
       ]),
     );
     for (const stamped of stampedVersions) {

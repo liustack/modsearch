@@ -87,6 +87,12 @@ export function dshInstallTargets(root, pkgName) {
     pattern: new RegExp(`--profile ${profile} add ${escaped}@(\\d+\\.\\d+\\.\\d+)`),
     format: (version) => `--profile ${profile} add ${pkgName}@${version}`,
   });
+  const doctorTarget = (name, file) => ({
+    name,
+    file: join(root, file),
+    pattern: new RegExp(`npx -y ${escaped}@(\\d+\\.\\d+\\.\\d+) doctor`),
+    format: (version) => `npx -y ${pkgName}@${version} doctor`,
+  });
   return [
     target('README.md dsh install', 'README.md', 'web'),
     target('README.zh-CN.md dsh install', 'README.zh-CN.md', 'web'),
@@ -94,6 +100,12 @@ export function dshInstallTargets(root, pkgName) {
     target('harness-setup.md dsh update', 'docs/harness-setup.md', '<name>'),
     target('harness-setup.zh-CN.md dsh install', 'docs/harness-setup.zh-CN.md', 'web'),
     target('harness-setup.zh-CN.md dsh update', 'docs/harness-setup.zh-CN.md', '<name>'),
+    target('dsh.md install', 'docs/dsh.md', 'web'),
+    doctorTarget('dsh.md doctor', 'docs/dsh.md'),
+    target('dsh.md update', 'docs/dsh.md', '<name>'),
+    target('dsh.zh-CN.md install', 'docs/dsh.zh-CN.md', 'web'),
+    doctorTarget('dsh.zh-CN.md doctor', 'docs/dsh.zh-CN.md'),
+    target('dsh.zh-CN.md update', 'docs/dsh.zh-CN.md', '<name>'),
   ];
 }
 
