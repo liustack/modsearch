@@ -245,6 +245,18 @@ describe('doctor: config file', () => {
     // The rest of the report still populates.
     expect(report.roles).toHaveLength(3);
   });
+
+  it.skipIf(IS_WINDOWS)('still judges permissions when the file does not parse', () => {
+    // A broken 0644 file still holds its keys: the chmod verdict must not
+    // depend on the JSON parsing.
+    const p = tempConfigPath();
+    fs.writeFileSync(p, '{broken', { mode: 0o644 });
+    fs.chmodSync(p, 0o644);
+    const report = runDoctor({ env: BARE_ENV, configPath: p });
+    expect(report.configFile.problem).toBeTruthy();
+    expect(report.configFile.permissionsOk).toBe(false);
+    expect(report.configFile.note).toContain('chmod 600');
+  });
 });
 
 describe('doctor: rendering', () => {

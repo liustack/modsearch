@@ -127,6 +127,19 @@ describe('config file', () => {
     expect(() => JSON.parse(view)).not.toThrow();
   });
 
+  it('rewrites an existing world-readable file back to 0600', () => {
+    // writeFileSync's mode only applies at creation: rewriting a 0644 file
+    // used to land the new key world-readable, with the chmod swallowed.
+    // The temp-file-plus-rename path replaces the inode, so the new content
+    // is born 0600.
+    const p = tempConfigPath();
+    setConfigValue('tavily.apiKey', 'first-key-123456', p);
+    fs.chmodSync(p, 0o644);
+    setConfigValue('tavily.apiKey', 'second-key-123456', p);
+    expectPosixMode(p, 0o600);
+    expect(loadConfigFile(p).engines?.tavily?.apiKey).toBe('second-key-123456');
+  });
+
   it('keeps a hand-written __proto__ entry as data, never as the prototype', () => {
     // On a normal object literal, engines["__proto__"] = {...} sets the
     // prototype: the entry hides from Object.entries and JSON.stringify while

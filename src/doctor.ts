@@ -320,8 +320,9 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
   let mode: string | undefined;
   let permissionsOk = true;
   if (options.config === undefined && exists) {
+    // Permissions first, parsing second: a broken file still holds its keys,
+    // so an unparseable 0644 config must still earn the chmod verdict.
     try {
-      config = loadConfigFile(configPath);
       const stat = fs.statSync(configPath);
       const bits = stat.mode & 0o777;
       mode = bits.toString(8).padStart(3, '0');
@@ -330,6 +331,11 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
       // (process.getuid exists) get the verdict.
       const enforcesPosixPerms = typeof process.getuid === 'function';
       permissionsOk = !enforcesPosixPerms || (bits & 0o077) === 0;
+    } catch {
+      // stat failing is reported through the read path below
+    }
+    try {
+      config = loadConfigFile(configPath);
     } catch (error) {
       readable = false;
       configProblem = error instanceof Error ? error.message : String(error);

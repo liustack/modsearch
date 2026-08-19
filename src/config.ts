@@ -432,14 +432,38 @@ function ensurePrivateDir(dir: string): void {
   }
 }
 
-function writeConfigFile(config: ModsearchConfig, configPath: string): void {
-  ensurePrivateDir(path.dirname(configPath));
-  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+/**
+ * Write key material as a fresh 0600 file and rename it into place.
+ * writeFileSync's mode only applies when it CREATES the file: rewriting an
+ * existing 0644 config would land the new key world-readable until the chmod,
+ * and a pre-placed file owned by someone else would take the content into
+ * their inode with the chmod failing silently. A same-directory temp file is
+ * born 0600 and rename replaces the inode, so neither window exists.
+ */
+function writePrivateFile(filePath: string, content: string): void {
+  ensurePrivateDir(path.dirname(filePath));
+  const unique = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  const tmp = path.join(path.dirname(filePath), `.config.${unique}.tmp`);
+  fs.writeFileSync(tmp, content, { mode: 0o600 });
   try {
-    fs.chmodSync(configPath, 0o600);
+    fs.renameSync(tmp, filePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // the rename failure is the error worth reporting
+    }
+    throw error;
+  }
+  try {
+    fs.chmodSync(filePath, 0o600);
   } catch {
     // best effort on platforms without chmod
   }
+}
+
+function writeConfigFile(config: ModsearchConfig, configPath: string): void {
+  writePrivateFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 /**
@@ -459,13 +483,7 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
   if (!force && fs.existsSync(configPath)) {
     throw new Error(`${configPath} already exists. Use --force to overwrite.`);
   }
-  ensurePrivateDir(path.dirname(configPath));
-  fs.writeFileSync(configPath, `${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`, { mode: 0o600 });
-  try {
-    fs.chmodSync(configPath, 0o600);
-  } catch {
-    // best effort on platforms without chmod
-  }
+  writePrivateFile(configPath, `${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`);
 }
 
 /** Every API key the file or environment holds. */
