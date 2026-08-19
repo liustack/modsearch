@@ -116,8 +116,18 @@ function updateStateOnDisk(
     // the write entirely: the success path stays free of disk writes.
     return merged;
   }
+  // Same directory as the config file, which holds key material: created 0700.
+  // An existing directory keeps its mode (a deliberate user choice), and the
+  // files inside carry their own 0600.
   const dir = path.dirname(statePath);
-  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(dir, 0o700);
+    } catch {
+      // best effort on platforms without chmod
+    }
+  }
   const unique = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
   const tmp = path.join(dir, `.state.${unique}.tmp`);
   fs.writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}\n`, { mode: 0o600 });

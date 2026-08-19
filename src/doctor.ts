@@ -72,6 +72,15 @@ export interface DoctorReport {
     exists: boolean;
     /** Octal permission string (e.g. "600") when the file exists. */
     mode?: string;
+    /**
+     * False when the file is group- or world-readable on a platform that
+     * enforces POSIX permissions. A missing file is fine (true): defaults
+     * leak nothing. Windows reports 666/777 for every file, so the judgment
+     * is skipped there rather than crying wolf.
+     */
+    permissionsOk: boolean;
+    /** The fix, when permissions are too open. */
+    note?: string;
     readable: boolean;
     /** Set when the file exists but could not be read or parsed. */
     problem?: string;
@@ -309,11 +318,18 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
   const exists = fs.existsSync(configPath);
   let readable = !exists ? false : true;
   let mode: string | undefined;
+  let permissionsOk = true;
   if (options.config === undefined && exists) {
     try {
       config = loadConfigFile(configPath);
       const stat = fs.statSync(configPath);
-      mode = (stat.mode & 0o777).toString(8).padStart(3, '0');
+      const bits = stat.mode & 0o777;
+      mode = bits.toString(8).padStart(3, '0');
+      // Judge, don't just report: the file holds API keys. Windows reads back
+      // 666/777 for every file, so only platforms with real POSIX permissions
+      // (process.getuid exists) get the verdict.
+      const enforcesPosixPerms = typeof process.getuid === 'function';
+      permissionsOk = !enforcesPosixPerms || (bits & 0o077) === 0;
     } catch (error) {
       readable = false;
       configProblem = error instanceof Error ? error.message : String(error);
@@ -356,6 +372,10 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
       path: configPath,
       exists,
       ...(mode ? { mode } : {}),
+      permissionsOk,
+      ...(permissionsOk
+        ? {}
+        : { note: `group/world can read this file. Run: chmod 600 ${configPath}` }),
       readable,
       ...(configProblem ? { problem: configProblem } : {}),
     },
@@ -397,6 +417,9 @@ export function formatDoctorReport(report: DoctorReport): string {
     lines.push(`    ! ${file.problem}`);
   } else {
     lines.push(`  file: ${file.path} (present, mode ${file.mode})`);
+    if (!file.permissionsOk && file.note) {
+      lines.push(`    ! ${file.note}`);
+    }
   }
   lines.push(
     `  allowPrivateNetwork: ${report.allowPrivateNetwork.enabled ? 'on' : 'off'} (${report.allowPrivateNetwork.source})`,

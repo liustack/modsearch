@@ -406,8 +406,26 @@ export function setConfigValue(
   writeConfigFile(config, configPath);
 }
 
+/**
+ * The config directory holds key material, so it is created 0700. An existing
+ * directory keeps whatever mode it has: re-tightening on every write would
+ * override permissions a user set deliberately, and the files inside carry
+ * their own 0600. chmod is best-effort for platforms without POSIX modes.
+ */
+function ensurePrivateDir(dir: string): void {
+  if (fs.existsSync(dir)) {
+    return;
+  }
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // best effort on platforms without chmod
+  }
+}
+
 function writeConfigFile(config: ModsearchConfig, configPath: string): void {
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  ensurePrivateDir(path.dirname(configPath));
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
   try {
     fs.chmodSync(configPath, 0o600);
@@ -433,7 +451,7 @@ export function initConfigFile(configPath = currentConfigPath(), force = false):
   if (!force && fs.existsSync(configPath)) {
     throw new Error(`${configPath} already exists. Use --force to overwrite.`);
   }
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  ensurePrivateDir(path.dirname(configPath));
   fs.writeFileSync(configPath, `${JSON.stringify(CONFIG_TEMPLATE, null, 2)}\n`, { mode: 0o600 });
   try {
     fs.chmodSync(configPath, 0o600);

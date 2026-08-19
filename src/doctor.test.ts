@@ -213,6 +213,30 @@ describe('doctor: config file', () => {
     expect(report.engineChoice.value).toBe('tavily');
   });
 
+  it.skipIf(IS_WINDOWS)('judges 0600 permissions as ok', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(p, JSON.stringify({ engine: 'tavily' }), { mode: 0o600 });
+    fs.chmodSync(p, 0o600);
+    const report = runDoctor({ env: BARE_ENV, configPath: p });
+    expect(report.configFile.permissionsOk).toBe(true);
+    expect(report.configFile.note).toBeUndefined();
+  });
+
+  it.skipIf(IS_WINDOWS)('flags a group- or world-readable config file with the fix', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(p, JSON.stringify({ engine: 'tavily' }), { mode: 0o644 });
+    fs.chmodSync(p, 0o644);
+    const report = runDoctor({ env: BARE_ENV, configPath: p });
+    expect(report.configFile.permissionsOk).toBe(false);
+    expect(report.configFile.note).toContain('chmod 600');
+    expect(formatDoctorReport(report)).toContain('chmod 600');
+  });
+
+  it('treats a missing file as fine: defaults leak nothing', () => {
+    const report = runDoctor({ env: BARE_ENV, configPath: tempConfigPath() });
+    expect(report.configFile.permissionsOk).toBe(true);
+  });
+
   it('names a broken config file instead of aborting the diagnosis', () => {
     const p = tempConfigPath();
     fs.writeFileSync(p, '{broken');
