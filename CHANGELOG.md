@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.8.0 - 2026-08-21
+
+- The settings card is renamed **Search engine (ModSearch)**, paired with Vision engine (ModLens) and no longer colliding with dsh's own Web search card, and its rows now offer only choices that mean something. The automatic chain lists just the search engines `doctor` found ready, with no status labels: `local` fetches pages rather than searching, so it left both the chain row and the preference list (it stays listed only while the config file itself names it as `engine`), `grok-cli` carries an "X search only" note since it serves the social role alone, and `firecrawl` is labelled as the keyless free tier in the picker, with a hint when it is selected without a key. The card now edits only engines it lists: the `enabled` override of a hidden engine survives a save byte-for-byte where it used to be silently deleted, selecting a hidden engine as the preference no longer switches it on behind the user, and a successful save re-reads doctor (and drops the host's cache), so an engine the save just made ready grows its checkbox immediately. Checkbox rows keep their notes readable to screen readers, and the empty state says plainly that no engine is ready on this machine yet.
+
 ## 5.7.1 - 2026-08-21
 
 - Automatic failover is now user-selectable per engine. `engines.<name>.enabled: false` removes an engine from automatic search, fetch, or X routing while a one-off `--engine` remains a hard force. `doctor` reports readiness and enabled state separately. The dsh settings card turns its read-only readiness row into six checkboxes without losing the doctor verdict beside each one. Re-enabling deletes the override rather than storing `true`, choosing a disabled preference re-enables it, and disabling the current preference returns to automatic. Official Tavily, Exa, and Firecrawl endpoints remain built into provider code. The card treats the address as an override, and clearing it writes no default URL.
