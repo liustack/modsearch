@@ -10,15 +10,15 @@
 
 | 工作 | 引擎 | 可配置吗 |
 | :-- | :-- | :-- |
-| 搜公开网页 | `firecrawl`、`antigravity-cli`、`tavily`、`exa` | 可以，`engine` 这一个设置就是管它的 |
-| 读一个 URL | 所选引擎（若它能抓取），然后是免注册的 `firecrawl`，最后 `local` | 不可以，跟随上面的选择 |
-| 搜 X（推特） | `grok-cli` | 不可以，别的引擎看不到 X 里面 |
+| 搜公开网页 | `firecrawl`、`antigravity-cli`、`tavily`、`exa` | 首选引擎加每引擎参与开关 |
+| 读一个 URL | 首选引擎（若它能抓取），然后是 `firecrawl`、`antigravity-cli`、`local` | 每引擎参与开关 |
+| 搜 X（推特） | `grok-cli` | 每引擎参与开关 |
 
-搜索顺序固定为 `firecrawl`、`antigravity-cli`、`tavily`、`exa`。抓取顺序是 `firecrawl`、`antigravity-cli`、`local`。可用性会过滤这份名单，额度冷却会重新排序（见下文），但基础顺序不变。Firecrawl 领跑两条链，因为它的免注册通道在裸机上就能用，不要账号不要 key。
+搜索顺序固定为 `firecrawl`、`antigravity-cli`、`tavily`、`exa`。抓取顺序是 `firecrawl`、`antigravity-cli`、`local`。每个引擎默认都参与。`engines.<name>.enabled: false` 会先排除一个引擎，可用性再过滤剩余名单，额度冷却最后重排就绪链（见下文）。Firecrawl 领跑两条链，因为它的免注册通道在裸机上就能用，不要账号不要 key。
 
 从这张表能推出两个事实，它们回答大多数问题：
 
-- **单页抓取永远可用。** `local` 引擎零安装，无论其他引擎配没配、坏没坏，它都是抓取的兜底。
+- **单页抓取零配置可用。** `local` 引擎零安装，默认是抓取的最后兜底。只有用户明确禁用它时才会离开自动链。
 - **网页搜索无需配置。** Firecrawl 的免注册免费额度（每月 1,000 credits，无需注册）开箱就能扛。配置了 `engine` 时以配置为准。
 
 X 是独立语料，不是竞争的搜索引擎，所以它永远不会顶替网页搜索。`--source` 选语料，`--engine` 选工具。
@@ -55,7 +55,7 @@ modsearch config show     # 生效配置：文件与环境变量合并，每个�
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "tvly-...", "baseURL": "https://gw.example.com/tavily" },
-    "exa":             { "apiKey": "..." },
+    "exa":             { "apiKey": "...", "enabled": false },
     "firecrawl":       { "apiKey": "fc-...", "keylessFetch": false },
     "grok-cli":        { "bin": "grok" }
   }
@@ -70,13 +70,14 @@ JSON 不支持注释，所以每个字段的说明在这里：
 | `cooldown` | `"on"` / `"off"` | 顶层 | 额度冷却故障转移。默认开。关掉后不读不写任何状态，路由与从前完全一致。 |
 | `allowPrivateNetwork` | boolean | 顶层 | 本地网络策略：允许本地抓取器访问保留和私有地址段。它对 firecrawl 从不生效：目标是保留地址，或解析到保留地址，都一律不发给云端，因为这个开关授权的是本地访问，不是把内部主机名交给第三方服务。默认 `false`。 |
 | `engines` | object | 顶层 | 按引擎正式名分组的每引擎设置。 |
+| `engines.<name>.enabled` | boolean | 所有引擎 | 是否允许自动路由使用该引擎。省略表示启用。设为 `false` 会排除它，设为 `true` 会删除覆盖并回到内置默认。单次显式 `--engine` 仍会强制使用该引擎。 |
 | `engines.<name>.apiKey` | string | `tavily`、`exa`、`firecrawl` | 该引擎的 API key。也可用环境变量 `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`，环境变量优先于文件。 |
 | `engines.<name>.baseURL` | string | `tavily`、`exa`、`firecrawl` | 替换官方主机的接口地址：兼容的第三方网关、代理、自建部署。必须是完整的 http(s) URL。也可用环境变量 `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`。设为空即取消。详见下方端点一节。 |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | 允许 Firecrawl 在无 key 时抓取公网页面。默认 `true`（免注册抓取开箱即开）。设为 `false` 可让自动抓取远离 Firecrawl 云端。配置了 key 或显式选择 Firecrawl 引擎时仍会启用。 |
 | `engines.<name>.bin` | string | `antigravity-cli`、`grok-cli` | 该引擎 CLI 的路径。默认在 `PATH` 上找 `agy` 和 `grok`。 |
 | `engines.<name>.model` | string | `antigravity-cli` | 引擎使用的模型。默认 `gemini-3.6-flash-low`。 |
 
-`local`（内置抓取器）和 `grok-cli` 不需要凭据，所以没有值得存的每引擎设置。老文件把 `allowPrivateNetwork` 存在 `engines.http.allowPrivateNetwork` 下，或存成字符串 `"true"`/`"false"` 的，读取时会自动提升为顶层布尔值。
+`local`（内置抓取器）和 `grok-cli` 不需要凭据，但都接受通用的 `enabled` 开关。老文件把 `allowPrivateNetwork` 存在 `engines.http.allowPrivateNetwork` 下，或存成字符串 `"true"`/`"false"` 的，读取时会自动提升为顶层布尔值。
 
 ```bash
 modsearch config set engine tavily            # 选定搜索引擎
@@ -84,6 +85,8 @@ modsearch config set engine ""                # 回到自动
 modsearch config set tavily.apiKey <key>      # 引擎凭据
 modsearch config set tavily.apiKey            # 不带值：隐藏输入提示（见下）
 modsearch config set tavily.baseURL <url>     # 兼容的第三方端点
+modsearch config set tavily.enabled false     # 不让 Tavily 参与自动故障转移
+modsearch config set tavily.enabled true      # 删除禁用覆盖
 modsearch config set cooldown off             # 关闭额度冷却故障转移
 modsearch config set allowPrivateNetwork true # 允许访问保留/私有地址段
 ```
@@ -94,7 +97,7 @@ modsearch config set allowPrivateNetwork true # 允许访问保留/私有地址�
 tavily.apiKey` 管道喂入也行）。用户还是直接贴进对话的话，照常替他保存：这个选
 项是给在意的人的，不是一道门。
 
-抓取只有一个开关（上文的 `firecrawl.keylessFetch`），X 一个都没有，这是故意的。抓取用所选引擎（若它能抓），然后是免注册的 Firecrawl，最后是内置本地抓取器。X 只有一个可能的引擎，没有需要存的选择。
+通用 `enabled` 开关同时作用于搜索、抓取和 X。抓取先用能抓取的首选引擎，再按内置顺序尝试已启用的引擎。禁用 `local` 会移除默认抓取兜底。禁用 `grok-cli` 会让 X 请求走文档约定的公开网页降级路径。单次显式 `--engine` 不受这些持久化禁用项影响。
 
 角色概念出现之前写的配置（一个全局 `provider` 加一个 `providers` 表）会被自动读取并映射，不用手动迁移。
 
@@ -148,6 +151,8 @@ modsearch config set firecrawl.keylessFetch false   # 让自动抓取不走云�
 ### 第三方兼容端点（tavily、exa、firecrawl）
 
 三个 HTTP 引擎可以指向任何与官方 API 同协议的端点：转售网关、区域代理、自建部署。设置 `baseURL` 后，引擎在它上面拼各自的文档路径（tavily 和 exa 是 `/search`，firecrawl 是 `/v2/search` 和 `/v2/scrape`），所以 base 为 `https://gw.example.com/tavily` 时会请求 `https://gw.example.com/tavily/search`。
+
+官方基地址内置在 provider 代码里，分别是 `https://api.tavily.com`、`https://api.exa.ai`、`https://api.firecrawl.dev`。它们不会被复制进 `config.json`。`baseURL` 缺失或被清空都表示使用内置官方地址，这样后续版本修正默认值时不会被旧配置文件压住。dsh 设置卡片也遵守同一规则。
 
 ```bash
 modsearch config set tavily.baseURL https://gw.example.com/tavily

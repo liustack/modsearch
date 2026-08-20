@@ -49,9 +49,9 @@ Output is always a `results` array, one entry per corpus:
 | `--workdir <path>` | Working directory for engines that run a command | current directory |
 | `--allow-private-network` | Let the local fetcher reach reserved ranges, for VPNs that map public hosts into them | off |
 
-Configuration is optional. `~/.modsearch/config.json` holds one main decision: which engine searches (`modsearch config set engine tavily`, empty means automatic). Fetching and X search need no settings. Quota cooldown failover is on by default, `modsearch config set cooldown off` disables it, and `modsearch state clear` resets the cooldown records. The full file structure and every field (including the top-level `allowPrivateNetwork` switch) are documented in the [configuration doc](configure.md).
+Configuration is optional. `~/.modsearch/config.json` can name a preferred engine (`modsearch config set engine tavily`, empty means automatic) and exclude individual engines from automatic failover (`modsearch config set tavily.enabled false`). Every engine participates when no override exists. Quota cooldown failover is on by default, `modsearch config set cooldown off` disables it, and `modsearch state clear` resets the cooldown records. The full file structure and every field, including the top-level `allowPrivateNetwork` switch, are documented in the [configuration doc](configure.md).
 
-`modsearch doctor` prints a local diagnosis: Node version, each task's engines with their readiness and reasons, where each config value comes from, the private-network setting, and any engines currently cooling. It spends no quota and makes no network request, and `--json` makes the output machine-readable. Run it first when routing does not behave as expected.
+`modsearch doctor` prints a local diagnosis: Node version, each task's engines with readiness and enabled state kept separate, where each config value comes from, the private-network setting, and any engines currently cooling. It spends no quota and makes no network request, and `--json` makes the output machine-readable. Run it first when routing does not behave as expected.
 
 ## Platform support
 
@@ -60,6 +60,5 @@ macOS and Linux are fully supported and run the whole test suite in CI on Node 2
 The CI matrix also includes `windows-latest` on Node 22 and 24, running the same typecheck, test, and build gate. What works on Windows follows from what each part depends on:
 
 - **The CLI, its routing and config logic, and the HTTP engines** (`local` fetch, Tavily, Exa, Firecrawl) are pure Node: they use `fetch` and the filesystem alone, so they are cross-platform.
-- **agy and grok are external CLIs.** modsearch runs them by name with no shell, so a native Windows executable on PATH works, while an npm-style `.cmd` shim does not. Whether a Windows build exists is each tool's own decision, not modsearch's.
+- **agy and grok are external CLIs.** modsearch runs them by name with no shell, so a native Windows executable on PATH works, while an npm-style `.cmd` shim does not. Whether a Windows build exists is each tool's own decision, not modsearch's. Every direct child is started with `windowsHide: true`, so a GUI host with no console does not flash a new black window per call.
 - **The cooldown state file** is written through a temp file and an atomic rename. On Windows that rename replaces the target, but the OS cannot replace a file another process holds open, so a rare simultaneous-writer race can drop one write. The store is a best-effort cache that merges on read, so a later run rediscovers anything lost.
-

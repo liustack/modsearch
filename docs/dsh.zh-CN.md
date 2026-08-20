@@ -90,12 +90,15 @@ modsearch config set cooldown off
 
 dsh 网页端没有终端，所以插件会在「设置 → 插件」里挂一张**网页搜索（ModSearch）**卡片。它改的就是 CLI 改的那份 `~/.modsearch/config.json`，走插件注册的回环路由 `/modsearch/config`。
 
-卡片只管两件事：
+卡片管三件事：
 
-- 引擎固定项：自动，或 `antigravity-cli`、`tavily`、`exa`、`firecrawl`、`grok-cli`、`local` 之一。
+- 首选引擎：自动，或 `antigravity-cli`、`tavily`、`exa`、`firecrawl`、`grok-cli`、`local` 之一。
 - 当前所选引擎自己的设置：HTTP 引擎（`tavily`、`exa`、`firecrawl`）显示 API 密钥与接口地址，`antigravity-cli` 显示模型。走自家命令行工具登录的引擎和内置抓取器只显示一行说明，因为它们两样都不需要。
+- 自动引擎链：每个引擎一个复选框。勾选表示允许自动路由使用它。旁边的就绪文本仍来自 `modsearch doctor`，所以“已经安装”和“允许使用”是两个独立事实。
 
-下面一块是只读的引擎状态，内容就是 `modsearch doctor` 对本机的判断。
+每个引擎默认都勾选。取消勾选只写入 `enabled: false`，重新勾选会删除这项覆盖，不保存多余的 `true`。把未勾选的引擎选为首选时会同步勾选它。取消当前首选引擎时，首选项会回到自动。
+
+Tavily、Exa、Firecrawl 的官方接口地址内置在 provider 代码里。界面的接口地址只表示覆盖值。留空或清空都会使用内置官方地址，不会把默认 URL 写进配置文件。
 
 其余设置仍然只走 CLI，包括 `bin`、`allowPrivateNetwork`、`cooldown` 和 `keylessFetch`。卡片保存时会原样带过这些字段，也无法新建它们。
 

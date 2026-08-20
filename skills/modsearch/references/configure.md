@@ -10,15 +10,15 @@ Three jobs, called roles. Each role has engines that can do it:
 
 | Job | Engines | Configurable? |
 | :-- | :-- | :-- |
-| search the public web | `firecrawl`, `antigravity-cli`, `tavily`, `exa` | yes, this is the one `engine` setting |
-| read one URL | the chosen engine if it can fetch, then keyless `firecrawl`, then `local` | no, it follows the choice above |
-| search X (Twitter) | `grok-cli` | no, nothing else can see inside X |
+| search the public web | `firecrawl`, `antigravity-cli`, `tavily`, `exa` | preferred engine plus per-engine participation |
+| read one URL | the preferred engine if it can fetch, then `firecrawl`, `antigravity-cli`, `local` | per-engine participation |
+| search X (Twitter) | `grok-cli` | per-engine participation |
 
-The search order is fixed at `firecrawl` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `antigravity-cli` then `local`. Availability filters the list, and quota cooldown reorders it (see below), but the base order does not change. Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key.
+The search order is fixed at `firecrawl` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `antigravity-cli` then `local`. Every engine participates by default. `engines.<name>.enabled: false` filters one out, availability filters what remains, and quota cooldown reorders the ready chain (see below). Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key.
 
 Two facts follow from this table, and they answer most questions:
 
-- **Page fetch always works.** The `local` engine needs nothing installed, and it is the last resort for `fetch` no matter what else is configured or broken.
+- **Page fetch works with no setup.** The `local` engine needs nothing installed and is the default last resort. It only leaves the automatic chain when the user explicitly disables it.
 - **Web search needs no setup.** Firecrawl's keyless free quota (1,000 credits/month, no signup) serves it out of the box. A configured `engine` choice takes precedence when set.
 
 X is a separate corpus, not a competing search engine, so it never replaces web search. `--source` chooses corpora, `--engine` chooses the tool.
@@ -55,7 +55,7 @@ Full structure. Every field is optional, and so is the file itself:
   "engines": {
     "antigravity-cli": { "bin": "agy", "model": "gemini-3.6-flash-low" },
     "tavily":          { "apiKey": "tvly-...", "baseURL": "https://gw.example.com/tavily" },
-    "exa":             { "apiKey": "..." },
+    "exa":             { "apiKey": "...", "enabled": false },
     "firecrawl":       { "apiKey": "fc-...", "keylessFetch": false },
     "grok-cli":        { "bin": "grok" }
   }
@@ -70,13 +70,14 @@ JSON has no comments, so here is every field:
 | `cooldown` | `"on"` / `"off"` | top level | Quota cooldown failover. On by default. Off reads and writes no state and routes exactly as before. |
 | `allowPrivateNetwork` | boolean | top level | Local network policy: allow the local fetcher to reach reserved and private address ranges. It never affects firecrawl: a target that is, or resolves to, a reserved address is kept off the cloud regardless, because the switch authorizes local access, not disclosing internal hostnames to a third-party service. `false` by default. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
+| `engines.<name>.enabled` | boolean | every engine | Whether automatic routing may use this engine. Missing means enabled. Set `false` to exclude it. Setting `true` removes the override and returns to the built-in default. An explicit `--engine` still forces that engine for one run. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
 | `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`. Empty unsets it. See the endpoint section below. |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | Allow public-page fetch through Firecrawl without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off Firecrawl's cloud; a configured key or an explicit Firecrawl engine choice still enables it. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
 | `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.6-flash-low`. |
 
-`local` (the built-in fetcher) and `grok-cli` take no credentials, so they carry no per-engine settings worth storing. An old file that kept `allowPrivateNetwork` under `engines.http.allowPrivateNetwork`, or as the string `"true"`/`"false"`, is read and promoted to the top-level boolean automatically.
+`local` (the built-in fetcher) and `grok-cli` take no credentials, but both accept the shared `enabled` switch. An old file that kept `allowPrivateNetwork` under `engines.http.allowPrivateNetwork`, or as the string `"true"`/`"false"`, is read and promoted to the top-level boolean automatically.
 
 ```bash
 modsearch config set engine tavily            # choose the search engine
@@ -84,6 +85,8 @@ modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
 modsearch config set tavily.apiKey            # no value: hidden prompt (see below)
 modsearch config set tavily.baseURL <url>     # a compatible third-party endpoint
+modsearch config set tavily.enabled false     # keep Tavily out of automatic failover
+modsearch config set tavily.enabled true      # remove the opt-out
 modsearch config set cooldown off             # turn off quota cooldown failover
 modsearch config set allowPrivateNetwork true # reach reserved/private ranges
 ```
@@ -95,7 +98,7 @@ this conversation, argv, or their shell history (`pbpaste | modsearch config
 set tavily.apiKey` pipes it too). If they paste it into the chat anyway, just
 save it for them: the offer is for the users who care, not a gate.
 
-Page fetch has one switch (`firecrawl.keylessFetch`, above) and X has none, on purpose. Fetching uses the chosen engine when that engine can fetch, then keyless Firecrawl, then the built-in local fetcher. X has exactly one possible engine, so there is no choice to store.
+The shared `enabled` switch applies to search, fetch, and X. Fetching uses the preferred engine when it can fetch, then the enabled engines in the built-in order. Disabling `local` removes the default fetch floor. Disabling `grok-cli` makes an X request take the documented public-web degrade path. A one-off explicit `--engine` ignores these persistent opt-outs.
 
 A config written before roles existed (one global `provider` plus a `providers` map) is read and mapped automatically. Nothing to migrate by hand.
 
@@ -149,6 +152,8 @@ Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends 
 ### Third-party compatible endpoints (tavily, exa, firecrawl)
 
 The three HTTP engines can point at any endpoint that speaks the same API as the official one: a reseller gateway, a regional proxy, a self-hosted deployment. Set `baseURL` and the engine appends its documented path to it (`/search` for tavily and exa, `/v2/search` and `/v2/scrape` for firecrawl), so a base of `https://gw.example.com/tavily` posts to `https://gw.example.com/tavily/search`.
+
+The official bases are built into the providers: `https://api.tavily.com`, `https://api.exa.ai`, and `https://api.firecrawl.dev`. They are not copied into `config.json`. An absent or cleared `baseURL` means to use the built-in official base, which lets a later release correct that default without a stale file overriding it. The dsh settings card follows the same rule.
 
 ```bash
 modsearch config set tavily.baseURL https://gw.example.com/tavily

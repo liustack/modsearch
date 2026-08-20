@@ -90,12 +90,15 @@ See the [full engine configuration reference](../skills/modsearch/references/con
 
 The dsh web UI has no terminal, so the plugin contributes a **Web search (ModSearch)** card to Settings → Plugins. It edits the same `~/.modsearch/config.json` as the CLI, through a loopback route the plugin registers at `/modsearch/config`.
 
-The card holds exactly two things:
+The card holds three things:
 
-- The engine pin: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `grok-cli`, `local`.
+- The preferred engine: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `grok-cli`, `local`.
 - The selected engine's own settings: API key and base URL for the HTTP engines (`tavily`, `exa`, `firecrawl`), and the model for `antigravity-cli`. Engines that sign in through their own command-line tool, and the built-in fetcher, show a line saying they need neither.
+- The automatic engine chain: one checkbox per engine. Checked means automatic routing may use it. The adjacent readiness text still comes from `modsearch doctor`, so “installed” and “enabled” are separate facts.
 
-Below that, a read-only engine status list repeats what `modsearch doctor` says about this machine.
+Every engine is checked by default. Unchecking one writes only `enabled: false`. Checking it again deletes that override instead of storing a redundant `true`. Choosing an unchecked engine as the preference checks it again. Unchecking the current preference returns the preference to automatic.
+
+Official Tavily, Exa, and Firecrawl endpoints live in the provider code. The base URL field is an override only. Leaving it blank or clearing it uses the built-in official address and writes no default URL into the config file.
 
 Everything else stays CLI only, including `bin`, `allowPrivateNetwork`, `cooldown` and `keylessFetch`. A card save copies them through untouched, and cannot create them.
 

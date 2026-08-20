@@ -49,9 +49,9 @@ modsearch -q "reactions on X" --source x       # 搜 X，关于 X 的查询会�
 | `--workdir <path>` | 运行命令类引擎的工作目录 | 当前目录 |
 | `--allow-private-network` | 允许本地抓取器访问保留地址段，给把公网主机映射进去的 VPN 用 | 关 |
 
-配置是可选的。`~/.modsearch/config.json` 里只有一个主要决定：谁来搜索（`modsearch config set engine tavily`，空表示自动）。抓取和 X 搜索不需要任何设置。额度冷却故障转移默认开，`modsearch config set cooldown off` 关掉，`modsearch state clear` 重置冷却记录。完整的文件结构和每个字段（包括顶层的 `allowPrivateNetwork` 开关）见[配置文档](configure.zh-CN.md)。
+配置是可选的。`~/.modsearch/config.json` 可以指定首选引擎（`modsearch config set engine tavily`，空表示自动），也可以把单个引擎排除在自动故障转移之外（`modsearch config set tavily.enabled false`）。没有覆盖时每个引擎都参与。额度冷却故障转移默认开，`modsearch config set cooldown off` 关掉，`modsearch state clear` 重置冷却记录。完整的文件结构和每个字段，包括顶层的 `allowPrivateNetwork` 开关，见[配置文档](configure.zh-CN.md)。
 
-`modsearch doctor` 打印本机诊断：Node 版本、每项任务的引擎就绪状态和原因、每个配置值的来源、私有网络设置、当前在冷却的引擎。它不花额度、不发网络请求，`--json` 让输出可被程序读取。路由行为不符合预期时先跑它。
+`modsearch doctor` 打印本机诊断：Node 版本、每项任务的引擎就绪状态与启用状态、每个配置值的来源、私有网络设置、当前在冷却的引擎。就绪与启用分开报告。它不花额度、不发网络请求，`--json` 让输出可被程序读取。路由行为不符合预期时先跑它。
 
 ## 平台支持
 
@@ -60,5 +60,5 @@ macOS 和 Linux 完整支持，CI 在 Node 22 和 24 上跑全量测试。skill 
 CI 矩阵同样包含 `windows-latest` 的 Node 22 和 24，跑同一套 typecheck、测试、构建关卡。各部分在 Windows 上的可用性取决于它依赖什么：
 
 - **CLI 本体、路由与配置逻辑、HTTP 引擎**（`local` 抓取、Tavily、Exa、Firecrawl）是纯 Node：只用 `fetch` 和文件系统，天然跨平台。
-- **agy 和 grok 是外部 CLI。** modsearch 不经 shell 按名字直接运行它们，所以 PATH 上的原生 Windows 可执行文件可用，npm 风格的 `.cmd` 垫片不可用。有没有 Windows 构建是每个工具自己的决定，不是 modsearch 的。
+- **agy 和 grok 是外部 CLI。** modsearch 不经 shell 按名字直接运行它们，所以 PATH 上的原生 Windows 可执行文件可用，npm 风格的 `.cmd` 垫片不可用。有没有 Windows 构建是每个工具自己的决定，不是 modsearch 的。每个直接子进程都会带 `windowsHide: true` 启动，因此没有控制台的 GUI 宿主不会在每次调用时闪出黑框。
 - **冷却状态文件**通过临时文件加原子重命名写入。Windows 上这个重命名能替换目标，但替换不了被其他进程占用的文件，所以极少数的同时写入竞争可能丢掉一次写。这个存储是读取时合并的尽力缓存，丢掉的内容后续运行会重新发现。
