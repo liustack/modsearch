@@ -86,6 +86,26 @@ No setting is required to start: search and page fetch run on Firecrawl's keyles
 
 See the [full engine configuration reference](../skills/modsearch/references/configure.md) and [security model](security.md).
 
+## Configure from the settings page
+
+The dsh web UI has no terminal, so the plugin contributes a **Web search (ModSearch)** card to Settings → Plugins. It edits the same `~/.modsearch/config.json` as the CLI, through a loopback route the plugin registers at `/modsearch/config`.
+
+The card holds exactly two things:
+
+- The engine pin: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `grok-cli`, `local`.
+- The selected engine's own settings: API key and base URL for the HTTP engines (`tavily`, `exa`, `firecrawl`), and the model for `antigravity-cli`. Engines that sign in through their own command-line tool, and the built-in fetcher, show a line saying they need neither.
+
+Below that, a read-only engine status list repeats what `modsearch doctor` says about this machine.
+
+Everything else stays CLI only, including `bin`, `allowPrivateNetwork`, `cooldown` and `keylessFetch`. A card save copies them through untouched, and cannot create them.
+
+Key handling:
+
+- The browser is never sent a stored key, only whether one exists. Leaving the key box empty keeps the stored key.
+- A key from an environment variable still wins over the file at run time, and the card says so instead of pretending a save changed the answer.
+- The route answers same-origin loopback requests only. Anything else gets 403.
+- The file is rewritten as a fresh `0600` file renamed into place, the same way the CLI writes it.
+
 ## Configure the dsh plugin
 
 Plugin switches live in the profile patch, normally `~/.dsh/profiles/<name>/cordis.patch.yml`. A later profile patch overrides the bundle row:
@@ -96,6 +116,7 @@ Plugin switches live in the profile patch, normally `~/.dsh/profiles/<name>/cord
     searchProvider: true
     xSearch: true
     readPage: true
+    settingsCard: true
     providerTimeoutMs: 55000
 ```
 
@@ -106,6 +127,7 @@ All fields are optional:
 | `searchProvider` | `true` | Register ModSearch with the dsh web seam. |
 | `xSearch` | `true` | Register `x_search`. |
 | `readPage` | `true` | Register `read_page`. |
+| `settingsCard` | `true` | Serve the settings card and its `/modsearch/config` route. Off removes both, and the browser half stands down. |
 | `providerTimeoutMs` | `55000` | Deadline passed to the CLI for the `web_search` provider path. Keep it below dsh's tool budget. |
 
 Disabling only `x_search` or `read_page` is safe. If `searchProvider` is disabled, also point the web seam at another registered provider. Otherwise dsh is still configured to select `modsearch`, but the provider is absent:

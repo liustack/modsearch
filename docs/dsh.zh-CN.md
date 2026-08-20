@@ -86,6 +86,26 @@ modsearch config set cooldown off
 
 完整说明见[引擎配置手册](../skills/modsearch/references/configure.zh-CN.md)和[安全说明](security.zh-CN.md)。
 
+## 在设置页里配置
+
+dsh 网页端没有终端，所以插件会在「设置 → 插件」里挂一张**网页搜索（ModSearch）**卡片。它改的就是 CLI 改的那份 `~/.modsearch/config.json`，走插件注册的回环路由 `/modsearch/config`。
+
+卡片只管两件事：
+
+- 引擎固定项：自动，或 `antigravity-cli`、`tavily`、`exa`、`firecrawl`、`grok-cli`、`local` 之一。
+- 当前所选引擎自己的设置：HTTP 引擎（`tavily`、`exa`、`firecrawl`）显示 API 密钥与接口地址，`antigravity-cli` 显示模型。走自家命令行工具登录的引擎和内置抓取器只显示一行说明，因为它们两样都不需要。
+
+下面一块是只读的引擎状态，内容就是 `modsearch doctor` 对本机的判断。
+
+其余设置仍然只走 CLI，包括 `bin`、`allowPrivateNetwork`、`cooldown` 和 `keylessFetch`。卡片保存时会原样带过这些字段，也无法新建它们。
+
+密钥的处理：
+
+- 浏览器拿不到已保存的密钥，只知道有没有。密钥框留空保存，原密钥保持不变。
+- 环境变量里的密钥在运行时仍然优先于配置文件，卡片会直说这一点，而不是让人以为保存改变了结果。
+- 路由只接受同源回环请求，其余一律 403。
+- 写盘方式与 CLI 一致：先写一个新的 0600 临时文件，再重命名覆盖。
+
 ## 配置 dsh 插件
 
 插件开关写在 profile patch 中，通常是 `~/.dsh/profiles/<name>/cordis.patch.yml`。后应用的 profile patch 会覆盖 bundle 行：
@@ -96,6 +116,7 @@ modsearch config set cooldown off
     searchProvider: true
     xSearch: true
     readPage: true
+    settingsCard: true
     providerTimeoutMs: 55000
 ```
 
@@ -106,6 +127,7 @@ modsearch config set cooldown off
 | `searchProvider` | `true` | 向 dsh web 接缝注册 ModSearch。 |
 | `xSearch` | `true` | 注册 `x_search`。 |
 | `readPage` | `true` | 注册 `read_page`。 |
+| `settingsCard` | `true` | 提供设置卡片与 `/modsearch/config` 路由。关掉后两者都不注册，浏览器那半边也随之停手。 |
 | `providerTimeoutMs` | `55000` | `web_search` provider 路径交给 CLI 的截止时间。应小于 dsh 的工具预算。 |
 
 只关闭 `x_search` 或 `read_page` 不会影响别的能力。关闭 `searchProvider` 时还要把 web 接缝指向另一个已注册 provider。否则 dsh 仍被配置成选择 `modsearch`，但对应 provider 已不存在：

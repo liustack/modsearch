@@ -58,11 +58,17 @@
   "exports": {
     ".": "./dsh/index.js",
     "./dsh": "./dsh/index.js",
+    "./client": "./dsh/client.js",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web",
+      "immediately": true
     }
   },
   "dependencies": {

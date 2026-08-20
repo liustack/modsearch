@@ -56,6 +56,8 @@ The CLI is exposed via `dist/main.js`.
 
 `dsh/index.js` is a DeepSeek Harness plugin: plain JS, node builtins only, no build step, no dsh package imports. It spawns the CLI from `dist/main.js` inside the same package and plugs in three ways: the engine chain becomes the web seam's search provider (`cordis.patch.yml` repoints the seam's `searchProvider` at it, so dsh's native `web_search` tool runs on modsearch), and `x_search` / `read_page` register as raw tools for the two capabilities dsh has no seam for. The schema copies `dsh/search-schema.json` and `dsh/fetch-schema.json` are kept in lockstep with `src/schema.ts` by `src/dshPlugin.test.ts`, which also tests the plugin's behavior against a fake CLI via the `MODSEARCH_DSH_CLI` env override. The package.json `dsh.bundle` manifest plus the root export make the package installable with `dsh plugin add`.
 
+`dsh/client.js` is the browser half, declared by the package.json `dsh.client` manifest: a settings card contributed to the `settings.plugin.item` slot, so a dsh web user with no terminal can pick an engine and set a key. It talks to the loopback route `/modsearch/config` that the host half registers on scoped `ctx.inject(['webServer'])`, which reads and writes `~/.modsearch/config.json` directly (no CLI spawn, no legacy migration) and never sends a stored key to the browser. Settings the card does not own (`bin`, `allowPrivateNetwork`, `cooldown`, `keylessFetch`) stay CLI-only and are copied through untouched. `src/dshClient.test.ts` evaluates `dsh/client.js` with stubbed browser globals; the route's own tests live in `src/dshPlugin.test.ts`.
+
 ## CLI Usage
 
 ```bash
