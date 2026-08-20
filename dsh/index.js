@@ -14,7 +14,6 @@
 // manifest): one row mounts this plugin, one repoints the `web` seam's
 // `searchProvider` at it. Engines, keys, and routing keep living in
 // ~/.modsearch/config.json, shared with every harness.
-import { spawn } from 'node:child_process';
 import {
   chmodSync,
   lstatSync,
@@ -27,6 +26,7 @@ import {
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnHidden } from './spawnHidden.js';
 
 const CLI_PATH = fileURLToPath(new URL('../dist/main.js', import.meta.url));
 // Kept in lockstep with src/schema.ts by a repo test; the plugin file cannot
@@ -917,7 +917,11 @@ export const __config = { engineSummary, applyCardSettings, modsearchConfigPath 
 
 function run(command, args, signal, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], signal, env });
+    const child = spawnHidden(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      signal,
+      env,
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {

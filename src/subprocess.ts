@@ -1,6 +1,6 @@
-import { spawn } from 'child_process';
 import type { ProviderInvocation } from './providers/index.ts';
 import { redactSecrets } from './util/redact.ts';
+import { spawnHidden } from './util/spawnHidden.ts';
 
 export interface CommandResult {
   stdout: string;
@@ -33,7 +33,7 @@ export function runCommand(
   }) => string | null,
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(invocation.command, invocation.args, {
+    const child = spawnHidden(invocation.command, invocation.args, {
       cwd: invocation.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
