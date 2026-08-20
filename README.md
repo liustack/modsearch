@@ -55,7 +55,7 @@ Firecrawl works with zero setup; every other engine is one command away. Keys ar
 | Grok Build | X (Twitter) search | rides SuperGrok or X Premium | install `grok` and sign in |
 | local | page fetch | built in, nothing to install | nothing |
 
-Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`). Multiple engines configured means automatic failover, best first. Every engine participates by default. Exclude one with `modsearch config set tavily.enabled false`, or use the checkboxes in the dsh settings card. Using a Tavily-, Exa-, or Firecrawl-compatible third-party or self-hosted endpoint? Point the engine at it: `modsearch config set tavily.baseURL <url>`. Official endpoints stay built into the code and are never written as default config. Every knob, engine by engine, is in the [configuration guide](skills/modsearch/references/configure.md).
+Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`). Multiple engines configured means automatic failover, best first. Every engine participates by default. Exclude one with `modsearch config set tavily.enabled false`. Using a Tavily-, Exa-, or Firecrawl-compatible third-party or self-hosted endpoint? Point the engine at it: `modsearch config set tavily.baseURL <url>`. Official endpoints stay built into the code and are never written as default config. Every knob, engine by engine, is in the [configuration guide](skills/modsearch/references/configure.md).
 
 ## Installation
 
@@ -71,6 +71,10 @@ agy                                                           # sign in, then ex
 ```
 
 Chose a key instead? Send it to your AI with one line: "set my tavily key to tvly-...".
+
+On DeepSeek Harness there is a route that skips the command line entirely. Settings → Plugins → Plugin config carries a ModSearch card: pick the preferred engine, fill in an API key or a self-hosted endpoint, tick which engines join the failover chain, hit save and it takes effect.
+
+![The ModSearch card in the dsh settings page, shown in Chinese: pick the preferred engine, fill in an API key and endpoint, tick the engines that join failover](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-settings-card.jpg)
 
 ## Usage
 
