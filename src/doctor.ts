@@ -29,6 +29,8 @@ export const MIN_NODE = '22.13.0';
 
 export interface EngineDiagnosis {
   engine: string;
+  /** Whether automatic routing is allowed to use this engine. */
+  enabled: boolean;
   ready: boolean;
   /** One line explaining the readiness verdict. */
   reason: string;
@@ -44,7 +46,7 @@ export interface RoleDiagnosis {
   job: string;
   /** The candidate engines for this role, in resolution order. */
   candidates: EngineDiagnosis[];
-  /** The first ready candidate, or null when none is ready. */
+  /** The first enabled and ready candidate, or null when none qualifies. */
   resolved: string | null;
 }
 
@@ -133,12 +135,14 @@ function diagnoseEngine(
   role: Role,
 ): EngineDiagnosis {
   const settings = engineSettings(engine.name, config, env);
+  const enabled = settings.enabled !== false;
 
   if (engine.name === 'antigravity-cli') {
     const bin = settings.bin || 'agy';
     const ready = commandOnPath(bin, env);
     return {
       engine: engine.name,
+      enabled,
       ready,
       reason: ready
         ? `binary "${bin}" found and runnable`
@@ -154,6 +158,7 @@ function diagnoseEngine(
     const ready = Boolean(keySource);
     return {
       engine: engine.name,
+      enabled,
       ready,
       keySource,
       reason: ready
@@ -170,6 +175,7 @@ function diagnoseEngine(
     const ready = Boolean(keySource);
     return {
       engine: engine.name,
+      enabled,
       ready,
       keySource,
       reason: ready
@@ -195,6 +201,7 @@ function diagnoseEngine(
     if (role === 'search') {
       return {
         engine: engine.name,
+        enabled,
         ready: true,
         keySource,
         reason: keySource
@@ -205,6 +212,7 @@ function diagnoseEngine(
     const ready = Boolean(keySource || keylessFetch);
     return {
       engine: engine.name,
+      enabled,
       ready,
       keySource,
       reason: keySource
@@ -227,6 +235,7 @@ function diagnoseEngine(
     parts.push(authPresent ? `login file ${authPath} present` : `login file ${authPath} missing`);
     return {
       engine: engine.name,
+      enabled,
       ready,
       reason: parts.join('; '),
       ...(ready ? {} : { fix: INSTALL_GROK }),
@@ -237,6 +246,7 @@ function diagnoseEngine(
   const ready = engine.isAvailable(settings, env, role);
   return {
     engine: engine.name,
+    enabled,
     ready,
     reason: ready ? 'built in, needs nothing installed' : engine.requirement,
   };
@@ -356,7 +366,7 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
     const candidates = candidatesForRole(role, config).map((engine) =>
       diagnoseEngine(engine, config, env, role),
     );
-    const resolved = candidates.find((c) => c.ready)?.engine ?? null;
+    const resolved = candidates.find((c) => c.enabled && c.ready)?.engine ?? null;
     return { role, job: ROLE_JOB[role], candidates, resolved };
   });
 
@@ -453,9 +463,9 @@ export function formatDoctorReport(report: DoctorReport): string {
     lines.push(`${role.role} (${role.job})`);
     lines.push(`  resolved: ${role.resolved ?? '(none available)'}`);
     for (const c of role.candidates) {
-      const mark = c.ready ? 'READY  ' : 'not set';
+      const mark = !c.enabled ? 'disabled' : c.ready ? 'READY  ' : 'not set';
       lines.push(`  - ${c.engine.padEnd(16)} ${mark}  ${c.reason}`);
-      if (!c.ready && c.fix) {
+      if (c.enabled && !c.ready && c.fix) {
         lines.push(`      fix: ${c.fix}`);
       }
     }

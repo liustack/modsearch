@@ -418,7 +418,7 @@ describe('dsh settings card route', () => {
         engine: 'tavily',
         engines: {
           tavily: { apiKey: 'tvly-secret', baseURL: 'https://gw.example' },
-          exa: { model: 'unused' },
+          exa: { model: 'unused', enabled: false },
         },
       },
       async (handler) => {
@@ -431,13 +431,15 @@ describe('dsh settings card route', () => {
         expect(body.engine).toBe('tavily');
         const engines = body.engines as Record<
           string,
-          { hasKey: boolean; keySource: string | null; baseURL: string }
+          { hasKey: boolean; keySource: string | null; baseURL: string; enabled: boolean }
         >;
         expect(engines.tavily.hasKey).toBe(true);
         expect(engines.tavily.keySource).toBe('file');
         expect(engines.tavily.baseURL).toBe('https://gw.example');
+        expect(engines.tavily.enabled).toBe(true);
         expect(engines.exa.hasKey).toBe(false);
         expect(engines.exa.keySource).toBe(null);
+        expect(engines.exa.enabled).toBe(false);
       },
     );
   });
@@ -454,6 +456,33 @@ describe('dsh settings card route', () => {
         const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
         expect(saved.engines.tavily.apiKey).toBe('tvly-secret');
         expect(saved.engines.tavily.baseURL).toBe('https://gw2.example');
+      },
+    );
+  });
+
+  it('stores only disabled engine overrides and removes them when re-enabled', async () => {
+    await withConfig(
+      {
+        engine: 'tavily',
+        engines: {
+          tavily: { apiKey: 'tvly-secret', enabled: false },
+          exa: { apiKey: 'exa-secret' },
+          local: { enabled: false },
+          firecrawl: { keylessFetch: false },
+        },
+      },
+      async (handler, file) => {
+        const { status } = await callRoute(
+          handler,
+          postOf({ enabled: { tavily: true, exa: false, local: true } }),
+        );
+        expect(status).toBe(200);
+        const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+        expect(saved.engine).toBe('tavily');
+        expect(saved.engines.tavily).toEqual({ apiKey: 'tvly-secret' });
+        expect(saved.engines.exa).toEqual({ apiKey: 'exa-secret', enabled: false });
+        expect(saved.engines.local).toBeUndefined();
+        expect(saved.engines.firecrawl).toEqual({ keylessFetch: false });
       },
     );
   });
@@ -535,6 +564,26 @@ describe('dsh settings card route', () => {
           apiKey: 'tvly-a',
           baseURL: 'https://a.example',
         });
+      },
+    );
+  });
+
+  it('removes a cleared endpoint override instead of writing an official default', async () => {
+    await withConfig(
+      {
+        engine: 'tavily',
+        engines: { tavily: { apiKey: 'tvly-secret', baseURL: 'https://gw.example' } },
+      },
+      async (handler, file) => {
+        const { status } = await callRoute(
+          handler,
+          postOf({ target: 'tavily', apiKey: '', baseURL: '' }),
+        );
+        expect(status).toBe(200);
+        const savedText = fs.readFileSync(file, 'utf-8');
+        const saved = JSON.parse(savedText);
+        expect(saved.engines.tavily).toEqual({ apiKey: 'tvly-secret' });
+        expect(savedText).not.toContain('api.tavily.com');
       },
     );
   });

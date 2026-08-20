@@ -296,6 +296,15 @@ describe('config file', () => {
     );
   });
 
+  it('stores an engine enabled override as a boolean and rejects other values', () => {
+    const p = tempConfigPath();
+    setConfigValue('tavily.enabled', 'false', p);
+    expect(loadConfigFile(p).engines?.tavily?.enabled).toBe(false);
+    setConfigValue('tavily.enabled', 'true', p);
+    expect(loadConfigFile(p).engines?.tavily).toBeUndefined();
+    expect(() => setConfigValue('tavily.enabled', 'maybe', p)).toThrow('Use true or false');
+  });
+
   it('coerces hand-written keylessFetch strings before routing reads them', () => {
     const p = tempConfigPath();
     fs.writeFileSync(
@@ -306,6 +315,15 @@ describe('config file', () => {
 
     fs.writeFileSync(p, JSON.stringify({ engines: { firecrawl: { keylessFetch: 'true' } } }));
     expect(loadConfigFile(p).engines?.firecrawl?.keylessFetch).toBe(true);
+  });
+
+  it('coerces hand-written enabled strings before routing reads them', () => {
+    const p = tempConfigPath();
+    fs.writeFileSync(p, JSON.stringify({ engines: { tavily: { enabled: 'false' } } }));
+    expect(loadConfigFile(p).engines?.tavily?.enabled).toBe(false);
+
+    fs.writeFileSync(p, JSON.stringify({ engines: { tavily: { enabled: 'true' } } }));
+    expect(loadConfigFile(p).engines?.tavily?.enabled).toBe(true);
   });
 
   it('migrates the retired per-engine allowPrivateNetwork string to the top-level boolean', () => {

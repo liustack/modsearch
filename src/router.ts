@@ -90,11 +90,11 @@ export function defaultSources(query: string | undefined): Source[] {
  * Only searching takes a configured engine. Fetching follows that same choice
  * when the engine can fetch and lands on the built-in local fetcher when it
  * cannot, so nobody has to configure page fetch separately. Searching X has
- * one possible engine, so there is nothing to choose there either.
+ * one possible engine. The per-engine `enabled` switch can still keep any
+ * role's engine out of automatic routing.
  *
- * Page fetch normally ends at the local engine: a wrong engine name in the
- * config, a missing binary, or a runtime failure must never leave a URL
- * unreadable. An explicit --engine is the one exception, see below.
+ * Page fetch normally ends at the local engine. A user can explicitly disable
+ * that floor, and an explicit --engine is also an exception, see below.
  *
  * An explicit --engine is a hard force: the chain holds exactly that engine,
  * with no preference list appended and no local floor. If it cannot do the job
@@ -111,6 +111,7 @@ export function planRole(
 ): { chain: SearchEngine[]; notes: string[] } {
   const notes: string[] = [];
   const settingsFor = (name: string) => engineSettings(name, config, env);
+  const enabled = (engine: SearchEngine) => settingsFor(engine.name).enabled !== false;
   const usable = (engine: SearchEngine) => engine.isAvailable(settingsFor(engine.name), env, role);
 
   const chain: SearchEngine[] = [];
@@ -149,7 +150,13 @@ export function planRole(
         `Unknown engine "${configured}" (engine in the config file), so modsearch chose one that works.`,
       );
     } else if (engine.roles.includes(role)) {
-      add(engine);
+      if (enabled(engine)) {
+        add(engine);
+      } else {
+        notes.push(
+          `The configured ${engine.name} preference is disabled by engines.${engine.name}.enabled, so modsearch skipped it.`,
+        );
+      }
     }
     // A configured search engine that cannot fetch is the normal case, not a
     // misconfiguration, so it earns no complaint.
@@ -157,13 +164,16 @@ export function planRole(
 
   for (const name of ROLE_PREFERENCE[role]) {
     const engine = resolveEngine(name);
-    if (usable(engine)) {
+    if (enabled(engine) && usable(engine)) {
       add(engine);
     }
   }
 
   if (role === 'fetch') {
-    add(resolveEngine(FETCH_FLOOR));
+    const floor = resolveEngine(FETCH_FLOOR);
+    if (enabled(floor)) {
+      add(floor);
+    }
   }
 
   // Cooldown only reshuffles this base order, it never changes it: a cooling

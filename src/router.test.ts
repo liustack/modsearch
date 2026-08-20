@@ -112,6 +112,13 @@ describe('engine chains per role', () => {
     expect(names(planRole('search', config(), undefined, BARE).chain)).toEqual(['firecrawl']);
   });
 
+  it('leaves a disabled ready engine out of the automatic chain', () => {
+    const disabled = config({ engines: { firecrawl: { enabled: false } } });
+    expect(names(planRole('search', disabled, undefined, WITH_AGY).chain)).toEqual([
+      'antigravity-cli',
+    ]);
+  });
+
   it('runs keyless cloud fetch by default and honors the keylessFetch opt-out', () => {
     expect(names(planRole('fetch', config(), undefined, BARE).chain)).toEqual([
       'firecrawl',
@@ -150,6 +157,14 @@ describe('engine chains per role', () => {
     ]);
   });
 
+  it('can remove the local fetch floor without blocking an explicit force', () => {
+    const disabled = config({
+      engines: { firecrawl: { enabled: false }, local: { enabled: false } },
+    });
+    expect(planRole('fetch', disabled, undefined, BARE).chain).toEqual([]);
+    expect(names(planRole('fetch', disabled, 'local', BARE).chain)).toEqual(['local']);
+  });
+
   it('forces exactly the --engine given, with no floor and no other engine', () => {
     // -e is a hard force: no http floor, no silent switch to another engine's
     // quota. A bad or unfetchable choice yields an empty chain plus a note, and
@@ -173,6 +188,16 @@ describe('engine chains per role', () => {
     expect(names(planRole('search', pinned, 'antigravity-cli', WITH_AGY).chain)).toEqual([
       'antigravity-cli',
     ]);
+  });
+
+  it('ignores a disabled configured preference and explains why', () => {
+    const pinned = config({
+      engine: 'tavily',
+      engines: { tavily: { apiKey: 'k', enabled: false } },
+    });
+    const planned = planRole('search', pinned, undefined, WITH_AGY);
+    expect(names(planned.chain)).not.toContain('tavily');
+    expect(planned.notes.join(' ')).toMatch(/tavily.*disabled/i);
   });
 });
 

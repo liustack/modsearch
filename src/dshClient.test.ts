@@ -10,11 +10,21 @@ import { describe, expect, it } from 'vitest';
 // follows dsh's own interface language.
 const SOURCE = fs.readFileSync(path.join(__dirname, '..', 'dsh', 'client.js'), 'utf-8');
 
+interface CardDraft extends Record<string, unknown> {
+  engine: string;
+  apiKey: string;
+  baseURL: string;
+  model: string;
+  enabled: Record<string, boolean>;
+}
+
 interface Definition {
   factory: (require: (id: string) => unknown) => {
     apply: (ctx: unknown) => void;
     __card: {
-      nextDraft: (summary: unknown, engine: string) => Record<string, unknown>;
+      nextDraft: (summary: unknown, engine: string) => CardDraft;
+      selectEngine: (summary: unknown, draft: CardDraft, engine: string) => CardDraft;
+      toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
       savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
       secretFieldProps: () => Record<string, unknown>;
       ConfigCard: (react: unknown, ui: unknown, localeRef?: unknown) => () => unknown;
@@ -67,12 +77,24 @@ async function settle(): Promise<void> {
 const SUMMARY = {
   engine: 'tavily',
   engines: {
-    'antigravity-cli': { baseURL: '', model: 'gemini-3-pro', hasKey: false, keySource: null },
-    tavily: { baseURL: 'https://a.example', model: '', hasKey: true, keySource: 'file' },
-    exa: { baseURL: '', model: '', hasKey: false, keySource: null },
-    firecrawl: { baseURL: '', model: '', hasKey: false, keySource: null },
-    'grok-cli': { baseURL: '', model: '', hasKey: false, keySource: null },
-    local: { baseURL: '', model: '', hasKey: false, keySource: null },
+    'antigravity-cli': {
+      baseURL: '',
+      model: 'gemini-3-pro',
+      hasKey: false,
+      keySource: null,
+      enabled: true,
+    },
+    tavily: {
+      baseURL: 'https://a.example',
+      model: '',
+      hasKey: true,
+      keySource: 'file',
+      enabled: true,
+    },
+    exa: { baseURL: '', model: '', hasKey: false, keySource: null, enabled: false },
+    firecrawl: { baseURL: '', model: '', hasKey: false, keySource: null, enabled: true },
+    'grok-cli': { baseURL: '', model: '', hasKey: false, keySource: null, enabled: true },
+    local: { baseURL: '', model: '', hasKey: false, keySource: null, enabled: true },
   },
   keyed: ['tavily', 'exa', 'firecrawl'],
   models: ['antigravity-cli'],
@@ -204,7 +226,39 @@ describe('a save carries only what the save is about', () => {
       apiKey: '',
       baseURL: '',
       model: 'gemini-3-pro',
+      enabled: {
+        'antigravity-cli': true,
+        tavily: true,
+        exa: false,
+        firecrawl: true,
+        'grok-cli': true,
+        local: true,
+      },
     });
+  });
+
+  it('sends only engine checkboxes that changed', () => {
+    const { nextDraft, savePayload } = card();
+    const draft = nextDraft(SUMMARY, 'tavily');
+    draft.enabled.tavily = false;
+    draft.enabled.exa = true;
+    expect(savePayload(SUMMARY, draft).enabled).toEqual({ tavily: false, exa: true });
+  });
+
+  it('keeps pending checkboxes coherent when the preferred engine changes', () => {
+    const { nextDraft, selectEngine, toggleEngine } = card();
+    let draft = nextDraft(SUMMARY, 'tavily');
+    draft = toggleEngine(draft, 'exa', true);
+    draft = selectEngine(SUMMARY, draft, 'antigravity-cli');
+    expect(draft.enabled.exa).toBe(true);
+    expect(draft.enabled['antigravity-cli']).toBe(true);
+
+    draft = toggleEngine(draft, 'antigravity-cli', false);
+    expect(draft.engine).toBe('');
+
+    draft = selectEngine(SUMMARY, draft, 'exa');
+    expect(draft.engine).toBe('exa');
+    expect(draft.enabled.exa).toBe(true);
   });
 });
 
@@ -264,6 +318,53 @@ describe('the API key field is masked without being a password field', () => {
         (field?.props.style as Record<string, unknown> | undefined)?.WebkitTextSecurity === 'disc';
       expect(masked).toBe(true);
     }
+  });
+});
+
+describe('the automatic engine chain is editable', () => {
+  it('renders one checkbox per engine while keeping doctor readiness as status text', () => {
+    const definition = evaluate({ lang: 'en' });
+    const card = definition.factory(() => ({})).__card;
+    const summary = {
+      ...SUMMARY,
+      readiness: [
+        { engine: 'tavily', ready: true, reason: 'API key present', keySource: 'file' },
+        { engine: 'exa', ready: false, reason: 'no API key', keySource: null },
+      ],
+    };
+    const draft = card.nextDraft(summary, summary.engine);
+    const states = [true, summary, draft, ''];
+    const built: Array<{ type: unknown; props: Record<string, unknown>; kids: unknown[] }> = [];
+    let index = 0;
+    const react = {
+      createElement: (type: unknown, props: Record<string, unknown>, ...kids: unknown[]) => {
+        const node = { type, props: props ?? {}, kids };
+        built.push(node);
+        return node;
+      },
+      useState: () => [states[index++ % states.length], () => {}],
+      useEffect: () => {},
+      useCallback: (fn: unknown) => fn,
+    };
+    const Input = function Input() {
+      return null;
+    };
+
+    card.ConfigCard(react, { Input })();
+
+    const checkboxes = built.filter(
+      (node) => node.type === 'input' && node.props.type === 'checkbox',
+    );
+    expect(checkboxes).toHaveLength(6);
+    expect(checkboxes.find((node) => node.props['aria-label'] === 'tavily')?.props.checked).toBe(
+      true,
+    );
+    expect(checkboxes.find((node) => node.props['aria-label'] === 'exa')?.props.checked).toBe(
+      false,
+    );
+    const text = built.flatMap((node) => node.kids).filter((kid) => typeof kid === 'string');
+    expect(text).toContain('ready');
+    expect(text).toContain('no API key');
   });
 });
 

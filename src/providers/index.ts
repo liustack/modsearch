@@ -104,14 +104,14 @@ export const ROLE_PREFERENCE: Record<Role, string[]> = {
   search: ['firecrawl', 'antigravity-cli', 'tavily', 'exa'],
   // Firecrawl runs a cloud browser for JS-heavy pages, keyless by default
   // (opt out with firecrawl.keylessFetch false). agy extracts to a focus. The
-  // local engine always works and returns the page as served, so it stays the
-  // floor.
+  // local needs no setup and returns the page as served, so it stays the
+  // default floor unless the user disables it.
   fetch: ['firecrawl', 'antigravity-cli', 'local'],
   // Only xAI can see inside X.
   social: ['grok-cli'],
 };
 
-/** Engine that never needs setup, so page fetch can always fall back to it. */
+/** Engine that never needs setup and serves as the default page-fetch floor. */
 export const FETCH_FLOOR = 'local';
 
 export function resolveEngine(engineName: string): SearchEngine {

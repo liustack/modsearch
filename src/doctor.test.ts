@@ -88,6 +88,18 @@ describe('doctor: search engines', () => {
     expect(engine(report, 'search', 'exa')?.fix).toContain('modsearch config set exa.apiKey');
     expect(engine(report, 'search', 'antigravity-cli')?.fix).toContain('antigravity.google');
   });
+
+  it('keeps readiness separate from a user-disabled engine', () => {
+    const report = runDoctor({
+      config: { engines: { firecrawl: { enabled: false } } },
+      env: BARE_ENV,
+    });
+    const firecrawl = engine(report, 'search', 'firecrawl');
+    expect(firecrawl?.ready).toBe(true);
+    expect(firecrawl?.enabled).toBe(false);
+    expect(role(report, 'search')?.resolved).toBeNull();
+    expect(formatDoctorReport(report)).toMatch(/firecrawl.*disabled/i);
+  });
 });
 
 describe('doctor: fetch and X', () => {

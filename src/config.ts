@@ -8,23 +8,24 @@ import { maskUrlCredentials, redactSecrets } from './util/redact.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
-// There is one decision to make, so the file has one knob: `engine`, the
-// engine you want searching with. Everything else follows from what an engine
-// can do. Reading a page uses that same engine when it can fetch, and the
-// built-in local fetcher when it cannot. Searching X uses Grok Build, because
-// nothing else can see inside X. Credentials and binaries live under `engines`.
+// `engine` is the soft preference. `engines.<name>.enabled` decides which
+// engines automatic routing may use, with missing meaning enabled. Everything
+// else follows from engine capability. Credentials and binaries also live
+// under `engines`.
 
 export type Role = 'search' | 'fetch' | 'social';
 
 export const ROLES: Role[] = ['search', 'fetch', 'social'];
 
-/** The one role a user picks an engine for. The rest follow from capability. */
+/** The role whose preferred engine is stored at the top level. */
 export const CONFIGURED_ROLE: Role = 'search';
 
 export interface EngineSettings {
   apiKey?: string;
   model?: string;
   bin?: string;
+  /** Participate in automatic routing. Undefined means enabled. */
+  enabled?: boolean;
   /**
    * Allow Firecrawl to fetch public URLs without an API key. On by default
    * (undefined means on); set false to keep page fetch off Firecrawl's cloud.
@@ -58,7 +59,7 @@ export interface ModsearchConfig {
   allowPrivateNetwork?: boolean;
 }
 
-/** Shapes older configs used before this collapsed to one knob. */
+/** Shapes older configs used before role preferences collapsed to one field. */
 interface LegacyRoleConfig {
   engine?: string;
 }
@@ -83,6 +84,7 @@ const SETTABLE_ENGINE_FIELDS: Array<keyof EngineSettings> = [
   'apiKey',
   'model',
   'bin',
+  'enabled',
   'baseURL',
   'keylessFetch',
 ];
@@ -159,7 +161,7 @@ export function coerceBoolean(value: unknown): boolean | undefined {
  * - Alias engine keys (agy, antigravity, grok, http, direct) fold onto their
  *   canonical name, and configs written before roles existed (a global
  *   `provider` plus a `providers` map, or a per-role search/fetch/social block)
- *   collapse to the one `engine` knob.
+ *   collapse to the top-level `engine` preference.
  * - `allowPrivateNetwork` moved from a per-engine string to a top-level boolean.
  *   The old `engines.<name>.allowPrivateNetwork` position and the old `"true"`/
  *   `"false"` string form are both read and promoted to the new top-level key.
@@ -211,16 +213,19 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
       const {
         allowPrivateNetwork: legacyFlag,
         keylessFetch: rawKeylessFetch,
+        enabled: rawEnabled,
         ...rest
       } = rawSettings;
       if (legacyFlag !== undefined) {
         allowPrivateNetwork ??= coerceBoolean(legacyFlag);
       }
       const keylessFetch = coerceBoolean(rawKeylessFetch);
+      const enabled = coerceBoolean(rawEnabled);
       engines[canonical] = {
         ...engines[canonical],
         ...(rest as EngineSettings),
         ...(keylessFetch === undefined ? {} : { keylessFetch }),
+        ...(enabled === undefined ? {} : { enabled }),
       };
     }
   };
@@ -235,7 +240,7 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
     }
   }
 
-  // Any older shape collapses to the one knob: a per-role search engine, or a
+  // Any older shape collapses to the preference: a per-role search engine, or a
   // v2 global provider that happened to be a search engine. A current config
   // keeps its `engine` verbatim, empty string included.
   const legacySearch = raw.search?.engine?.trim();
@@ -403,14 +408,25 @@ export function setConfigValue(
         `The "engines.${engineName}" entry of the config file is not an object. Fix or remove it.`,
       );
     }
-    if (field === 'keylessFetch') {
+    if (field === 'keylessFetch' || field === 'enabled') {
       const parsed = coerceBoolean(value);
       if (parsed === undefined) {
-        throw new Error(`Invalid keylessFetch value: ${value}. Use true or false.`);
+        throw new Error(`Invalid ${field} value: ${value}. Use true or false.`);
+      }
+      if (field === 'enabled' && parsed) {
+        const settings = config.engines?.[engineName];
+        if (settings) {
+          delete settings.enabled;
+          if (Object.keys(settings).length === 0) {
+            delete config.engines?.[engineName];
+          }
+        }
+        writeConfigFile(config, configPath);
+        return;
       }
       config.engines ??= {};
       config.engines[engineName] ??= {};
-      config.engines[engineName].keylessFetch = parsed;
+      config.engines[engineName][field] = parsed;
       writeConfigFile(config, configPath);
       return;
     }
@@ -493,7 +509,7 @@ function writeConfigFile(config: ModsearchConfig, configPath: string): void {
 
 /**
  * The starter file holds nothing but the shape. Pre-filling every engine and
- * every default looked helpful and was not: it buried the one real decision in
+ * every default looked helpful and was not: it buried the real decisions in
  * placeholders, and writing today's defaults into the file freezes them, so a
  * later change to a default model would be silently overridden by this copy.
  */

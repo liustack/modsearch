@@ -448,6 +448,23 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Match the CLI's hand-edited boolean handling without migrating the file. */
+function coerceBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 /** ~/.modsearch/config.json, the one file every harness shares. */
 function modsearchConfigPath() {
   return join(homedir(), '.modsearch', 'config.json');
@@ -537,6 +554,7 @@ function engineSummary(config = readModsearchConfig(), env = process.env) {
       baseURL: fromEnv.baseURL ?? (typeof fromFile.baseURL === 'string' ? fromFile.baseURL : ''),
       model: typeof fromFile.model === 'string' ? fromFile.model : '',
       hasKey: envKey || fileKey,
+      enabled: coerceBoolean(fromFile.enabled) !== false,
       // An environment key wins over a file key at run time, so a card that
       // reported the file's would explain the wrong thing when a save appears
       // to change nothing.
@@ -555,10 +573,10 @@ function engineSummary(config = readModsearchConfig(), env = process.env) {
 }
 
 /**
- * Apply one card submission to the shared file. Only the two things the card
- * owns can move: the engine pin, and the named engine's own key, endpoint and
- * model. `bin`, `allowPrivateNetwork`, `cooldown` and `keylessFetch` stay CLI
- * only, and every other key in the file is copied through untouched.
+ * Apply one card submission to the shared file. Only the card's three concerns
+ * can move: the engine preference, the named engine's own key, endpoint and
+ * model, and automatic participation. `bin`, `allowPrivateNetwork`, `cooldown`
+ * and `keylessFetch` stay CLI only, and every other key is copied through.
  *
  * An absent or empty `apiKey` leaves the stored one alone: the card never
  * receives a key, so it must never be able to clear one by submitting the
@@ -637,6 +655,44 @@ function applyCardSettings(patch) {
       settings.apiKey = apiKey;
     }
     config.engines[target] = settings;
+  }
+  // Automatic routing grants. Missing means this save did not touch the
+  // engine chain. `true` removes the override because enabled is the built-in
+  // default. Only an opt-out needs to exist in the file.
+  if (isPlainObject(patch?.enabled)) {
+    if (config.engines !== undefined && !isPlainObject(config.engines)) {
+      throw new Error('the "engines" section of the config file is not an object');
+    }
+    config.engines = { ...config.engines };
+    for (const engine of CARD_ENGINES) {
+      const enabled = patch.enabled[engine];
+      if (typeof enabled !== 'boolean') {
+        continue;
+      }
+      const holders = fileKeysFor(engine, config);
+      if (enabled) {
+        // Remove every alias override. Deleting only the last one could expose
+        // an earlier `enabled: false` that the merged config would then read.
+        for (const holder of holders) {
+          if (!isPlainObject(config.engines[holder])) {
+            throw new Error(`the "engines.${holder}" entry of the config file is not an object`);
+          }
+          const settings = { ...config.engines[holder] };
+          delete settings.enabled;
+          if (Object.keys(settings).length === 0) {
+            delete config.engines[holder];
+          } else {
+            config.engines[holder] = settings;
+          }
+        }
+        continue;
+      }
+      const target = holders.length > 0 ? holders[holders.length - 1] : engine;
+      if (config.engines[target] !== undefined && !isPlainObject(config.engines[target])) {
+        throw new Error(`the "engines.${target}" entry of the config file is not an object`);
+      }
+      config.engines[target] = { ...config.engines[target], enabled: false };
+    }
   }
   writeConfigFile(config);
 }

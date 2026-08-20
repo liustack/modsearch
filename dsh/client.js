@@ -29,15 +29,16 @@ window.__ModuleLoader__.load({
       en: {
         title: 'Web search (ModSearch)',
         subtitle: 'Search engine, API keys, and endpoints.',
-        automatic: 'Automatic (availability decides)',
+        automatic: 'Automatic (chain order decides)',
         pickToConfigure: 'Pick an engine above to configure its key and endpoint.',
-        engine: 'Engine',
+        engine: 'Preferred engine',
         apiKey: 'API key',
         baseUrl: 'Base URL',
         model: 'Model',
         stored: 'stored, leave empty to keep it',
         unset: 'not set',
-        fallback: 'engine default',
+        endpointFallback: 'Built-in official endpoint, leave blank to use it',
+        modelFallback: 'engine default',
         save: 'Save',
         saving: 'saving...',
         saved: 'saved',
@@ -47,8 +48,8 @@ window.__ModuleLoader__.load({
         localNote: 'The built-in fetcher reads pages directly: no key, no endpoint.',
         envNote:
           'This key comes from an environment variable, which overrides the config file. Clear the variable to let a saved key take effect.',
-        autoTitle: 'Engine status',
-        autoHint: 'What is set up on this machine, from modsearch doctor.',
+        autoTitle: 'Automatic engine chain',
+        autoHint: 'Checked engines may join failover. Readiness comes from modsearch doctor.',
         autoUnknown: 'engine status is unavailable right now',
         ready: 'ready',
         noKey: 'no API key',
@@ -60,15 +61,16 @@ window.__ModuleLoader__.load({
       zh: {
         title: '网页搜索（ModSearch）',
         subtitle: '搜索引擎、API 密钥与接口地址。',
-        automatic: '自动（按可用性选择）',
+        automatic: '自动（按故障转移顺序）',
         pickToConfigure: '在上面选一个引擎，才能配置它的密钥和地址。',
-        engine: '引擎',
+        engine: '首选引擎',
         apiKey: 'API 密钥',
         baseUrl: '接口地址',
         model: '模型',
         stored: '已保存，留空即不改动',
         unset: '未设置',
-        fallback: '使用该引擎默认值',
+        endpointFallback: '内置官方地址，留空即可使用',
+        modelFallback: '使用该引擎默认值',
         save: '保存',
         saving: '保存中…',
         saved: '已保存',
@@ -77,8 +79,8 @@ window.__ModuleLoader__.load({
         cliNote: '该引擎走本机命令行工具，无需密钥和接口地址。',
         localNote: '内置抓取器直连读取网页，无需密钥和接口地址。',
         envNote: '该密钥来自环境变量，环境变量优先于配置文件。清掉变量后保存的密钥才会生效。',
-        autoTitle: '引擎状态',
-        autoHint: '本机的配置情况，来自 modsearch doctor。',
+        autoTitle: '自动引擎链',
+        autoHint: '勾选后可参与故障转移。就绪状态来自 modsearch doctor。',
         autoUnknown: '暂时读不到引擎状态',
         ready: '就绪',
         noKey: '缺少密钥',
@@ -131,7 +133,7 @@ window.__ModuleLoader__.load({
     // The next draft when the engine changes or a summary arrives. The fields
     // belong to the newly selected engine, so switching engines can never copy
     // one engine's endpoint onto another.
-    function nextDraft(summary, engine) {
+    function nextDraft(summary, engine, keepEnabled) {
       // engine '' is its own answer: not pinned, availability decides. There
       // is then no single engine whose key belongs in these fields, so they
       // stay empty and the card says how to get them back.
@@ -141,7 +143,33 @@ window.__ModuleLoader__.load({
         apiKey: '',
         baseURL: current.baseURL || '',
         model: current.model || '',
+        enabled: Object.assign(
+          {},
+          keepEnabled ||
+            Object.fromEntries(
+              ENGINES.map((name) => [name, summary.engines?.[name]?.enabled !== false]),
+            ),
+        ),
       };
+    }
+
+    /** Select a preferred engine and make that preference usable. */
+    function selectEngine(summary, draft, engine) {
+      var next = nextDraft(summary, engine, draft.enabled);
+      if (engine !== '') {
+        next.enabled[engine] = true;
+      }
+      return next;
+    }
+
+    /** Change automatic participation, clearing an impossible preference. */
+    function toggleEngine(draft, engine, enabled) {
+      var next = Object.assign({}, draft, { enabled: Object.assign({}, draft.enabled) });
+      next.enabled[engine] = enabled;
+      if (!enabled && next.engine === engine) {
+        next.engine = '';
+      }
+      return next;
     }
 
     // What one save is actually about. The pin travels only when the select
@@ -151,6 +179,17 @@ window.__ModuleLoader__.load({
     // over whatever the file holds now.
     function savePayload(summary, draft) {
       var payload = {};
+      var enabled = {};
+      ENGINES.forEach((name) => {
+        var before = summary.engines?.[name]?.enabled !== false;
+        var after = draft.enabled?.[name] !== false;
+        if (after !== before) {
+          enabled[name] = after;
+        }
+      });
+      if (Object.keys(enabled).length > 0) {
+        payload.enabled = enabled;
+      }
       if (draft.engine !== summary.engine) {
         payload.engine = draft.engine;
       }
@@ -175,6 +214,9 @@ window.__ModuleLoader__.load({
 
     /** The localized one-word verdict for one doctor entry. */
     function statusLabel(t, entry) {
+      if (!entry) {
+        return t.autoUnknown;
+      }
       if (entry.ready === true) {
         return t.ready;
       }
@@ -405,7 +447,12 @@ window.__ModuleLoader__.load({
             const dirty =
               draft.engine !== summary.engine ||
               (canKey && (draft.apiKey !== '' || draft.baseURL !== pristine.baseURL)) ||
-              (canModel && draft.model !== pristine.model);
+              (canModel && draft.model !== pristine.model) ||
+              ENGINES.some(
+                (name) =>
+                  (draft.enabled?.[name] !== false) !==
+                  (summary.engines?.[name]?.enabled !== false),
+              );
 
             const set = (key, value) => {
               var next = Object.assign({}, draft);
@@ -438,51 +485,58 @@ window.__ModuleLoader__.load({
                 key,
               );
 
-            // Engine status: read-only, because modsearch has no grants to
-            // give. An engine doctor did not judge is simply absent.
+            // Availability and permission are separate. Doctor says whether an
+            // engine can run here. The checkbox says whether automatic routing
+            // may use it when it can.
             const probes = Array.isArray(summary.readiness) ? summary.readiness : null;
-            const statusRows = probes
-              ? probes.map((entry) =>
-                  h(
-                    'div',
-                    {
-                      key: entry.engine,
-                      title: entry.reason || undefined,
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '13px',
-                      },
+            const statusRows = ENGINES.map((name) => {
+              const entry = probes?.find((candidate) => candidate.engine === name);
+              const checked = draft.enabled?.[name] !== false;
+              return h(
+                'label',
+                {
+                  key: name,
+                  title: entry?.reason || undefined,
+                  style: {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    minHeight: '32px',
+                    padding: '4px 10px',
+                    border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
+                    borderRadius: '8px',
+                    background: checked
+                      ? 'var(--dsw-alias-bg-layer-3, rgba(127,127,127,0.08))'
+                      : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  'aria-label': name,
+                  checked,
+                  onChange: (event) => {
+                    draftState[1](toggleEngine(draft, name, event.target.checked));
+                    noteState[1]('');
+                  },
+                }),
+                h('span', null, name),
+                h(
+                  'span',
+                  {
+                    style: {
+                      color:
+                        entry?.ready === true
+                          ? 'var(--dsw-alias-label-secondary, inherit)'
+                          : 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
+                      fontSize: '12px',
                     },
-                    h('span', null, entry.engine),
-                    h(
-                      'span',
-                      {
-                        style: {
-                          color: entry.ready
-                            ? 'var(--dsw-alias-label-secondary, inherit)'
-                            : 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
-                          fontSize: '12px',
-                        },
-                      },
-                      statusLabel(t, entry),
-                    ),
-                  ),
-                )
-              : [
-                  h(
-                    'div',
-                    {
-                      key: 'unknown',
-                      style: {
-                        fontSize: '13px',
-                        color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
-                      },
-                    },
-                    t.autoUnknown,
-                  ),
-                ];
+                  },
+                  statusLabel(t, entry),
+                ),
+              );
+            });
 
             body = h(
               'div',
@@ -494,7 +548,7 @@ window.__ModuleLoader__.load({
                   {
                     value: draft.engine,
                     onChange: (event) => {
-                      draftState[1](nextDraft(summary, event.target.value));
+                      draftState[1](selectEngine(summary, draft, event.target.value));
                       noteState[1]('');
                     },
                     style: {
@@ -520,12 +574,12 @@ window.__ModuleLoader__.load({
                 : canKey
                   ? secretField(t.apiKey, 'apiKey', current.hasKey ? t.stored : t.unset)
                   : hint(draft.engine === 'local' ? t.localNote : t.cliNote, 'keyless'),
-              canKey ? textField(t.baseUrl, 'baseURL', t.fallback) : null,
+              canKey ? textField(t.baseUrl, 'baseURL', t.endpointFallback) : null,
               // Where the key is coming from, said once: a save cannot beat an
               // environment variable, and silence here would read as the save
               // having done nothing.
               canKey && current.keySource === 'env' ? hint(t.envNote, 'envnote') : null,
-              canModel ? textField(t.model, 'model', t.fallback) : null,
+              canModel ? textField(t.model, 'model', t.modelFallback) : null,
               fieldRow(
                 h(
                   'span',
@@ -798,6 +852,8 @@ window.__ModuleLoader__.load({
     // Exposed for the repo's tests only; not part of the plugin contract.
     exports.__card = {
       nextDraft: nextDraft,
+      selectEngine: selectEngine,
+      toggleEngine: toggleEngine,
       savePayload: savePayload,
       secretFieldProps: secretFieldProps,
       ConfigCard: ConfigCard,
