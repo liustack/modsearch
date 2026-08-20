@@ -88,15 +88,15 @@ See the [full engine configuration reference](../skills/modsearch/references/con
 
 ## Configure from the settings page
 
-The dsh web UI has no terminal, so the plugin contributes a **Web search (ModSearch)** card to Settings → Plugins. It edits the same `~/.modsearch/config.json` as the CLI, through a loopback route the plugin registers at `/modsearch/config`.
+The dsh web UI has no terminal, so the plugin contributes a **Search engine (ModSearch)** card to Settings → Plugins. It edits the same `~/.modsearch/config.json` as the CLI, through a loopback route the plugin registers at `/modsearch/config`.
 
 The card holds three things:
 
-- The preferred engine: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `grok-cli`, `local`.
-- The selected engine's own settings: API key and base URL for the HTTP engines (`tavily`, `exa`, `firecrawl`), and the model for `antigravity-cli`. Engines that sign in through their own command-line tool, and the built-in fetcher, show a line saying they need neither.
-- The automatic engine chain: one checkbox per engine. Checked means automatic routing may use it. The adjacent readiness text still comes from `modsearch doctor`, so “installed” and “enabled” are separate facts.
+- The preferred engine: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `grok-cli`. The `firecrawl` option is labelled as the keyless free tier. `local` fetches single pages and searches nothing, so it is not offered, unless the config file already names it as `engine`, in which case it stays listed rather than let the card disagree with the file.
+- The selected engine's own settings: API key and base URL for the HTTP engines (`tavily`, `exa`, `firecrawl`), and the model for `antigravity-cli`. Engines that sign in through their own command-line tool, and the built-in fetcher, show a line saying they need neither. Selecting `firecrawl` with no key stored adds a line saying it runs on the keyless free tier by default.
+- The automatic engine chain: one checkbox per search engine `modsearch doctor` found ready on this machine. Checked means automatic routing may use it. Engines this machine cannot run are left out, since they are not a decision to make, and so is `local`, which fetches pages rather than searching. `grok-cli` carries an "X search only" note, since it serves the social role alone. When doctor's answer never arrives, every search engine is listed with a line saying the status is unknown. A successful save re-reads doctor, so an engine the save just made ready gets its checkbox straight away.
 
-Every engine is checked by default. Unchecking one writes only `enabled: false`. Checking it again deletes that override instead of storing a redundant `true`. Choosing an unchecked engine as the preference checks it again. Unchecking the current preference returns the preference to automatic.
+Every engine is checked by default. Unchecking one writes only `enabled: false`. Checking it again deletes that override instead of storing a redundant `true`. Unchecking the current preference returns the preference to automatic. The card only edits engines it lists: the `enabled` of an engine with no checkbox (one this machine cannot run, and `local`) is copied through untouched, and `modsearch config set <engine>.enabled` is the only way to change it. When no engine is ready here, the row of checkboxes is replaced by a line reading "No engine is ready on this machine yet."
 
 Official Tavily, Exa, and Firecrawl endpoints live in the provider code. The base URL field is an override only. Leaving it blank or clearing it uses the built-in official address and writes no default URL into the config file.
 

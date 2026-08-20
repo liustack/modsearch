@@ -901,6 +901,10 @@ function registerConfigRoute(ctx) {
           chunks.push(chunk);
         }
         applyCardSettings(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        // The cached verdict was about the file this save just rewrote. Serving
+        // it for another minute would tell the card an engine is still unset
+        // right after the key that sets it was stored.
+        readinessCache = null;
         send(200, engineSummary());
       } catch (error) {
         send(400, { error: String(error?.message ?? error) });

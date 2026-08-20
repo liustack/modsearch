@@ -22,14 +22,21 @@ window.__ModuleLoader__.load({
     // host half carries the same list; both sides name what they show.
     var ENGINES = ['antigravity-cli', 'tavily', 'exa', 'firecrawl', 'grok-cli', 'local'];
 
+    // The chain is a row of search engines, so the page fetcher is not in it.
+    // `local` reads a URL it is handed and searches for nothing, and a tickbox
+    // among these would invite a decision that changes no search.
+    var CHAIN_ENGINES = ENGINES.filter((name) => name !== 'local');
+
     // Two short label sets rather than a locale bundle: the card has a couple
     // of dozen strings, and a bundle would be more machinery than the thing it
     // labels.
     var TEXT = {
       en: {
-        title: 'Web search (ModSearch)',
-        subtitle: 'Search engine, API keys, and endpoints.',
+        title: 'Search engine (ModSearch)',
+        subtitle: 'Search engine provider configuration.',
         automatic: 'Automatic (chain order decides)',
+        // The keyless default is stated in the list, where an engine is chosen.
+        keylessSuffix: ' (keyless free tier)',
         pickToConfigure: 'Pick an engine above to configure its key and endpoint.',
         engine: 'Preferred engine',
         apiKey: 'API key',
@@ -49,19 +56,24 @@ window.__ModuleLoader__.load({
         envNote:
           'This key comes from an environment variable, which overrides the config file. Clear the variable to let a saved key take effect.',
         autoTitle: 'Automatic engine chain',
-        autoHint: 'Checked engines may join failover. Readiness comes from modsearch doctor.',
-        autoUnknown: 'engine status is unavailable right now',
-        ready: 'ready',
-        noKey: 'no API key',
-        notInstalled: 'not installed',
-        notReady: 'not ready',
+        autoHint: 'Checked engines may join failover. Only engines ready here are listed.',
+        autoUnknown: 'Engine status is unavailable right now, so every engine is listed.',
+        autoEmpty: 'No engine is ready on this machine yet.',
+        // Two engine-specific asides, each rendered by a branch of its own so
+        // either can be dropped without touching the rest of the card.
+        socialOnly: 'X search only',
+        keylessTier: 'Runs on the keyless free tier by default. Add a key to raise the quota.',
         loadFailed: 'load failed',
         saveFailed: 'save failed',
       },
       zh: {
-        title: '网页搜索（ModSearch）',
-        subtitle: '搜索引擎、API 密钥与接口地址。',
+        // 不叫「网页搜索」：dsh 自带一张「网页搜索（DeepSeek 搜索提供方）」卡片，
+        // 同一份列表里两个开头一样的名字谁也认不出来。这个名字与同门插件的
+        // 「视觉引擎（ModLens）」成对。
+        title: '搜索引擎（ModSearch）',
+        subtitle: '搜索引擎提供商配置。',
         automatic: '自动（按故障转移顺序）',
+        keylessSuffix: '（免注册免费）',
         pickToConfigure: '在上面选一个引擎，才能配置它的密钥和地址。',
         engine: '首选引擎',
         apiKey: 'API 密钥',
@@ -80,12 +92,11 @@ window.__ModuleLoader__.load({
         localNote: '内置抓取器直连读取网页，无需密钥和接口地址。',
         envNote: '该密钥来自环境变量，环境变量优先于配置文件。清掉变量后保存的密钥才会生效。',
         autoTitle: '自动引擎链',
-        autoHint: '勾选后可参与故障转移。就绪状态来自 modsearch doctor。',
-        autoUnknown: '暂时读不到引擎状态',
-        ready: '就绪',
-        noKey: '缺少密钥',
-        notInstalled: '未安装',
-        notReady: '未就绪',
+        autoHint: '勾选后可参与故障转移。这里只列出本机已就绪的引擎。',
+        autoUnknown: '暂时读不到引擎状态，所以列出全部引擎。',
+        autoEmpty: '本机暂无就绪的引擎。',
+        socialOnly: '仅 X 搜索',
+        keylessTier: '默认使用免注册的免费额度，填入密钥可提高配额。',
         loadFailed: '加载失败',
         saveFailed: '保存失败',
       },
@@ -153,10 +164,20 @@ window.__ModuleLoader__.load({
       };
     }
 
-    /** Select a preferred engine and make that preference usable. */
+    /**
+     * Select a preferred engine, and make that preference usable where the user
+     * can see it happen.
+     *
+     * Only an engine with a checkbox on screen gets switched on here. Ticking a
+     * hidden one would be a change nobody asked for and nobody can see, and the
+     * save that followed would delete an `enabled: false` the user never knew
+     * was there. An engine with no row keeps whatever the file says: the
+     * preference still travels, and the router says plainly when a pinned
+     * engine is switched off.
+     */
     function selectEngine(summary, draft, engine) {
       var next = nextDraft(summary, engine, draft.enabled);
-      if (engine !== '') {
+      if (engine !== '' && chainEngines(summary).indexOf(engine) >= 0) {
         next.enabled[engine] = true;
       }
       return next;
@@ -180,7 +201,10 @@ window.__ModuleLoader__.load({
     function savePayload(summary, draft) {
       var payload = {};
       var enabled = {};
-      ENGINES.forEach((name) => {
+      // Only the engines the chain actually rendered. An engine with no
+      // checkbox had no way to change, so naming it here could only carry an
+      // edit the card made to itself.
+      chainEngines(summary).forEach((name) => {
         var before = summary.engines?.[name]?.enabled !== false;
         var after = draft.enabled?.[name] !== false;
         if (after !== before) {
@@ -212,21 +236,44 @@ window.__ModuleLoader__.load({
       return payload;
     }
 
-    /** The localized one-word verdict for one doctor entry. */
-    function statusLabel(t, entry) {
-      if (!entry) {
-        return t.autoUnknown;
+    /**
+     * The engines the preference list offers. `local` is not one of them: it
+     * fetches a URL it is handed, so pinning it as the search engine pins
+     * something that searches nothing.
+     *
+     * It stays listed while the config file still names it, because the select
+     * has to show what is configured. Dropping the option there would leave
+     * some other engine sitting in the box as if it were the preference, which
+     * is the card lying about the file it edits.
+     */
+    function preferable(summary, draft) {
+      if (summary.engine === 'local' || draft.engine === 'local') {
+        return ENGINES;
       }
-      if (entry.ready === true) {
-        return t.ready;
+      return CHAIN_ENGINES;
+    }
+
+    /**
+     * The engines the chain offers a checkbox for: the ones doctor found ready
+     * on this machine. An engine that cannot run here is not a decision the
+     * user has to make, and a row saying so is a row they cannot act on.
+     *
+     * `readiness` absent means the probe never answered, which is not a verdict
+     * that nothing works here. Every search engine stays listed then, because
+     * the checkbox is the only way back on and the card must not take it away
+     * over a fact it does not know.
+     *
+     * This list is also what a save is allowed to say about `enabled`: what was
+     * never on screen was never edited.
+     */
+    function chainEngines(summary) {
+      var probes = Array.isArray(summary.readiness) ? summary.readiness : null;
+      if (probes === null) {
+        return CHAIN_ENGINES;
       }
-      if (entry.keySource === null && /key/i.test(entry.reason || '')) {
-        return t.noKey;
-      }
-      if (/not found|not installed|missing/i.test(entry.reason || '')) {
-        return t.notInstalled;
-      }
-      return t.notReady;
+      return CHAIN_ENGINES.filter((name) =>
+        probes.some((entry) => entry.engine === name && entry.ready === true),
+      );
     }
 
     /**
@@ -382,6 +429,23 @@ window.__ModuleLoader__.load({
           }
         }, [open, summary, load]);
 
+        // Readiness after a save, which is the only moment it can have changed
+        // under this card: the key just written is exactly what makes an engine
+        // ready. Only the readiness list is replaced, so the fields keep their
+        // saved values and nothing on screen blinks back to a loading state.
+        // A probe that fails leaves the previous answer and the saved note
+        // alone: the save landed, and a failed follow-up is not its news.
+        var refreshReadiness = react.useCallback((saved) => {
+          fetch('/modsearch/config?doctor=1')
+            .then((r) => (r.ok ? r.json() : null))
+            .then((fresh) => {
+              if (fresh && Array.isArray(fresh.readiness)) {
+                summaryState[1](Object.assign({}, saved, { readiness: fresh.readiness }));
+              }
+            })
+            .catch(() => {});
+        }, []);
+
         // A row wrapping ONE control is a label, which names that control. A
         // row wrapping a set of them must not be: the label would become the
         // first control's accessible name and swallow the whole section's
@@ -444,11 +508,19 @@ window.__ModuleLoader__.load({
             const canModel = modelled(summary, draft.engine);
             const current = summary.engines?.[draft.engine] || { hasKey: false, keySource: null };
             const pristine = nextDraft(summary, draft.engine);
+            // Availability and permission are separate. Doctor says whether an
+            // engine can run here, and only those get a row. The checkbox says
+            // whether automatic routing may use it. An unchecked engine keeps
+            // its row: unticking it is not a reason to take the tickbox away,
+            // and dsh web users have no terminal to undo that with.
+            const chain = chainEngines(summary);
+            // The same list savePayload measures, so the buttons can never
+            // light up over a change no save would carry.
             const dirty =
               draft.engine !== summary.engine ||
               (canKey && (draft.apiKey !== '' || draft.baseURL !== pristine.baseURL)) ||
               (canModel && draft.model !== pristine.model) ||
-              ENGINES.some(
+              chain.some(
                 (name) =>
                   (draft.enabled?.[name] !== false) !==
                   (summary.engines?.[name]?.enabled !== false),
@@ -485,18 +557,17 @@ window.__ModuleLoader__.load({
                 key,
               );
 
-            // Availability and permission are separate. Doctor says whether an
-            // engine can run here. The checkbox says whether automatic routing
-            // may use it when it can.
-            const probes = Array.isArray(summary.readiness) ? summary.readiness : null;
-            const statusRows = ENGINES.map((name) => {
-              const entry = probes?.find((candidate) => candidate.engine === name);
+            const chainNote = !Array.isArray(summary.readiness)
+              ? t.autoUnknown
+              : chain.length === 0
+                ? t.autoEmpty
+                : '';
+            const statusRows = chain.map((name) => {
               const checked = draft.enabled?.[name] !== false;
               return h(
                 'label',
                 {
                   key: name,
-                  title: entry?.reason || undefined,
                   style: {
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -512,9 +583,12 @@ window.__ModuleLoader__.load({
                     fontSize: '13px',
                   },
                 },
+                // No aria-label. This label wraps exactly one control, so its
+                // text is the checkbox's accessible name, and that text is the
+                // whole row: an aria-label of just the engine name would name
+                // the box over the label and leave the aside beside it unread.
                 h('input', {
                   type: 'checkbox',
-                  'aria-label': name,
                   checked,
                   onChange: (event) => {
                     draftState[1](toggleEngine(draft, name, event.target.checked));
@@ -522,19 +596,21 @@ window.__ModuleLoader__.load({
                   },
                 }),
                 h('span', null, name),
-                h(
-                  'span',
-                  {
-                    style: {
-                      color:
-                        entry?.ready === true
-                          ? 'var(--dsw-alias-label-secondary, inherit)'
-                          : 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
-                      fontSize: '12px',
-                    },
-                  },
-                  statusLabel(t, entry),
-                ),
+                // grok-cli serves the social role alone: it never joins
+                // web-search failover, and an unmarked tickbox in a row of
+                // search engines would promise that it does.
+                name === 'grok-cli'
+                  ? h(
+                      'span',
+                      {
+                        style: {
+                          color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
+                          fontSize: '12px',
+                        },
+                      },
+                      t.socialOnly,
+                    )
+                  : null,
               );
             });
 
@@ -564,7 +640,13 @@ window.__ModuleLoader__.load({
                     },
                   },
                   [h('option', { key: '', value: '' }, t.automatic)].concat(
-                    ENGINES.map((name) => h('option', { key: name, value: name }, name)),
+                    preferable(summary, draft).map((name) =>
+                      h(
+                        'option',
+                        { key: name, value: name },
+                        name === 'firecrawl' ? `${name}${t.keylessSuffix}` : name,
+                      ),
+                    ),
                   ),
                 ),
                 'engine',
@@ -574,6 +656,12 @@ window.__ModuleLoader__.load({
                 : canKey
                   ? secretField(t.apiKey, 'apiKey', current.hasKey ? t.stored : t.unset)
                   : hint(draft.engine === 'local' ? t.localNote : t.cliNote, 'keyless'),
+              // The default engine asks for no signup at all. Silence here
+              // reads as a key being required, which is the one thing this
+              // engine does not need.
+              draft.engine === 'firecrawl' && !current.hasKey
+                ? hint(t.keylessTier, 'keyless-tier')
+                : null,
               canKey ? textField(t.baseUrl, 'baseURL', t.endpointFallback) : null,
               // Where the key is coming from, said once: a save cannot beat an
               // environment variable, and silence here would read as the save
@@ -602,12 +690,34 @@ window.__ModuleLoader__.load({
                   {
                     style: {
                       display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '10px 18px',
+                      flexDirection: 'column',
+                      gap: '8px',
                       paddingTop: '2px',
                     },
                   },
-                  statusRows,
+                  statusRows.length > 0
+                    ? h(
+                        'div',
+                        {
+                          key: 'engines',
+                          style: { display: 'flex', flexWrap: 'wrap', gap: '10px 18px' },
+                        },
+                        statusRows,
+                      )
+                    : null,
+                  chainNote
+                    ? h(
+                        'div',
+                        {
+                          key: 'note',
+                          style: {
+                            fontSize: '13px',
+                            color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
+                          },
+                        },
+                        chainNote,
+                      )
+                    : null,
                 ),
                 'status',
                 t.autoTitle,
@@ -683,12 +793,14 @@ window.__ModuleLoader__.load({
                           }),
                         )
                         .then((next) => {
-                          // The save response carries no doctor run; keep the
-                          // statuses already on screen.
+                          // The save response carries no doctor run, so the
+                          // statuses already on screen stand until the fresh
+                          // probe below answers.
                           next.readiness = summary.readiness;
                           summaryState[1](next);
                           draftState[1](nextDraft(next, next.engine));
                           noteState[1](t.saved);
+                          refreshReadiness(next);
                         })
                         .catch((error) => {
                           noteState[1](noteFrom(error, t.saveFailed));

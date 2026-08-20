@@ -18,17 +18,19 @@ interface CardDraft extends Record<string, unknown> {
   enabled: Record<string, boolean>;
 }
 
+interface Card {
+  nextDraft: (summary: unknown, engine: string) => CardDraft;
+  selectEngine: (summary: unknown, draft: CardDraft, engine: string) => CardDraft;
+  toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
+  savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
+  secretFieldProps: () => Record<string, unknown>;
+  ConfigCard: (react: unknown, ui: unknown, localeRef?: unknown) => () => unknown;
+}
+
 interface Definition {
   factory: (require: (id: string) => unknown) => {
     apply: (ctx: unknown) => void;
-    __card: {
-      nextDraft: (summary: unknown, engine: string) => CardDraft;
-      selectEngine: (summary: unknown, draft: CardDraft, engine: string) => CardDraft;
-      toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
-      savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
-      secretFieldProps: () => Record<string, unknown>;
-      ConfigCard: (react: unknown, ui: unknown, localeRef?: unknown) => () => unknown;
-    };
+    __card: Card;
   };
 }
 
@@ -245,6 +247,35 @@ describe('a save carries only what the save is about', () => {
     expect(savePayload(SUMMARY, draft).enabled).toEqual({ tavily: false, exa: true });
   });
 
+  it('leaves the file alone when a preference is switched away and back', () => {
+    // The chain shows no row for `local`, so nothing on screen says it is
+    // switched off. Selecting it back as the preference used to tick it
+    // silently, and the save then deleted an override the user never saw.
+    const { nextDraft, selectEngine, savePayload } = card();
+    const summary = {
+      ...SUMMARY,
+      engine: 'local',
+      engines: { ...SUMMARY.engines, local: { ...SUMMARY.engines.local, enabled: false } },
+    };
+    let draft = nextDraft(summary, 'local');
+    draft = selectEngine(summary, draft, 'tavily');
+    draft = selectEngine(summary, draft, 'local');
+    expect(savePayload(summary, draft)).toEqual({});
+  });
+
+  it('pins an engine the chain cannot show without switching it on behind the user', () => {
+    // exa is not ready here, so it has no checkbox. Pinning it is a decision
+    // about preference, not about the override the user cannot see.
+    const { nextDraft, selectEngine, savePayload } = card();
+    const summary = {
+      ...SUMMARY,
+      engines: { ...SUMMARY.engines, exa: { ...SUMMARY.engines.exa, enabled: false } },
+      readiness: READINESS,
+    };
+    const draft = selectEngine(summary, nextDraft(summary, 'tavily'), 'exa');
+    expect(savePayload(summary, draft)).toEqual({ engine: 'exa' });
+  });
+
   it('keeps pending checkboxes coherent when the preferred engine changes', () => {
     const { nextDraft, selectEngine, toggleEngine } = card();
     let draft = nextDraft(SUMMARY, 'tavily');
@@ -321,50 +352,386 @@ describe('the API key field is masked without being a password field', () => {
   });
 });
 
-describe('the automatic engine chain is editable', () => {
-  it('renders one checkbox per engine while keeping doctor readiness as status text', () => {
-    const definition = evaluate({ lang: 'en' });
-    const card = definition.factory(() => ({})).__card;
+interface Node {
+  type: unknown;
+  props: Record<string, unknown>;
+  kids: unknown[];
+}
+
+/** One row of the engine chain: what it reads as, and what it is set to. */
+interface ChainRow {
+  label: string;
+  checked: unknown;
+  title: unknown;
+}
+
+interface Rendered {
+  card: Card;
+  draft: CardDraft;
+  nodes: Node[];
+  chain: ChainRow[];
+  options: Array<{ value: unknown; label: string }>;
+  texts: string[];
+}
+
+function isNode(value: unknown): value is Node {
+  return typeof value === 'object' && value !== null && 'kids' in value;
+}
+
+/** Every string under a node, in reading order: what the row says out loud. */
+function textOf(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(textOf).join(' ');
+  }
+  return isNode(value) ? textOf(value.kids) : '';
+}
+
+/** One expanded card, rendered in English, with the parts tests ask about. */
+function render(summary: Record<string, unknown>, lang = 'en'): Rendered {
+  const card = evaluate({ lang }).factory(() => ({})).__card;
+  const draft = card.nextDraft(summary, String(summary.engine ?? ''));
+  const states = [true, summary, draft, ''];
+  const built: Node[] = [];
+  let index = 0;
+  const react = {
+    createElement: (type: unknown, props: Record<string, unknown>, ...kids: unknown[]) => {
+      const node = { type, props: props ?? {}, kids };
+      built.push(node);
+      return node;
+    },
+    useState: () => [states[index++ % states.length], () => {}],
+    useEffect: () => {},
+    useCallback: (fn: unknown) => fn,
+  };
+  const Input = function Input() {
+    return null;
+  };
+  card.ConfigCard(react, { Input })();
+  const boxOf = (node: Node): Node | undefined =>
+    node.kids.find((kid) => isNode(kid) && kid.props.type === 'checkbox') as Node | undefined;
+  return {
+    card,
+    draft,
+    nodes: built,
+    chain: built
+      .filter((node) => node.type === 'label' && boxOf(node) !== undefined)
+      .map((node) => ({
+        label: textOf(node.kids).replace(/\s+/g, ' ').trim(),
+        checked: boxOf(node)?.props.checked,
+        title: node.props.title,
+      })),
+    options: built
+      .filter((node) => node.type === 'option')
+      .map((node) => ({
+        value: node.props.value,
+        label: node.kids.filter((kid) => typeof kid === 'string').join(''),
+      })),
+    texts: built
+      .flatMap((node) => node.kids)
+      .filter((kid): kid is string => typeof kid === 'string'),
+  };
+}
+
+const READINESS = [
+  { engine: 'antigravity-cli', ready: false, reason: 'binary "agy" not found', keySource: null },
+  { engine: 'tavily', ready: true, reason: 'API key present', keySource: 'file' },
+  { engine: 'exa', ready: false, reason: 'no API key', keySource: null },
+  { engine: 'firecrawl', ready: true, reason: 'keyless', keySource: null },
+  { engine: 'grok-cli', ready: false, reason: 'binary "grok" not found', keySource: null },
+  { engine: 'local', ready: true, reason: 'built in', keySource: null },
+];
+
+describe('the automatic engine chain lists what this machine can actually search with', () => {
+  // The chain is a set of checkboxes, one per search engine the machine is
+  // ready to run. An engine doctor cannot run here is not a row the user can
+  // act on, so it is left out entirely rather than shown greyed with a reason
+  // beside it, and so is `local`, which fetches pages and never searches.
+
+  it('drops the engines doctor cannot run here, and says nothing about status', () => {
+    const view = render({ ...SUMMARY, readiness: READINESS });
+    expect(view.chain.map((row) => row.label)).toEqual(['tavily', 'firecrawl']);
+    // Scanned as substrings, not compared whole: a row reading "tavily ready"
+    // passes an exact-match check for "ready" and still shows the word.
+    expect(view.chain.map((row) => row.label).join(' ')).not.toMatch(
+      /ready|not installed|API key|keyless/i,
+    );
+  });
+
+  it('never carries a doctor reason back in as a tooltip', () => {
+    // The reasons are English strings from the CLI, and the row said its piece
+    // by existing. A title attribute would put untranslated status text back on
+    // a card that just took it off.
+    const view = render({ ...SUMMARY, readiness: READINESS });
+    expect(view.chain.map((row) => row.title)).toEqual([undefined, undefined]);
+    expect(view.nodes.some((node) => node.props.title !== undefined)).toBe(false);
+  });
+
+  it('leaves the page fetcher out of a row of search engines', () => {
+    // `local` reads a URL it is handed. It is in no search chain, so a tickbox
+    // among the search engines would only invite a decision that does nothing.
+    const view = render({ ...SUMMARY, readiness: READINESS });
+    expect(view.chain.map((row) => row.label).join(' ')).not.toContain('local');
+  });
+
+  it('marks grok-cli as the one that only searches X, where a reader hears it', () => {
+    // grok-cli serves the social role alone: it never joins web-search
+    // failover, and an unmarked tickbox in this row would promise it does. The
+    // note rides inside the label that names the checkbox, so it is announced
+    // rather than painted: an aria-label of just the engine name would hide it.
+    const view = render({
+      ...SUMMARY,
+      readiness: READINESS.map((entry) =>
+        entry.engine === 'grok-cli' ? { ...entry, ready: true } : entry,
+      ),
+    });
+    expect(view.chain.map((row) => row.label)).toContain('grok-cli X search only');
+    const box = view.nodes.find(
+      (node) => node.props.type === 'checkbox' && typeof node.props['aria-label'] === 'string',
+    );
+    expect(box?.props['aria-label'] ?? 'grok-cli X search only').toContain('X search only');
+  });
+
+  it('keeps a ready engine on screen after it was switched off', () => {
+    // Hiding an unchecked engine would be a one-way door: the checkbox is the
+    // only way back on, and dsh web users have no terminal to undo it with.
+    const view = render({
+      ...SUMMARY,
+      engines: { ...SUMMARY.engines, firecrawl: { ...SUMMARY.engines.firecrawl, enabled: false } },
+      readiness: READINESS,
+    });
+    expect(view.chain.find((row) => row.label === 'firecrawl')?.checked).toBe(false);
+  });
+
+  it('never writes over a hidden engine’s stored override when the card saves', () => {
+    // exa is not ready here and `local` is never in this row at all, so neither
+    // has a checkbox. Gone from the screen must not mean gone from the file:
+    // their `enabled: false` is not this save's business, and a payload naming
+    // them would delete the override.
     const summary = {
       ...SUMMARY,
-      readiness: [
-        { engine: 'tavily', ready: true, reason: 'API key present', keySource: 'file' },
-        { engine: 'exa', ready: false, reason: 'no API key', keySource: null },
-      ],
+      engines: { ...SUMMARY.engines, local: { ...SUMMARY.engines.local, enabled: false } },
+      readiness: READINESS,
     };
-    const draft = card.nextDraft(summary, summary.engine);
-    const states = [true, summary, draft, ''];
-    const built: Array<{ type: unknown; props: Record<string, unknown>; kids: unknown[] }> = [];
+    const view = render(summary);
+    const draft = view.card.toggleEngine(view.draft, 'firecrawl', false);
+    const payload = view.card.savePayload(summary, draft);
+    expect(payload.enabled).toEqual({ firecrawl: false });
+  });
+
+  it('says the machine has nothing ready rather than showing an empty chain', () => {
+    const view = render({ ...SUMMARY, readiness: [] });
+    expect(view.chain).toHaveLength(0);
+    expect(view.texts.some((text) => /No engine is ready/i.test(text))).toBe(true);
+  });
+
+  it('lists every search engine when doctor’s answer never arrived', () => {
+    // A failed probe is not a verdict of "nothing works here". Hiding the whole
+    // chain then would take away controls over a fact the card does not know.
+    const view = render(SUMMARY);
+    expect(view.chain.map((row) => row.label)).toEqual([
+      'antigravity-cli',
+      'tavily',
+      'exa',
+      'firecrawl',
+      'grok-cli X search only',
+    ]);
+    expect(view.texts.some((text) => /status is unavailable/i.test(text))).toBe(true);
+  });
+
+  it('speaks its own asides in Chinese under a Chinese card', () => {
+    // Four lines that only ever appear in this section. An English string
+    // leaking into a Chinese card is invisible to every test that renders in
+    // English, which is every other test here.
+    const zh = (summary: Record<string, unknown>): string[] => render(summary, 'zh-CN').texts;
+    expect(zh({ ...SUMMARY, readiness: READINESS.map((e) => ({ ...e, ready: true })) })).toContain(
+      '仅 X 搜索',
+    );
+    expect(zh({ ...SUMMARY, readiness: [] })).toContain('本机暂无就绪的引擎。');
+    expect(zh(SUMMARY)).toContain('暂时读不到引擎状态，所以列出全部引擎。');
+    expect(zh({ ...SUMMARY, engine: 'firecrawl', readiness: READINESS })).toContain(
+      '默认使用免注册的免费额度，填入密钥可提高配额。',
+    );
+  });
+
+  it('says firecrawl needs no key, until one is stored', () => {
+    // The default engine works with no signup at all. Silence there reads as a
+    // key being required, which is the one thing this engine does not need.
+    // Matched on the whole sentence: the same words label the select option,
+    // which is there whether or not a key is stored.
+    const note = /Runs on the keyless free tier/i;
+    const keyless = render({ ...SUMMARY, engine: 'firecrawl', readiness: READINESS });
+    expect(keyless.texts.some((text) => note.test(text))).toBe(true);
+
+    const keyed = render({
+      ...SUMMARY,
+      engine: 'firecrawl',
+      engines: { ...SUMMARY.engines, firecrawl: { ...SUMMARY.engines.firecrawl, hasKey: true } },
+      readiness: READINESS,
+    });
+    expect(keyed.texts.some((text) => note.test(text))).toBe(false);
+  });
+});
+
+describe('a save re-reads what the machine can do now', () => {
+  it('asks doctor again after saving, so a key that just landed grows a checkbox', async () => {
+    // Readiness was read once, when the card was expanded. Saving the very key
+    // that makes an engine ready would otherwise leave its checkbox missing
+    // until the whole card was closed and opened again.
+    const urls: string[] = [];
+    const fresh = [
+      { engine: 'tavily', ready: true, reason: 'API key present', keySource: 'file' },
+      { engine: 'exa', ready: true, reason: 'API key present', keySource: 'file' },
+    ];
+    const stale = [{ engine: 'tavily', ready: true, reason: 'API key present', keySource: 'file' }];
+    const definition = evaluate({
+      lang: 'en',
+      fetch: (url: string, init?: { method?: string }) => {
+        urls.push(url);
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve(
+              init?.method === 'POST' ? { ...SUMMARY } : { ...SUMMARY, readiness: fresh },
+            ),
+        });
+      },
+    });
+    const card = definition.factory(() => ({})).__card;
+    const summary = { ...SUMMARY, readiness: stale };
+    const draft = { ...card.nextDraft(summary, 'exa'), apiKey: 'exa-new' };
+    const summaries: Array<Record<string, unknown>> = [];
+    const nodes: Node[] = [];
     let index = 0;
     const react = {
       createElement: (type: unknown, props: Record<string, unknown>, ...kids: unknown[]) => {
         const node = { type, props: props ?? {}, kids };
-        built.push(node);
+        nodes.push(node);
         return node;
       },
-      useState: () => [states[index++ % states.length], () => {}],
+      useState: () => {
+        const slot = index++;
+        return [
+          [true, summary, draft, ''][slot],
+          (value: unknown) => {
+            if (slot === 1) {
+              summaries.push(value as Record<string, unknown>);
+            }
+          },
+        ];
+      },
       useEffect: () => {},
       useCallback: (fn: unknown) => fn,
     };
     const Input = function Input() {
       return null;
     };
-
     card.ConfigCard(react, { Input })();
+    const save = nodes.find((node) => node.type === 'button' && node.kids.includes('Save'));
+    if (!save) {
+      throw new Error('no save button');
+    }
+    (save.props.onClick as () => void)();
+    for (let i = 0; i < 20; i++) {
+      await Promise.resolve();
+    }
 
-    const checkboxes = built.filter(
-      (node) => node.type === 'input' && node.props.type === 'checkbox',
+    expect(urls.filter((url) => url.includes('doctor'))).toHaveLength(1);
+    expect(summaries[summaries.length - 1]?.readiness).toEqual(fresh);
+  });
+
+  it('keeps the saved note when the fresh readiness read fails', async () => {
+    // The save landed. A follow-up probe that did not is no reason to tell the
+    // user their save failed.
+    const notes: string[] = [];
+    const definition = evaluate({
+      lang: 'en',
+      fetch: (_url: string, init?: { method?: string }) =>
+        init?.method === 'POST'
+          ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...SUMMARY }) })
+          : Promise.reject(new Error('offline')),
+    });
+    const card = definition.factory(() => ({})).__card;
+    const draft = { ...card.nextDraft(SUMMARY, 'tavily'), apiKey: 'tvly-new' };
+    const nodes: Node[] = [];
+    let index = 0;
+    const react = {
+      createElement: (type: unknown, props: Record<string, unknown>, ...kids: unknown[]) => {
+        const node = { type, props: props ?? {}, kids };
+        nodes.push(node);
+        return node;
+      },
+      useState: () => {
+        const slot = index++;
+        return [
+          [true, SUMMARY, draft, ''][slot],
+          (value: unknown) => {
+            if (slot === 3) {
+              notes.push(String(value));
+            }
+          },
+        ];
+      },
+      useEffect: () => {},
+      useCallback: (fn: unknown) => fn,
+    };
+    const Input = function Input() {
+      return null;
+    };
+    card.ConfigCard(react, { Input })();
+    const save = nodes.find((node) => node.type === 'button' && node.kids.includes('Save'));
+    if (!save) {
+      throw new Error('no save button');
+    }
+    (save.props.onClick as () => void)();
+    for (let i = 0; i < 20; i++) {
+      await Promise.resolve();
+    }
+    expect(notes).toEqual(['saving...', 'saved']);
+  });
+});
+
+describe('the preference list offers only engines a preference can mean', () => {
+  const values = (view: Rendered): unknown[] => view.options.map((option) => option.value);
+
+  it('leaves the page fetcher out of the list', () => {
+    // Pinning `local` would pin the page fetcher as the search engine, which
+    // searches nothing. The option was an invitation to break search.
+    expect(values(render(SUMMARY))).toEqual([
+      '',
+      'antigravity-cli',
+      'tavily',
+      'exa',
+      'firecrawl',
+      'grok-cli',
+    ]);
+  });
+
+  it('keeps the page fetcher listed while the config still pins it', () => {
+    // A CLI-set `engine: local` is the state of the file. Dropping the option
+    // would leave the select showing some other engine as the preference, which
+    // is the card lying about what is configured.
+    const view = render({ ...SUMMARY, engine: 'local' });
+    expect(values(view)).toContain('local');
+    expect(view.draft.engine).toBe('local');
+  });
+
+  it('marks firecrawl as the one that needs no signup', () => {
+    const view = render(SUMMARY);
+    expect(view.options.find((option) => option.value === 'firecrawl')?.label).toBe(
+      'firecrawl (keyless free tier)',
     );
-    expect(checkboxes).toHaveLength(6);
-    expect(checkboxes.find((node) => node.props['aria-label'] === 'tavily')?.props.checked).toBe(
-      true,
+    expect(view.options.find((option) => option.value === 'tavily')?.label).toBe('tavily');
+  });
+
+  it('says it in Chinese under a Chinese card', () => {
+    const view = render({ ...SUMMARY, engine: '' }, 'zh-CN');
+    expect(view.options.find((option) => option.value === 'firecrawl')?.label).toBe(
+      'firecrawl（免注册免费）',
     );
-    expect(checkboxes.find((node) => node.props['aria-label'] === 'exa')?.props.checked).toBe(
-      false,
-    );
-    const text = built.flatMap((node) => node.kids).filter((kid) => typeof kid === 'string');
-    expect(text).toContain('ready');
-    expect(text).toContain('no API key');
   });
 });
 
@@ -557,8 +924,11 @@ describe('the card follows dsh’s own interface language', () => {
     return state;
   }
 
-  const ZH_TITLE = '网页搜索（ModSearch）';
-  const EN_TITLE = 'Web search (ModSearch)';
+  // Not "网页搜索": dsh ships its own "网页搜索（DeepSeek 搜索提供方）" card in
+  // the same list, and two cards whose names start alike is a list nobody can
+  // read. This name pairs with the sibling plugin's 视觉引擎（ModLens）.
+  const ZH_TITLE = '搜索引擎（ModSearch）';
+  const EN_TITLE = 'Search engine (ModSearch)';
 
   it('speaks English where dsh is set to English under a zh-CN page', () => {
     const card = mount({ lang: 'zh-CN', locale: new FakeLocale('en') });

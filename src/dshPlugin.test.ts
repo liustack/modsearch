@@ -531,6 +531,30 @@ describe('dsh settings card route', () => {
     });
   });
 
+  it('leaves an engine the card never showed exactly as the file had it', async () => {
+    // The card's chain lists only the search engines doctor found ready here,
+    // so an engine this machine cannot run has no row, and neither has `local`,
+    // which fetches pages rather than searching. Their stored `enabled: false`
+    // must survive a save that was about something else: out of sight is not
+    // the same as given up.
+    const before = {
+      engine: '',
+      engines: {
+        tavily: { apiKey: 'tvly-secret' },
+        exa: { apiKey: 'exa-secret', enabled: false, baseURL: 'https://exa.example' },
+        local: { enabled: false },
+      },
+    };
+    await withConfig(before, async (handler, file) => {
+      const { status } = await callRoute(handler, postOf({ enabled: { tavily: false } }));
+      expect(status).toBe(200);
+      const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      expect(saved.engines.exa).toEqual(before.engines.exa);
+      expect(saved.engines.local).toEqual(before.engines.local);
+      expect(saved.engines.tavily).toEqual({ apiKey: 'tvly-secret', enabled: false });
+    });
+  });
+
   it('keeps an unknown top-level key rather than migrating the file underneath a save', async () => {
     await withConfig(
       { engine: '', proxy: 'http://127.0.0.1:7890', engines: { agy: { bin: '/opt/agy' } } },
@@ -770,6 +794,41 @@ describe('dsh settings card route', () => {
       // has nothing to show.
       expect(status).toBe(200);
       expect(body.readiness).toBe(null);
+    });
+  });
+
+  it('forgets the cached doctor verdict once a save has rewritten the config', async () => {
+    // The probe costs a process start, so its answer is cached for a minute.
+    // That minute is exactly when a user saves the key that makes an engine
+    // ready, and a stale verdict would tell the card the engine is still unset.
+    fakeCli(`
+      const fs = require('fs');
+      const path = require('path');
+      const counter = path.join(__dirname, 'calls');
+      const calls = (fs.existsSync(counter) ? Number(fs.readFileSync(counter, 'utf-8')) : 0) + 1;
+      fs.writeFileSync(counter, String(calls));
+      console.log(JSON.stringify({
+        roles: [{
+          role: 'search',
+          candidates: [{ engine: 'tavily', ready: calls > 1, reason: 'probe ' + calls, keySource: null }],
+        }],
+      }));
+    `);
+    await withConfig({ engine: '' }, async (handler) => {
+      const probe = { method: 'GET', url: '/modsearch/config?doctor=1' };
+      const first = await callRoute(handler, probe);
+      expect(first.body.readiness).toContainEqual(
+        expect.objectContaining({ engine: 'tavily', ready: false }),
+      );
+      // Second read inside the window: the same answer, without paying again.
+      const cached = await callRoute(handler, probe);
+      expect(cached.body.readiness).toEqual(first.body.readiness);
+
+      await callRoute(handler, postOf({ target: 'tavily', apiKey: 'tvly-new' }));
+      const after = await callRoute(handler, probe);
+      expect(after.body.readiness).toContainEqual(
+        expect.objectContaining({ engine: 'tavily', ready: true }),
+      );
     });
   });
 
