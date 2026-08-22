@@ -4,11 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModsearchConfig } from './config.ts';
 import {
   buildCooldownController,
+  cooldownStateKey,
   emptyCooldownState,
   loadCooldownState,
   recordQuotaCooldown,
 } from './cooldown.ts';
-import { type EngineAttempt, noEngineMessage, resolveMode, runSearch, validateUrl } from './search.ts';
+import {
+  type EngineAttempt,
+  noEngineMessage,
+  resolveMode,
+  runSearch,
+  validateUrl,
+} from './search.ts';
 import { agyQuotaEnvelope, agySearchEnvelope } from './fixtures/index.ts';
 import {
   BARE_ENV,
@@ -104,34 +111,248 @@ describe('zero-config machine', () => {
     }
   }, 40_000);
 
-  itSpawn('always returns an array of results, one per source', async () => {
-    const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
-    const result = await runSearch({ query: 'node lts', config, env: BARE_ENV, timeoutMs: 20_000 });
-    expect(result.results).toHaveLength(1);
-    expect(result.results[0]).toMatchObject({
-      source: 'web',
-      engine: 'antigravity-cli',
-      summary: 'web-sum',
-    });
-    expect(result.mode).toBe('search');
-  }, 30_000);
-
-  itSpawn('falls through to the next engine and says so', async () => {
-    const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
-    try {
-      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
+  itSpawn(
+    'always returns an array of results, one per source',
+    async () => {
+      const config = agyConfig({ stdout: agySearchEnvelope('web-sum') });
       const result = await runSearch({
-        url: page.url,
+        query: 'node lts',
         config,
         env: BARE_ENV,
-        timeoutMs: 30_000,
+        timeoutMs: 20_000,
       });
-      expect(result.results[0].engine).toBe('local');
-      expect((result.results[0].warnings as string[]).join(' ')).toContain('Fell back to local');
-    } finally {
-      await page.close();
-    }
-  }, 40_000);
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]).toMatchObject({
+        source: 'web',
+        engine: 'antigravity-cli',
+        summary: 'web-sum',
+      });
+      expect(result.mode).toBe('search');
+    },
+    30_000,
+  );
+
+  itSpawn(
+    'falls through to the next engine and says so',
+    async () => {
+      const page = await startLocalPage('<html><body><p>fallback body</p></body></html>');
+      try {
+        const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
+        const result = await runSearch({
+          url: page.url,
+          config,
+          env: BARE_ENV,
+          timeoutMs: 30_000,
+        });
+        expect(result.results[0].engine).toBe('local');
+        expect((result.results[0].warnings as string[]).join(' ')).toContain('Fell back to local');
+      } finally {
+        await page.close();
+      }
+    },
+    40_000,
+  );
+});
+
+describe('per-engine API key rotation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it.each([401, 403, 429])(
+    'tries comma-separated keys in order after a key-related HTTP %i failure',
+    async (status) => {
+      const sentKeys: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: string, init: RequestInit) => {
+          sentKeys.push((init.headers as Record<string, string>)['x-api-key']);
+          if (sentKeys.length === 1) {
+            return {
+              ok: false,
+              status,
+              statusText: 'Key failure',
+              text: async () => 'invalid API key',
+            } as Response;
+          }
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: async () => ({ results: [] }),
+            text: async () => '{}',
+          } as Response;
+        }),
+      );
+
+      const result = await runSearch({
+        query: 'q',
+        engine: 'exa',
+        config: { engines: { exa: { apiKey: ' first-key, ,second-key ' } } },
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+      });
+
+      expect(sentKeys).toEqual(['first-key', 'second-key']);
+      expect(result.results[0].attempts).toMatchObject([
+        { engine: 'exa', keyIndex: 0, ok: false },
+        { engine: 'exa', keyIndex: 1, ok: true },
+      ]);
+      expect(result.results[0].warnings.join(' ')).toContain('Rotated to exa API key 2');
+      expect(result.results[0].warnings.join(' ')).not.toContain('Fell back to exa');
+    },
+  );
+
+  it('does not try another key after a network failure', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('network unavailable');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runSearch({
+        query: 'q',
+        engine: 'exa',
+        config: { engines: { exa: { apiKey: 'first-key,second-key' } } },
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+      }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not try another key after a 5xx response, even when its body mentions quota', async () => {
+    const fetchMock = vi.fn(async () => {
+      return {
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        text: async () => 'quota service temporarily unavailable',
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runSearch({
+        query: 'q',
+        engine: 'exa',
+        config: { engines: { exa: { apiKey: 'first-key,second-key' } } },
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+      }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat unrelated 4xx wording as a quota failure', async () => {
+    const fetchMock = vi.fn(async () => {
+      return {
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => 'requested result count is out of range',
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runSearch({
+        query: 'q',
+        engine: 'exa',
+        config: { engines: { exa: { apiKey: 'first-key,second-key' } } },
+        env: BARE_ENV,
+        timeoutMs: 20_000,
+      }),
+    ).rejects.toThrow(/Every engine for the web source failed/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('records quota cooldown only for the key that failed', async () => {
+    const p = path.join(tempDir('modsearch-key-state-'), 'state.json');
+    const now = new Date('2026-08-06T00:00:00.000Z');
+    let call = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            ok: false,
+            status: 402,
+            statusText: 'Payment Required',
+            text: async () => 'insufficient balance for first-key and second-key',
+          } as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ results: [] }),
+          text: async () => '{}',
+        } as Response;
+      }),
+    );
+    const controller = buildCooldownController({}, { now, statePath: p });
+
+    await runSearch({
+      query: 'q',
+      engine: 'exa',
+      config: { engines: { exa: { apiKey: 'first-key,second-key' } } },
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+      cooldown: controller,
+    });
+
+    const state = loadCooldownState(p);
+    expect(state.engineCooldowns[cooldownStateKey('exa', 0)]).toBeDefined();
+    expect(state.engineCooldowns[cooldownStateKey('exa', 1)]).toBeUndefined();
+    expect(state.engineCooldowns.exa).toBeUndefined();
+    const persisted = fs.readFileSync(p, 'utf-8');
+    expect(persisted).not.toContain('first-key');
+    expect(persisted).not.toContain('second-key');
+  });
+
+  it('tries healthy keys before a cooling key in the same engine', async () => {
+    const p = path.join(tempDir('modsearch-key-order-'), 'state.json');
+    const now = new Date('2026-08-06T00:00:00.000Z');
+    recordQuotaCooldown(
+      emptyCooldownState(),
+      'exa',
+      new Error('out of credits'),
+      now,
+      p,
+      undefined,
+      0,
+    );
+    const sentKeys: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sentKeys.push((init.headers as Record<string, string>)['x-api-key']);
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ results: [] }),
+          text: async () => '{}',
+        } as Response;
+      }),
+    );
+
+    const result = await runSearch({
+      query: 'q',
+      engine: 'exa',
+      config: { engines: { exa: { apiKey: 'first-key,second-key' } } },
+      env: BARE_ENV,
+      timeoutMs: 20_000,
+      cooldown: buildCooldownController({}, { now, statePath: p }),
+    });
+
+    expect(sentKeys).toEqual(['second-key']);
+    expect(result.results[0].attempts).toMatchObject([{ keyIndex: 1, ok: true }]);
+    expect(loadCooldownState(p).engineCooldowns[cooldownStateKey('exa', 0)]).toBeDefined();
+  });
 });
 
 describeSpawn('a forced --engine is strict', () => {
@@ -200,7 +421,7 @@ describeSpawn('X degrade is labeled, never silently mislabeled', () => {
     expect(x.engine).toBeNull();
     expect(x.items).toEqual([]);
     expect(x.attempts).toEqual([]);
-    expect((x.uncertainty as string[])).toEqual([]);
+    expect(x.uncertainty as string[]).toEqual([]);
     expect((x.warnings as string[]).join(' ')).toContain('X itself was not reachable');
   }, 30_000);
 });
@@ -274,7 +495,9 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
         engine: 'antigravity-cli',
         ok: false,
       });
-      expect((web.warnings as string[]).join(' ')).toContain('Every engine for the web source failed');
+      expect((web.warnings as string[]).join(' ')).toContain(
+        'Every engine for the web source failed',
+      );
 
       const x = result.results[1];
       expect(x.status).toBe('ok');
@@ -308,77 +531,93 @@ describeSpawn('multiple sources run concurrently and fail independently', () => 
 describe('uncertainty, warnings, and attempts are separate channels', () => {
   afterEach(() => cleanupTempDirs());
 
-  itSpawn('keeps the engine epistemic uncertainty, routing goes to warnings', async () => {
-    // The engine reports a real gap; the run also falls back. The two must not
-    // mix: uncertainty is the engine's own doubt, warnings is how we routed.
-    const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
-    try {
-      // agy fails on the first (config) engine, http answers the fetch.
-      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
-      const result = await runSearch({
-        url: page.url,
-        config,
-        env: BARE_ENV,
-        timeoutMs: 30_000,
-      });
-      const entry = result.results[0];
-      expect(entry.engine).toBe('local');
-      // the local engine's own uncertainty is epistemic only (nothing about routing here).
-      expect((entry.uncertainty as string[]).join(' ')).not.toContain('Fell back');
-      // Routing + runtime notices live in warnings.
-      const warnings = (entry.warnings as string[]).join(' ');
-      expect(warnings).toContain('Fell back to local');
-      expect(warnings).toContain('no LLM synthesis');
-    } finally {
-      await page.close();
-    }
-  }, 40_000);
+  itSpawn(
+    'keeps the engine epistemic uncertainty, routing goes to warnings',
+    async () => {
+      // The engine reports a real gap; the run also falls back. The two must not
+      // mix: uncertainty is the engine's own doubt, warnings is how we routed.
+      const page = await startLocalPage('<html><body><p>fallback body here</p></body></html>');
+      try {
+        // agy fails on the first (config) engine, http answers the fetch.
+        const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
+        const result = await runSearch({
+          url: page.url,
+          config,
+          env: BARE_ENV,
+          timeoutMs: 30_000,
+        });
+        const entry = result.results[0];
+        expect(entry.engine).toBe('local');
+        // the local engine's own uncertainty is epistemic only (nothing about routing here).
+        expect((entry.uncertainty as string[]).join(' ')).not.toContain('Fell back');
+        // Routing + runtime notices live in warnings.
+        const warnings = (entry.warnings as string[]).join(' ');
+        expect(warnings).toContain('Fell back to local');
+        expect(warnings).toContain('no LLM synthesis');
+      } finally {
+        await page.close();
+      }
+    },
+    40_000,
+  );
 
-  itSpawn('records every engine attempt in order with per-try outcome', async () => {
-    // agy fails, firecrawl declines the loopback target offline (a reserved
-    // address never goes to the cloud), then local answers.
-    const page = await startLocalPage('<html><body><p>a body long enough to not look empty at all</p></body></html>');
-    try {
-      const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
-      const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
-      const attempts = result.results[0].attempts as Array<{
-        engine: string;
-        ok: boolean;
-        error?: string;
-      }>;
-      expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'firecrawl', 'local']);
-      expect(attempts[0].ok).toBe(false);
-      expect(typeof attempts[0].error).toBe('string');
-      expect(attempts[1].ok).toBe(false);
-      expect(attempts[1].error).toMatch(/private or reserved/);
-      expect(attempts[2].ok).toBe(true);
-      expect(attempts[2].error).toBeUndefined();
-    } finally {
-      await page.close();
-    }
-  }, 40_000);
+  itSpawn(
+    'records every engine attempt in order with per-try outcome',
+    async () => {
+      // agy fails, firecrawl declines the loopback target offline (a reserved
+      // address never goes to the cloud), then local answers.
+      const page = await startLocalPage(
+        '<html><body><p>a body long enough to not look empty at all</p></body></html>',
+      );
+      try {
+        const config = agyConfig({ code: 1 }, { allowPrivateNetwork: true });
+        const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
+        const attempts = result.results[0].attempts as Array<{
+          engine: string;
+          ok: boolean;
+          error?: string;
+        }>;
+        expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'firecrawl', 'local']);
+        expect(attempts[0].ok).toBe(false);
+        expect(typeof attempts[0].error).toBe('string');
+        expect(attempts[1].ok).toBe(false);
+        expect(attempts[1].error).toMatch(/private or reserved/);
+        expect(attempts[2].ok).toBe(true);
+        expect(attempts[2].error).toBeUndefined();
+      } finally {
+        await page.close();
+      }
+    },
+    40_000,
+  );
 
-  itSpawn('scrubs token-shaped secrets from attempts and warnings', async () => {
-    // A failing CLI's stderr loves to echo credentials. The final JSON travels
-    // into terminals and model contexts, so no channel may carry the token.
-    const secret = 'sk-leaked1234567890ABCDEF';
-    const page = await startLocalPage('<html><body><p>a body long enough to not look empty</p></body></html>');
-    try {
-      const bin = fakeEngine({ name: 'agy', code: 1, stderr: `auth failed for ${secret}` });
-      const config: ModsearchConfig = {
-        engine: 'antigravity-cli',
-        allowPrivateNetwork: true,
-        engines: { 'antigravity-cli': { bin } },
-      };
-      const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
-      const rendered = JSON.stringify(result);
-      expect(rendered).not.toContain(secret);
-      // The scrub replaces rather than deletes, so the error stays actionable.
-      expect(rendered).toContain('[redacted]');
-    } finally {
-      await page.close();
-    }
-  }, 40_000);
+  itSpawn(
+    'scrubs token-shaped secrets from attempts and warnings',
+    async () => {
+      // A failing CLI's stderr loves to echo credentials. The final JSON travels
+      // into terminals and model contexts, so no channel may carry the token.
+      const secret = 'sk-leaked1234567890ABCDEF';
+      const page = await startLocalPage(
+        '<html><body><p>a body long enough to not look empty</p></body></html>',
+      );
+      try {
+        const bin = fakeEngine({ name: 'agy', code: 1, stderr: `auth failed for ${secret}` });
+        const config: ModsearchConfig = {
+          engine: 'antigravity-cli',
+          allowPrivateNetwork: true,
+          engines: { 'antigravity-cli': { bin } },
+        };
+        const result = await runSearch({ url: page.url, config, env: BARE_ENV, timeoutMs: 30_000 });
+        const rendered = JSON.stringify(result);
+        expect(rendered).not.toContain(secret);
+        // The scrub replaces rather than deletes, so the error stays actionable.
+        expect(rendered).toContain('[redacted]');
+      } finally {
+        await page.close();
+      }
+    },
+    40_000,
+  );
 
   it('http sorts a thin page into uncertainty and its method notice into warnings', async () => {
     const page = await startLocalPage('<html><body>hi</body></html>');
@@ -419,13 +658,21 @@ describeSpawn('quota cooldown records, clears, and can be switched off', () => {
     // agy hit its quota, so it is remembered for the next run.
     const recorded = loadCooldownState(p).engineCooldowns['antigravity-cli'];
     expect(recorded).toBeDefined();
-    expect(recorded.until).toBe(new Date(now.getTime() + (94 * 3600 + 19 * 60 + 9) * 1000).toISOString());
+    expect(recorded.until).toBe(
+      new Date(now.getTime() + (94 * 3600 + 19 * 60 + 9) * 1000).toISOString(),
+    );
   }, 30_000);
 
   it('still tries a cooling engine, clears it on success, and warns', async () => {
     const p = statePath();
     // Seed: agy is already cooling from a prior run, so it is demoted this run.
-    recordQuotaCooldown(emptyCooldownState(), 'antigravity-cli', new Error('out of credits'), now, p);
+    recordQuotaCooldown(
+      emptyCooldownState(),
+      'antigravity-cli',
+      new Error('out of credits'),
+      now,
+      p,
+    );
     const config = agyConfig({ stdout: agySearchEnvelope('back') });
     const controller = buildCooldownController({}, { now, statePath: p });
     // agy is demoted behind keyless firecrawl this run; stub fetch so
@@ -508,6 +755,7 @@ describe('engine spend surfaces on the attempt', () => {
     });
     const attempt = firstAttempt(result);
     expect(attempt).toMatchObject({ engine: 'exa', ok: true, cost: 0.007 });
+    expect(attempt.keyIndex).toBeUndefined();
     expect(attempt.credits).toBeUndefined();
   });
 

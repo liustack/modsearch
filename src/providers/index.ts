@@ -33,6 +33,8 @@ export interface EngineRequest {
   workdir?: string;
   timeoutMs: number;
   settings: EngineSettings;
+  /** All configured API keys, retained only so provider errors can redact every sibling key. */
+  apiKeySecrets?: readonly string[];
   /**
    * Global network policy for this run: allow the local fetcher to reach
    * reserved and private ranges. Firecrawl never receives those targets.

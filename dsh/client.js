@@ -40,6 +40,8 @@ window.__ModuleLoader__.load({
         pickToConfigure: 'Pick an engine above to configure its key and endpoint.',
         engine: 'Preferred engine',
         apiKey: 'API key',
+        apiKeyHint:
+          'Separate multiple keys with commas. ModSearch rotates to the next key after authentication, rate-limit, or quota failures.',
         baseUrl: 'Base URL',
         model: 'Model',
         stored: 'stored, leave empty to keep it',
@@ -77,6 +79,7 @@ window.__ModuleLoader__.load({
         pickToConfigure: '在上面选一个引擎，才能配置它的密钥和地址。',
         engine: '首选引擎',
         apiKey: 'API 密钥',
+        apiKeyHint: '多个密钥用英文逗号分隔。鉴权、限流或配额失败时会自动轮换到下一个密钥。',
         baseUrl: '接口地址',
         model: '模型',
         stored: '已保存，留空即不改动',
@@ -656,6 +659,7 @@ window.__ModuleLoader__.load({
                 : canKey
                   ? secretField(t.apiKey, 'apiKey', current.hasKey ? t.stored : t.unset)
                   : hint(draft.engine === 'local' ? t.localNote : t.cliNote, 'keyless'),
+              canKey ? hint(t.apiKeyHint, 'api-key-rotation') : null,
               // The default engine asks for no signup at all. Silence here
               // reads as a key being required, which is the one thing this
               // engine does not need.

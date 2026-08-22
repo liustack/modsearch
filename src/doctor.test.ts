@@ -58,6 +58,17 @@ describe('doctor: search engines', () => {
     expect(tavily?.keySource).toBe('env');
   });
 
+  it('reports the number of usable API keys after empty comma items are removed', () => {
+    const report = runDoctor({
+      config: {},
+      env: { PATH: '/nonexistent', TAVILY_API_KEY: 'first, , second,,' } as NodeJS.ProcessEnv,
+    });
+    const tavily = engine(report, 'search', 'tavily');
+    expect(tavily?.ready).toBe(true);
+    expect(tavily?.reason).toContain('2 keys');
+    expect(tavily?.reason).toContain('from env');
+  });
+
   it('reports exa ready from an env key and tags the source', () => {
     const report = runDoctor({
       config: {},
@@ -140,7 +151,7 @@ describe('doctor: fetch and X', () => {
     expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
   });
 
-  it('matches Firecrawl consent with the router\'s case-insensitive engine lookup', () => {
+  it("matches Firecrawl consent with the router's case-insensitive engine lookup", () => {
     const report = runDoctor({ config: { engine: 'Firecrawl' }, env: BARE_ENV });
     expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
     expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
@@ -310,7 +321,9 @@ describe('doctor: cooldown', () => {
     fs.writeFileSync(
       p,
       JSON.stringify({
-        engineCooldowns: { exa: { until, reason: 'out of credits', observedAt: now.toISOString() } },
+        engineCooldowns: {
+          exa: { until, reason: 'out of credits', observedAt: now.toISOString() },
+        },
       }),
     );
     const report = runDoctor({ config: {}, env: BARE_ENV, statePath: p, now });
@@ -318,6 +331,22 @@ describe('doctor: cooldown', () => {
     expect(report.cooldown.engines).toHaveLength(1);
     expect(report.cooldown.engines[0]).toMatchObject({ engine: 'exa', remaining: '1h 30m' });
     expect(formatDoctorReport(report)).toContain('cooling, 1h 30m left');
+  });
+
+  it('reports a per-key cooldown with its engine and human key number', () => {
+    const p = tempConfigPath();
+    const until = new Date(now.getTime() + 45 * 60_000).toISOString();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: {
+          'exa::key:1': { until, reason: 'out of credits', observedAt: now.toISOString() },
+        },
+      }),
+    );
+    const report = runDoctor({ config: {}, env: BARE_ENV, statePath: p, now });
+    expect(report.cooldown.engines[0]).toMatchObject({ engine: 'exa', keyIndex: 1 });
+    expect(formatDoctorReport(report)).toContain('exa key 2');
   });
 
   it('omits an already-expired cooldown from the active list', () => {

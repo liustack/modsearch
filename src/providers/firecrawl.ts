@@ -9,6 +9,7 @@
 // or reserved address is meaningless to a cloud crawler, so firecrawl declines
 // it. An automatic chain can then try local. A forced run returns an error.
 // --allow-private-network authorizes local access, never cloud disclosure.
+import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
 import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
@@ -60,6 +61,7 @@ export async function executeFirecrawl(options: EngineRequest): Promise<EngineOu
 async function firecrawlPost(
   url: string,
   apiKey: string | null,
+  apiKeySecrets: readonly string[],
   body: unknown,
   timeoutMs: number,
 ): Promise<Response> {
@@ -85,7 +87,10 @@ async function firecrawlPost(
       throw new Error(`firecrawl timed out after ${timeoutMs} ms.`);
     }
     throw new Error(
-      `firecrawl request failed: ${error instanceof Error ? error.message : String(error)}`,
+      `firecrawl request failed: ${redactSecrets(
+        error instanceof Error ? error.message : String(error),
+        apiKeySecrets,
+      )}`,
     );
   } finally {
     clearTimeout(timer);
@@ -93,16 +98,24 @@ async function firecrawlPost(
 }
 
 /** Turn a non-2xx API response into an actionable error, quota class included. */
-async function ensureOk(response: Response, apiKey: string | null): Promise<void> {
+async function ensureOk(
+  response: Response,
+  apiKey: string | null,
+  apiKeySecrets: readonly string[],
+): Promise<void> {
   if (response.ok) {
     return;
   }
   // The API's error body is foreign text that loves to echo the Authorization
   // header; scrub it before it travels into messages.
-  const detail = redactSecrets((await response.text().catch(() => '')).trim(), [apiKey]);
+  const detail = redactSecrets((await response.text().catch(() => '')).trim(), apiKeySecrets);
+  const message = `firecrawl returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`;
+  if (response.status >= 500) {
+    throw new Error(message);
+  }
   // A 402 or a credit/quota message is the quota class the cooldown layer reads.
-  if (response.status === 402 || /credit|quota|insufficient|payment required/i.test(detail)) {
-    throw new Error(
+  if (response.status === 402 || isQuotaFailureMessage(detail)) {
+    throw new ApiKeyFailureError(
       `firecrawl is out of credits: ${detail || `HTTP ${response.status}`}. Add credit or set your own key at https://firecrawl.dev, or use another engine.`,
     );
   }
@@ -112,13 +125,14 @@ async function ensureOk(response: Response, apiKey: string | null): Promise<void
         `firecrawl rejected the keyless request (${response.status}). Anonymous access may be unavailable or rate-limited. Set your own key: modsearch config set firecrawl.apiKey <key>${detail ? ` (${detail})` : ''}`,
       );
     }
-    throw new Error(
+    throw new ApiKeyFailureError(
       `firecrawl rejected the API key (${response.status}). Fix it: modsearch config set firecrawl.apiKey <key>${detail ? ` (${detail})` : ''}`,
     );
   }
-  throw new Error(
-    `firecrawl returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`,
-  );
+  if (apiKey && response.status === 429) {
+    throw new ApiKeyFailureError(message);
+  }
+  throw new Error(message);
 }
 
 async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
@@ -127,13 +141,16 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
   }
   // Search runs keyless when no key is configured: Firecrawl's REST API
   // accepts unauthenticated calls against the free keyless allowance.
-  const apiKey = options.settings.apiKey || null;
+  const apiKeys = splitApiKeys(options.settings.apiKey);
+  const apiKey = apiKeys[0] ?? null;
+  const apiKeySecrets = [...new Set([...apiKeys, ...(options.apiKeySecrets ?? [])])];
   const limit = options.maxResults ?? DEFAULT_LIMIT;
   const startedAt = Date.now();
 
   const response = await firecrawlPost(
     resolveEndpoint(options.settings.baseURL, FIRECRAWL_DEFAULT_BASE, '/v2/search'),
     apiKey,
+    apiKeySecrets,
     {
       query: options.query,
       limit,
@@ -142,7 +159,7 @@ async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
     },
     options.timeoutMs,
   );
-  await ensureOk(response, apiKey);
+  await ensureOk(response, apiKey, apiKeySecrets);
   const data = (await response.json()) as FirecrawlSearchResponse;
 
   const items = (data.data?.web ?? []).map((r) => ({
@@ -178,7 +195,9 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   if (!options.url) {
     throw new Error('Fetch mode requires a URL.');
   }
-  const apiKey = options.settings.apiKey || null;
+  const apiKeys = splitApiKeys(options.settings.apiKey);
+  const apiKey = apiKeys[0] ?? null;
+  const apiKeySecrets = [...new Set([...apiKeys, ...(options.apiKeySecrets ?? [])])];
   const target = normalizeFetchUrl(options.url);
 
   // The cloud crawler never receives a target that is, or resolves to, a
@@ -198,6 +217,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   const response = await firecrawlPost(
     resolveEndpoint(options.settings.baseURL, FIRECRAWL_DEFAULT_BASE, '/v2/scrape'),
     apiKey,
+    apiKeySecrets,
     {
       url: target.toString(),
       formats: ['markdown', 'links'],
@@ -215,7 +235,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
     },
     options.timeoutMs,
   );
-  await ensureOk(response, apiKey);
+  await ensureOk(response, apiKey, apiKeySecrets);
   const data = (await response.json()) as FirecrawlScrapeResponse;
 
   const metadata = data.data?.metadata ?? {};
@@ -315,7 +335,8 @@ export const firecrawlProvider: SearchEngine = {
   // sending URLs to the cloud on a guess. A configured key always enables it.
   isAvailable: (settings, env, role) =>
     role === 'search' ||
-    Boolean(settings.apiKey || env.FIRECRAWL_API_KEY) ||
+    splitApiKeys(settings.apiKey).length > 0 ||
+    splitApiKeys(env.FIRECRAWL_API_KEY).length > 0 ||
     settings.keylessFetch === undefined ||
     settings.keylessFetch === true,
   execute: executeFirecrawl,

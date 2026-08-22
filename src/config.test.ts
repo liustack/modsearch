@@ -102,6 +102,23 @@ describe('config file', () => {
     expect(() => JSON.parse(view)).not.toThrow();
   });
 
+  it('scrubs every key from a comma-separated API key setting', () => {
+    const first = 'alpha-secret-value';
+    const second = 'bravo-secret-value';
+    const config = {
+      engines: {
+        tavily: {
+          apiKey: `${first}, ${second}`,
+          model: `copied ${first} and ${second}`,
+        },
+      },
+    };
+    const view = renderEffectiveConfig(config, {} as NodeJS.ProcessEnv);
+    expect(view).not.toContain(first);
+    expect(view).not.toContain(second);
+    expect(JSON.parse(view).engines.tavily.apiKey).toMatch(/, /);
+  });
+
   it('scrubs an environment key that was pasted into a file field', () => {
     const p = tempConfigPath();
     setConfigValue('exa.model', 'copied exa-env-key-123456 here', p);
@@ -203,8 +220,9 @@ describe('config file', () => {
     const raw = JSON.parse('{"engines": {"__proto__": {"apiKey": "sk-hidden-key-123456"}}}');
     const migrated = migrateLegacyConfig(raw);
     // Nothing is inherited: an arbitrary engine lookup finds no smuggled key.
-    expect((migrated.engines as Record<string, { apiKey?: string }>).firecrawl?.apiKey)
-      .toBeUndefined();
+    expect(
+      (migrated.engines as Record<string, { apiKey?: string }>).firecrawl?.apiKey,
+    ).toBeUndefined();
     expect(Object.getPrototypeOf(migrated.engines)).toBeNull();
     // The entry is ordinary visible data, judged like any unknown engine.
     expect(Object.keys(migrated.engines ?? {})).toContain('__proto__');
@@ -291,9 +309,7 @@ describe('config file', () => {
     expect(JSON.parse(renderEffectiveConfig(config, {})).engines.firecrawl.keylessFetch).toBe(
       'false (file)',
     );
-    expect(() => setConfigValue('firecrawl.keylessFetch', 'maybe', p)).toThrow(
-      'Use true or false',
-    );
+    expect(() => setConfigValue('firecrawl.keylessFetch', 'maybe', p)).toThrow('Use true or false');
   });
 
   it('stores an engine enabled override as a boolean and rejects other values', () => {
@@ -307,10 +323,7 @@ describe('config file', () => {
 
   it('coerces hand-written keylessFetch strings before routing reads them', () => {
     const p = tempConfigPath();
-    fs.writeFileSync(
-      p,
-      JSON.stringify({ engines: { firecrawl: { keylessFetch: 'false' } } }),
-    );
+    fs.writeFileSync(p, JSON.stringify({ engines: { firecrawl: { keylessFetch: 'false' } } }));
     expect(loadConfigFile(p).engines?.firecrawl?.keylessFetch).toBe(false);
 
     fs.writeFileSync(p, JSON.stringify({ engines: { firecrawl: { keylessFetch: 'true' } } }));
@@ -359,6 +372,17 @@ describe('config file', () => {
       engineSettings('tavily', config, { TAVILY_API_KEY: 'from-env' } as NodeJS.ProcessEnv).apiKey,
     ).toBe('from-env');
     expect(engineSettings('tavily', config, {} as NodeJS.ProcessEnv).apiKey).toBe('from-file');
+  });
+
+  it('ignores an environment API key value that contains only empty comma items', () => {
+    const config = { engines: { tavily: { apiKey: 'from-file' } } };
+    expect(
+      engineSettings('tavily', config, { TAVILY_API_KEY: ', ,' } as NodeJS.ProcessEnv).apiKey,
+    ).toBe('from-file');
+    const rendered = JSON.parse(
+      renderEffectiveConfig(config, { TAVILY_API_KEY: ', ,' } as NodeJS.ProcessEnv),
+    );
+    expect(rendered.engines.tavily.apiKey).toMatch(/\(file\)$/);
   });
 
   it('stores, env-overrides, validates, and unsets an engine baseURL', () => {

@@ -6,6 +6,7 @@
 // official @tavily/core SDK dragged in ~30 production dependencies (an axios
 // chain with known advisories) to wrap a single POST, so it is gone. See
 // https://docs.tavily.com/documentation/api-reference/endpoint/search
+import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
@@ -32,7 +33,9 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
     throw new Error('Search mode requires a query.');
   }
 
-  const apiKey = options.settings.apiKey;
+  const apiKeys = splitApiKeys(options.settings.apiKey);
+  const apiKey = apiKeys[0];
+  const apiKeySecrets = [...new Set([...apiKeys, ...(options.apiKeySecrets ?? [])])];
   if (!apiKey) {
     throw new Error(
       'The tavily provider needs an API key. Set TAVILY_API_KEY, or run: modsearch config set tavily.apiKey <key> (free tier: 1,000 credits/month at https://app.tavily.com)',
@@ -75,7 +78,7 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
     throw new Error(
       `tavily request failed: ${redactSecrets(
         error instanceof Error ? error.message : String(error),
-        [options.settings.apiKey, options.settings.baseURL],
+        [...apiKeySecrets, options.settings.baseURL],
       )}`,
     );
   } finally {
@@ -86,21 +89,33 @@ export async function executeTavilySearch(options: EngineRequest): Promise<Engin
     // The gateway's error body is foreign text that loves to echo the
     // Authorization header; scrub it before it travels into messages.
     const detail = redactSecrets((await response.text().catch(() => '')).trim(), [
-      options.settings.apiKey,
+      ...apiKeySecrets,
       options.settings.baseURL,
     ]);
+    const message = `tavily returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`;
+    // Server failures are not evidence that the selected key is bad, even if
+    // an upstream error page happens to mention quota.
+    if (response.status >= 500) {
+      throw new Error(message);
+    }
     // Tavily returns 432 (plan usage cap) and 433 (PAYGO cap) for a spent monthly
     // budget. Carry the status code into the message so the cooldown layer reads
     // it as the monthly quota class and holds the engine for a day, not the
     // 45-minute default, instead of re-hitting the same wall every run.
     if (response.status === 432 || response.status === 433) {
-      throw new Error(
+      throw new ApiKeyFailureError(
         `tavily is out of monthly quota (HTTP ${response.status}).${detail ? ` ${detail}` : ''} Add credit at https://app.tavily.com, or search with another engine.`,
       );
     }
-    throw new Error(
-      `tavily returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`,
-    );
+    if (
+      response.status === 401 ||
+      response.status === 403 ||
+      response.status === 429 ||
+      isQuotaFailureMessage(detail)
+    ) {
+      throw new ApiKeyFailureError(message);
+    }
+    throw new Error(message);
   }
 
   const data = (await response.json()) as TavilyResponse;
@@ -145,7 +160,8 @@ export const tavilyProvider: SearchEngine = {
   name: 'tavily',
   roles: ['search'],
   requirement: 'set a Tavily key (free tier: 1,000 credits/month, no card)',
-  isAvailable: (settings, env) => Boolean(settings.apiKey || env.TAVILY_API_KEY),
+  isAvailable: (settings, env) =>
+    splitApiKeys(settings.apiKey).length > 0 || splitApiKeys(env.TAVILY_API_KEY).length > 0,
   defaultModel: 'tavily-basic',
   execute: executeTavilySearch,
 };

@@ -49,12 +49,12 @@ describe('firecrawl provider registration', () => {
     expect(engine.isAvailable({ keylessFetch: false }, {}, 'fetch')).toBe(false);
     // Malformed values fail closed: no cloud disclosure on a guess. (Config
     // loading normalizes hand-written strings before they get here.)
-    expect(
-      engine.isAvailable({ keylessFetch: 'false' as unknown as boolean }, {}, 'fetch'),
-    ).toBe(false);
-    expect(
-      engine.isAvailable({ keylessFetch: 'true' as unknown as boolean }, {}, 'fetch'),
-    ).toBe(false);
+    expect(engine.isAvailable({ keylessFetch: 'false' as unknown as boolean }, {}, 'fetch')).toBe(
+      false,
+    );
+    expect(engine.isAvailable({ keylessFetch: 'true' as unknown as boolean }, {}, 'fetch')).toBe(
+      false,
+    );
     // An API key enables fetch regardless of the switch.
     expect(engine.isAvailable({ keylessFetch: false, apiKey: 'fc-x' }, {}, 'fetch')).toBe(true);
   });
@@ -376,6 +376,34 @@ describe('firecrawl fetch path', () => {
 });
 
 describe('firecrawl error classification', () => {
+  it('uses only the first configured key and redacts every configured key from errors', async () => {
+    const first = 'alpha-plain-secret';
+    const second = 'bravo-plain-secret';
+    const calls = mockFetchJson(
+      { error: 'unauthorized' },
+      {
+        ok: false,
+        status: 401,
+        text: `${first} was rejected, then ${second} was echoed`,
+      },
+    );
+    let error: Error | undefined;
+    try {
+      await executeFirecrawl({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 30_000,
+        settings: { apiKey: `${first}, ${second}` },
+      });
+    } catch (caught) {
+      error = caught as Error;
+    }
+
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${first}`);
+    expect(error?.message).not.toContain(first);
+    expect(error?.message).not.toContain(second);
+  });
+
   it('recognizes a 402 or credits-exhausted response as a quota error', async () => {
     mockFetchJson(
       { error: 'Payment Required: insufficient credits' },

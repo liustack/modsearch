@@ -5,6 +5,7 @@
 // so the summary here is mechanical and a warning tells the reader to work from
 // items directly.
 import { redactSecrets } from '../util/redact.ts';
+import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
 
@@ -33,7 +34,9 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
     throw new Error('Search mode requires a query.');
   }
 
-  const apiKey = options.settings.apiKey;
+  const apiKeys = splitApiKeys(options.settings.apiKey);
+  const apiKey = apiKeys[0];
+  const apiKeySecrets = [...new Set([...apiKeys, ...(options.apiKeySecrets ?? [])])];
   if (!apiKey) {
     throw new Error(
       'The exa provider needs an API key. Set EXA_API_KEY, or run: modsearch config set exa.apiKey <key> ($10/month recurring free credit, ~1,400 searches, no card at https://exa.ai)',
@@ -69,10 +72,10 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
       throw new Error(`exa timed out after ${options.timeoutMs} ms.`);
     }
     throw new Error(
-      `exa request failed: ${redactSecrets(
-        error instanceof Error ? error.message : String(error),
-        [options.settings.apiKey, options.settings.baseURL],
-      )}`,
+      `exa request failed: ${redactSecrets(error instanceof Error ? error.message : String(error), [
+        ...apiKeySecrets,
+        options.settings.baseURL,
+      ])}`,
     );
   } finally {
     clearTimeout(timer);
@@ -82,19 +85,24 @@ export async function executeExaSearch(options: EngineRequest): Promise<EngineOu
     // The gateway's error body is foreign text that loves to echo the
     // Authorization header; scrub it before it travels into messages.
     const detail = redactSecrets((await response.text().catch(() => '')).trim(), [
-      options.settings.apiKey,
+      ...apiKeySecrets,
       options.settings.baseURL,
     ]);
+    if (response.status >= 500) {
+      throw new Error(
+        `exa returned ${response.status} ${response.statusText}.${detail ? ` ${detail}` : ''}`,
+      );
+    }
     // A spent balance is a quota error, not a broken key: judge by the response
     // text first, since Exa can return it under several status codes. The
     // cooldown layer reads this wording to recognize the quota class.
-    if (/insufficient|balance|credit|quota|out of/i.test(detail)) {
-      throw new Error(
+    if (isQuotaFailureMessage(detail)) {
+      throw new ApiKeyFailureError(
         `exa is out of credits: ${detail || `HTTP ${response.status}`}. Add credit at https://exa.ai, or search with another engine.`,
       );
     }
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(
+    if (response.status === 401 || response.status === 403 || response.status === 429) {
+      throw new ApiKeyFailureError(
         `exa rejected the API key (${response.status}). Fix it: modsearch config set exa.apiKey <key>${detail ? ` (${detail})` : ''}`,
       );
     }
@@ -163,7 +171,8 @@ export const exaProvider: SearchEngine = {
   name: 'exa',
   roles: ['search'],
   requirement: 'set an Exa key ($10/month recurring free credit, ~1,400 searches, no card)',
-  isAvailable: (settings, env) => Boolean(settings.apiKey || env.EXA_API_KEY),
+  isAvailable: (settings, env) =>
+    splitApiKeys(settings.apiKey).length > 0 || splitApiKeys(env.EXA_API_KEY).length > 0,
   defaultModel: undefined,
   execute: executeExaSearch,
 };

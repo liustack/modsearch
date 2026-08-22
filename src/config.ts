@@ -4,6 +4,7 @@ import * as path from 'path';
 // Runtime-safe: providers/index.ts imports nothing from this module at runtime
 // (its config import is type-only), so this does not create an import cycle.
 import { findEngine, listEngines } from './providers/index.ts';
+import { splitApiKeys } from './util/apiKeys.ts';
 import { maskUrlCredentials, redactSecrets } from './util/redact.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
@@ -207,7 +208,9 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
         continue;
       }
       if (typeof rawSettings.apiKey === 'string') {
-        seenApiKeys.add(rawSettings.apiKey);
+        for (const apiKey of splitApiKeys(rawSettings.apiKey)) {
+          seenApiKeys.add(apiKey);
+        }
       }
       const canonical = canonicalEngineName(name);
       const {
@@ -318,17 +321,17 @@ export function engineSettings(
   env: NodeJS.ProcessEnv = process.env,
 ): EngineSettings {
   const engines = isPlainObject(config.engines) ? config.engines : {};
-  const fromFile = Object.hasOwn(engines, engineName) && isPlainObject(engines[engineName])
-    ? (engines[engineName] as EngineSettings)
-    : {};
+  const fromFile =
+    Object.hasOwn(engines, engineName) && isPlainObject(engines[engineName])
+      ? (engines[engineName] as EngineSettings)
+      : {};
   const bindings = Object.hasOwn(ENV_BINDINGS, engineName) ? ENV_BINDINGS[engineName] : {};
 
   const settings: EngineSettings = { ...fromFile };
-  for (const [field, envName] of Object.entries(bindings) as Array<
-    [StringEngineSetting, string]
-  >) {
+  for (const [field, envName] of Object.entries(bindings) as Array<[StringEngineSetting, string]>) {
     const value = env[envName]?.trim();
-    if (value) {
+    const present = field === 'apiKey' ? splitApiKeys(value).length > 0 : Boolean(value);
+    if (value && present) {
       settings[field] = value;
     }
   }
@@ -401,7 +404,9 @@ export function setConfigValue(
     // A hand-edited file can put anything at these positions. Refuse to spread
     // a non-object rather than corrupting the write.
     if (config.engines !== undefined && !isPlainObject(config.engines)) {
-      throw new Error(`The "engines" section of the config file is not an object. Fix or remove it.`);
+      throw new Error(
+        `The "engines" section of the config file is not an object. Fix or remove it.`,
+      );
     }
     if (config.engines?.[engineName] !== undefined && !isPlainObject(config.engines[engineName])) {
       throw new Error(
@@ -533,14 +538,15 @@ function knownApiKeys(config: ModsearchConfig, env: NodeJS.ProcessEnv): string[]
   const enginesRoot = isPlainObject(config.engines) ? config.engines : {};
   for (const entry of Object.values(enginesRoot)) {
     if (isPlainObject(entry) && typeof entry.apiKey === 'string') {
-      keys.add(entry.apiKey);
+      for (const apiKey of splitApiKeys(entry.apiKey)) {
+        keys.add(apiKey);
+      }
     }
   }
   for (const bindings of Object.values(ENV_BINDINGS)) {
     const variable = bindings.apiKey;
-    const value = variable ? env[variable]?.trim() : undefined;
-    if (value) {
-      keys.add(value);
+    for (const apiKey of splitApiKeys(variable ? env[variable] : undefined)) {
+      keys.add(apiKey);
     }
   }
   return [...keys];
@@ -627,16 +633,19 @@ export function renderEffectiveConfig(
     return engines[name];
   };
 
-  const shown = (field: string, value: unknown, entryKey: string | undefined): string => {
+  const shown = (field: string, value: unknown, entryKeys: string[]): string => {
     if (field === 'apiKey') {
-      return maskKey(String(value));
+      return maskKeys(String(value));
     }
     let text = String(value);
     if (field === 'baseURL') {
       text = maskUrlCredentials(text);
     }
     // Same-row wash: the row's own key must not survive in its other fields.
-    return entryKey && entryKey.length > 0 ? text.split(entryKey).join('[redacted]') : text;
+    for (const entryKey of entryKeys) {
+      text = text.split(entryKey).join('[redacted]');
+    }
+    return text;
   };
 
   // File settings first, alias keys folded onto their canonical engine. An
@@ -653,13 +662,15 @@ export function renderEffectiveConfig(
       continue;
     }
     const target = ensure(canonical);
-    const entryKey = typeof settings.apiKey === 'string' ? settings.apiKey : undefined;
+    const entryKeys = splitApiKeys(
+      typeof settings.apiKey === 'string' ? settings.apiKey : undefined,
+    );
     for (const field of SETTABLE_ENGINE_FIELDS) {
       const value = settings[field];
       if (value === undefined) {
         continue;
       }
-      target[field] = tag(shown(field, value, entryKey), 'file');
+      target[field] = tag(shown(field, value, entryKeys), 'file');
     }
   }
 
@@ -667,15 +678,15 @@ export function renderEffectiveConfig(
   // value wins over the file, so it overwrites the tag too.
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
     const canonical = canonicalEngineName(engineName);
-    const entryKey = bindings.apiKey ? env[bindings.apiKey]?.trim() : undefined;
+    const entryKeys = splitApiKeys(bindings.apiKey ? env[bindings.apiKey] : undefined);
     for (const [field, envName] of Object.entries(bindings) as Array<
       [StringEngineSetting, string]
     >) {
       const value = env[envName]?.trim();
-      if (!value) {
+      if (!value || (field === 'apiKey' && splitApiKeys(value).length === 0)) {
         continue;
       }
-      ensure(canonical)[field] = tag(shown(field, value, entryKey), 'env');
+      ensure(canonical)[field] = tag(shown(field, value, entryKeys), 'env');
     }
   }
 
@@ -693,4 +704,9 @@ function maskKey(key: string): string {
     return '****';
   }
   return `${key.slice(0, 6)}...${key.slice(-2)}`;
+}
+
+function maskKeys(value: string): string {
+  const keys = splitApiKeys(value);
+  return keys.length > 0 ? keys.map(maskKey).join(', ') : '****';
 }

@@ -71,7 +71,7 @@ JSON 不支持注释，所以每个字段的说明在这里：
 | `allowPrivateNetwork` | boolean | 顶层 | 本地网络策略：允许本地抓取器访问保留和私有地址段。它对 firecrawl 从不生效：目标是保留地址，或解析到保留地址，都一律不发给云端，因为这个开关授权的是本地访问，不是把内部主机名交给第三方服务。默认 `false`。 |
 | `engines` | object | 顶层 | 按引擎正式名分组的每引擎设置。 |
 | `engines.<name>.enabled` | boolean | 所有引擎 | 是否允许自动路由使用该引擎。省略表示启用。设为 `false` 会排除它，设为 `true` 会删除覆盖并回到内置默认。单次显式 `--engine` 仍会强制使用该引擎。 |
-| `engines.<name>.apiKey` | string | `tavily`、`exa`、`firecrawl` | 该引擎的 API key。也可用环境变量 `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`，环境变量优先于文件。 |
+| `engines.<name>.apiKey` | string | `tavily`、`exa`、`firecrawl` | 一个 API key，或用英文逗号分隔的多个 key。解析时会忽略空白和空项。鉴权、限流或配额失败时按顺序轮换 key。网络、5xx 或解析失败时直接切换下一个引擎。也可用环境变量 `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`，环境变量优先于文件。 |
 | `engines.<name>.baseURL` | string | `tavily`、`exa`、`firecrawl` | 替换官方主机的接口地址：兼容的第三方网关、代理、自建部署。必须是完整的 http(s) URL。也可用环境变量 `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`。设为空即取消。详见下方端点一节。 |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | 允许 Firecrawl 在无 key 时抓取公网页面。默认 `true`（免注册抓取开箱即开）。设为 `false` 可让自动抓取远离 Firecrawl 云端。配置了 key 或显式选择 Firecrawl 引擎时仍会启用。 |
 | `engines.<name>.bin` | string | `antigravity-cli`、`grok-cli` | 该引擎 CLI 的路径。默认在 `PATH` 上找 `agy` 和 `grok`。 |
@@ -83,6 +83,7 @@ JSON 不支持注释，所以每个字段的说明在这里：
 modsearch config set engine tavily            # 选定搜索引擎
 modsearch config set engine ""                # 回到自动
 modsearch config set tavily.apiKey <key>      # 引擎凭据
+modsearch config set tavily.apiKey <key1,key2> # 按此顺序轮换 key
 modsearch config set tavily.apiKey            # 不带值：隐藏输入提示（见下）
 modsearch config set tavily.baseURL <url>     # 兼容的第三方端点
 modsearch config set tavily.enabled false     # 不让 Tavily 参与自动故障转移
@@ -184,12 +185,12 @@ modsearch config set allowPrivateNetwork true   # 永久生效（顶层，全局
 
 ## 额度冷却故障转移
 
-引擎因额度类错误失败时，modsearch 把它记在 `~/.modsearch/state.json`（与 `config.json` 分开），并把它挪到后备链末尾直到恢复，这样下一次运行先落到健康引擎，而不是撞同一堵墙。这是软化的熔断器，不是负载均衡：健康引擎拿全部工作，耗尽的只在最后一试。
+某个 API key 因额度类错误失败时，modsearch 把这个 key 记在 `~/.modsearch/state.json`（与 `config.json` 分开）。下一次运行会先试同一引擎里的健康 key。只有所有已配置 key 都在冷却时，整个引擎才会移到后备链末尾。没有 API key 的引擎仍按引擎粒度冷却。这是软化的熔断器，不是负载均衡：健康 key 和健康引擎拿全部工作，冷却项仍保留为最后尝试。
 
-- 耗尽的引擎不会被移除。其他全部失败或不可用时仍会试它，一旦成功立即清除冷却。
+- 冷却中的 key 不会被移除。某个 key 成功后只清除它自己的冷却。旧格式的引擎级状态仍可读取，并在任一 key 成功前作用于该引擎的所有 key。
 - 引擎报错里的精确重置时间（agy 的 `Resets in 94h19m9s`）会被采用。没写时间的额度错误冷却 45 分钟。按秒的速率限制是瞬时的，从不记录。
-- 显式 `-e`/`--engine` 完全无视冷却，与硬指定规则一致。
-- 结果的 `warnings` 会写明哪个引擎在冷却、冷却到什么时候。
+- 显式 `-e`/`--engine` 仍是硬指定，不会跨引擎后备。同一引擎有多个 key 时，健康 key 仍排在冷却 key 前面。
+- 结果的 `warnings` 会指出哪个 key 进入冷却。只有所有已配置 key 都在冷却并导致引擎后移时，路由 warning 才按引擎报告。
 
 开关默认开：
 
@@ -199,7 +200,7 @@ modsearch config set cooldown on    # 重新打开
 modsearch state clear               # 立即忘掉所有冷却
 ```
 
-`modsearch doctor` 会显示开关状态和当前在冷却的引擎，以及剩余时间。
+`modsearch doctor` 会显示开关状态和当前在冷却的每个引擎或 key，以及剩余时间。
 
 ## 故障排查
 

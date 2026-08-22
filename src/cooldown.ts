@@ -28,6 +28,27 @@ export interface CooldownState {
   engineCooldowns: Record<string, CooldownEntry>;
 }
 
+const KEY_COOLDOWN_SUFFIX = /^(.*)::key:(\d+)$/;
+
+export function cooldownStateKey(engine: string, keyIndex?: number): string {
+  const canonical = canonicalEngineName(engine);
+  return keyIndex === undefined ? canonical : `${canonical}::key:${keyIndex}`;
+}
+
+export function parseCooldownStateKey(stateKey: string): {
+  engine: string;
+  keyIndex?: number;
+} {
+  const match = KEY_COOLDOWN_SUFFIX.exec(stateKey);
+  if (!match) {
+    return { engine: canonicalEngineName(stateKey) };
+  }
+  return {
+    engine: canonicalEngineName(match[1]),
+    keyIndex: Number.parseInt(match[2], 10),
+  };
+}
+
 /** Resolved at call time so a faked HOME (tests) redirects the state too. */
 export function currentStatePath(): string {
   return path.join(os.homedir(), '.modsearch', 'state.json');
@@ -62,13 +83,18 @@ export function loadCooldownState(statePath = currentStatePath()): CooldownState
     }
     const cooldowns = parsed.engineCooldowns as Record<string, unknown>;
     const clean: Record<string, CooldownEntry> = {};
-    for (const [engine, entry] of Object.entries(cooldowns)) {
-      if (entry && typeof entry === 'object' && typeof (entry as CooldownEntry).until === 'string') {
+    for (const [stateKey, entry] of Object.entries(cooldowns)) {
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        typeof (entry as CooldownEntry).until === 'string'
+      ) {
         const e = entry as CooldownEntry;
         // Fold a legacy engine key (e.g. `http`, written before the rename to
         // `local`) onto its canonical name so an old cooldown is not orphaned.
         // On a collision, keep whichever cooldown lasts longer.
-        const key = canonicalEngineName(engine);
+        const target = parseCooldownStateKey(stateKey);
+        const key = cooldownStateKey(target.engine, target.keyIndex);
         const normalized: CooldownEntry = {
           until: e.until,
           reason: typeof e.reason === 'string' ? e.reason : '',
@@ -145,20 +171,52 @@ export function coolingEntry(
   state: CooldownState,
   engine: string,
   now: Date,
+  keyIndex?: number,
 ): CooldownEntry | undefined {
-  const entry = state.engineCooldowns[engine];
-  if (!entry) {
-    return undefined;
+  const active = (stateKey: string): CooldownEntry | undefined => {
+    const entry = state.engineCooldowns[stateKey];
+    if (!entry) {
+      return undefined;
+    }
+    const until = Date.parse(entry.until);
+    return Number.isFinite(until) && until > now.getTime() ? entry : undefined;
+  };
+  const entry = active(cooldownStateKey(engine, keyIndex));
+  if (entry || keyIndex === undefined) {
+    return entry;
   }
-  const until = Date.parse(entry.until);
-  if (!Number.isFinite(until) || until <= now.getTime()) {
-    return undefined;
-  }
-  return entry;
+  // A state file written before per-key cooldown existed applies to every key.
+  return active(cooldownStateKey(engine));
 }
 
-export function isEngineCooling(state: CooldownState, engine: string, now: Date): boolean {
-  return coolingEntry(state, engine, now) !== undefined;
+/** The representative entry when every configured key for an engine is cooling. */
+export function coolingEngineEntry(
+  state: CooldownState,
+  engine: string,
+  keyCount: number,
+  now: Date,
+): CooldownEntry | undefined {
+  if (keyCount <= 0) {
+    return coolingEntry(state, engine, now);
+  }
+  let representative: CooldownEntry | undefined;
+  for (let keyIndex = 0; keyIndex < keyCount; keyIndex += 1) {
+    const entry = coolingEntry(state, engine, now, keyIndex);
+    if (!entry) {
+      return undefined;
+    }
+    representative = laterEntry(representative, entry);
+  }
+  return representative;
+}
+
+export function isEngineCooling(
+  state: CooldownState,
+  engine: string,
+  now: Date,
+  keyIndex?: number,
+): boolean {
+  return coolingEntry(state, engine, now, keyIndex) !== undefined;
 }
 
 /** Parse an agy-style "Resets in 94h19m9s" clause to milliseconds, or null. */
@@ -214,6 +272,7 @@ export function recordQuotaCooldown(
   now: Date,
   statePath: string,
   onPersistError?: (persistError: unknown) => void,
+  keyIndex?: number,
 ): CooldownEntry | null {
   const until = classifyQuota(error, now);
   if (!until) {
@@ -230,21 +289,22 @@ export function recordQuotaCooldown(
     reason,
     observedAt: now.toISOString(),
   };
+  const stateKey = cooldownStateKey(engine, keyIndex);
   // Merge against the latest on-disk state so a concurrent writer's record for
   // another engine is not lost. The same engine keeps whichever cooldown lasts
   // longer, so a shorter later write cannot shorten a live cooldown.
   try {
     const merged = updateStateOnDisk(statePath, (disk) => {
-      disk.engineCooldowns[engine] = laterEntry(disk.engineCooldowns[engine], entry);
+      disk.engineCooldowns[stateKey] = laterEntry(disk.engineCooldowns[stateKey], entry);
     });
-    const persisted = merged.engineCooldowns[engine];
-    state.engineCooldowns[engine] = persisted;
+    const persisted = merged.engineCooldowns[stateKey];
+    state.engineCooldowns[stateKey] = persisted;
     return persisted;
   } catch (persistError) {
     // The store is a pure cache: a read-only dir, a full disk, or a Windows
     // rename lock must never break failover. Keep the cooldown for this run
     // in memory and report the miss instead of throwing.
-    state.engineCooldowns[engine] = entry;
+    state.engineCooldowns[stateKey] = entry;
     onPersistError?.(persistError);
     return entry;
   }
@@ -261,14 +321,22 @@ export function clearEngineCooldown(
   engine: string,
   statePath: string,
   onPersistError?: (persistError: unknown) => void,
+  keyIndex?: number,
 ): boolean {
-  const hadInMemory = engine in state.engineCooldowns;
-  delete state.engineCooldowns[engine];
+  const stateKey = cooldownStateKey(engine, keyIndex);
+  const legacyKey = cooldownStateKey(engine);
+  const keysToDelete = keyIndex === undefined ? [stateKey] : [stateKey, legacyKey];
+  const hadInMemory = keysToDelete.some((key) => key in state.engineCooldowns);
+  for (const key of keysToDelete) {
+    delete state.engineCooldowns[key];
+  }
   try {
     // Remove only this engine on disk, preserving any other process's records.
     // updateStateOnDisk skips the write when the engine was not on disk either.
     updateStateOnDisk(statePath, (disk) => {
-      delete disk.engineCooldowns[engine];
+      for (const key of keysToDelete) {
+        delete disk.engineCooldowns[key];
+      }
     });
     return hadInMemory;
   } catch (persistError) {
@@ -297,8 +365,8 @@ export interface CooldownController {
   readonly now: Date;
   /** Notices about cooldown persistence failing; the run merges them into warnings. */
   readonly warnings: string[];
-  record(engine: string, error: unknown): CooldownEntry | null;
-  clear(engine: string): void;
+  record(engine: string, error: unknown, keyIndex?: number): CooldownEntry | null;
+  clear(engine: string, keyIndex?: number): void;
 }
 
 /**
@@ -328,9 +396,10 @@ export function buildCooldownController(
     state,
     now,
     warnings,
-    record: (engine, error) => recordQuotaCooldown(state, engine, error, now, statePath, persistNote),
-    clear: (engine) => {
-      clearEngineCooldown(state, engine, statePath, persistNote);
+    record: (engine, error, keyIndex) =>
+      recordQuotaCooldown(state, engine, error, now, statePath, persistNote, keyIndex),
+    clear: (engine, keyIndex) => {
+      clearEngineCooldown(state, engine, statePath, persistNote, keyIndex);
     },
   };
 }

@@ -172,6 +172,34 @@ describe('exa provider', () => {
     ).rejects.toThrow(/config set exa\.apiKey/);
   });
 
+  it('uses only the first configured key and redacts every configured key from errors', async () => {
+    const first = 'alpha-plain-secret';
+    const second = 'bravo-plain-secret';
+    const calls = mockFetchJson(
+      { error: 'invalid key' },
+      {
+        ok: false,
+        status: 401,
+        text: `${first} was rejected, then ${second} was echoed`,
+      },
+    );
+    let error: Error | undefined;
+    try {
+      await executeExaSearch({
+        mode: 'search',
+        query: 'q',
+        timeoutMs: 1000,
+        settings: { apiKey: `${first}, ${second}` },
+      });
+    } catch (caught) {
+      error = caught as Error;
+    }
+
+    expect((calls[0].init.headers as Record<string, string>)['x-api-key']).toBe(first);
+    expect(error?.message).not.toContain(first);
+    expect(error?.message).not.toContain(second);
+  });
+
   it('recognizes a balance-exhausted response as a quota error', async () => {
     mockFetchJson(
       { error: 'insufficient balance' },

@@ -304,6 +304,15 @@ describe('the API key field is masked without being a password field', () => {
       .__card.secretFieldProps();
   }
 
+  it('explains comma-separated key rotation in both interface languages', () => {
+    expect(
+      render(SUMMARY).texts.some((text) => /separate multiple keys with commas/i.test(text)),
+    ).toBe(true);
+    expect(
+      render(SUMMARY, 'zh-CN').texts.some((text) => text.includes('多个密钥用英文逗号分隔')),
+    ).toBe(true);
+  });
+
   it('masks with text-security where the browser supports it', () => {
     const props = secretProps({ supports: (name: string) => name === '-webkit-text-security' });
     expect(props.type).toBe('text');

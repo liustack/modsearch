@@ -444,6 +444,21 @@ describe('dsh settings card route', () => {
     );
   });
 
+  it('does not report comma-only API key settings as stored keys', async () => {
+    await withConfig(
+      { engine: 'tavily', engines: { tavily: { apiKey: ', ,' } } },
+      async (handler) => {
+        const { body } = await callRoute(handler, { method: 'GET', url: '/modsearch/config' });
+        const engines = body.engines as Record<
+          string,
+          { hasKey: boolean; keySource: string | null }
+        >;
+        expect(engines.tavily.hasKey).toBe(false);
+        expect(engines.tavily.keySource).toBeNull();
+      },
+    );
+  });
+
   it('keeps the stored key when the card submits the blank field it was shown', async () => {
     await withConfig(
       { engine: '', engines: { tavily: { apiKey: 'tvly-secret' } } },
@@ -458,6 +473,18 @@ describe('dsh settings card route', () => {
         expect(saved.engines.tavily.baseURL).toBe('https://gw2.example');
       },
     );
+  });
+
+  it('stores a comma-separated key list as one trimmed setting', async () => {
+    await withConfig({ engine: '', engines: {} }, async (handler, file) => {
+      const { status } = await callRoute(
+        handler,
+        postOf({ target: 'tavily', apiKey: ' first-key, second-key ' }),
+      );
+      expect(status).toBe(200);
+      const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      expect(saved.engines.tavily.apiKey).toBe('first-key, second-key');
+    });
   });
 
   it('stores only disabled engine overrides and removes them when re-enabled', async () => {

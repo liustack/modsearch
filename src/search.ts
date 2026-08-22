@@ -1,5 +1,5 @@
 import { engineSettings, loadConfigFile, type ModsearchConfig } from './config.ts';
-import type { CooldownController } from './cooldown.ts';
+import { coolingEntry, type CooldownController } from './cooldown.ts';
 import {
   enginesForRole,
   type EngineOutput,
@@ -10,6 +10,7 @@ import {
 } from './providers/index.ts';
 import { parseSources, planRun, SOURCE_ROLE, type SourcePlan } from './router.ts';
 import { runCommand } from './subprocess.ts';
+import { isApiKeyFailure, splitApiKeys } from './util/apiKeys.ts';
 import { redactSecrets } from './util/redact.ts';
 
 export interface RunSearchOptions {
@@ -44,6 +45,8 @@ export type SourceStatus = 'ok' | 'degraded' | 'unavailable';
 /** One try at one engine, in the order they were attempted. */
 export interface EngineAttempt {
   engine: string;
+  /** Zero-based configured key index. Present only when an engine has multiple keys. */
+  keyIndex?: number;
   /** True when the engine returned a result, false when it failed or was skipped. */
   ok: boolean;
   /** Present only when `ok` is false: the failure message. */
@@ -269,74 +272,127 @@ async function runOneSource(
   const attempts: EngineAttempt[] = [];
   // Global network policy for the run: the config's top-level switch, or the
   // --allow-private-network flag as a one-off override for this run.
-  const allowPrivateNetwork = options.allowPrivateNetwork === true || config.allowPrivateNetwork === true;
+  const allowPrivateNetwork =
+    options.allowPrivateNetwork === true || config.allowPrivateNetwork === true;
   // Notes about engines that hit a quota wall this run, surfaced on the entry
   // that finally answers so the reader sees who is now cooling and until when.
   const cooldownNotes: string[] = [];
   for (const engine of candidates) {
+    const failuresBeforeEngine = failures.length;
     const settings = engineSettings(engine.name, config, env);
     const model = options.model || settings.model || engine.defaultModel;
-    const startedAt = Date.now();
+    const apiKeys = splitApiKeys(settings.apiKey);
+    const configuredKeyRuns =
+      apiKeys.length > 0
+        ? apiKeys.map((apiKey, keyIndex) => ({ apiKey, keyIndex }))
+        : [{ apiKey: undefined, keyIndex: undefined }];
+    const keyRuns = controller
+      ? [
+          ...configuredKeyRuns.filter(
+            (run) =>
+              run.keyIndex === undefined ||
+              !coolingEntry(controller.state, engine.name, controller.now, run.keyIndex),
+          ),
+          ...configuredKeyRuns.filter(
+            (run) =>
+              run.keyIndex !== undefined &&
+              coolingEntry(controller.state, engine.name, controller.now, run.keyIndex),
+          ),
+        ]
+      : configuredKeyRuns;
 
-    let output: EngineOutput;
-    try {
-      output = await callEngine(
-        engine,
-        {
-          mode,
-          query,
-          url,
-          model,
-          maxResults: options.maxResults,
-          extraPrompt: options.prompt,
-          workdir: options.workdir,
+    let output: EngineOutput | undefined;
+    let successfulStartedAt = 0;
+    let successfulKeyIndex: number | undefined;
+    for (let runIndex = 0; runIndex < keyRuns.length; runIndex += 1) {
+      const keyRun = keyRuns[runIndex];
+      const startedAt = Date.now();
+      try {
+        output = await callEngine(
+          engine,
+          {
+            mode,
+            query,
+            url,
+            model,
+            maxResults: options.maxResults,
+            extraPrompt: options.prompt,
+            workdir: options.workdir,
+            timeoutMs,
+            settings: { ...settings, apiKey: keyRun.apiKey },
+            apiKeySecrets: apiKeys,
+            allowPrivateNetwork,
+          },
           timeoutMs,
-          settings,
-          allowPrivateNetwork,
-        },
-        timeoutMs,
-      );
-    } catch (error) {
-      // Engines redact their own errors, but attempts and warnings travel into
-      // output and model contexts, so the record gets the belt too.
-      const message = redactSecrets(error instanceof Error ? error.message : String(error));
-      failures.push(`${engine.name}: ${message}`);
-      attempts.push({
-        engine: engine.name,
-        ok: false,
-        error: message,
-        durationSeconds: (Date.now() - startedAt) / 1000,
-      });
-      // A quota-class failure is remembered so a later run fails over first. A
-      // transient failure (rate limit, timeout) records nothing.
-      if (controller) {
-        const entry = controller.record(engine.name, error);
-        if (entry) {
-          cooldownNotes.push(
-            `The ${engine.name} engine hit its quota and is now cooling until ${entry.until}.`,
-          );
+        );
+        successfulStartedAt = startedAt;
+        successfulKeyIndex = keyRun.keyIndex;
+        break;
+      } catch (error) {
+        // Engines redact their own errors, but attempts and warnings travel into
+        // output and model contexts, so the record gets the belt too.
+        const message = redactSecrets(
+          error instanceof Error ? error.message : String(error),
+          apiKeys,
+        );
+        const keyLabel = apiKeys.length > 1 ? ` (API key ${Number(keyRun.keyIndex) + 1})` : '';
+        failures.push(`${engine.name}${keyLabel}: ${message}`);
+        attempts.push({
+          engine: engine.name,
+          ...(apiKeys.length > 1 ? { keyIndex: keyRun.keyIndex } : {}),
+          ok: false,
+          error: message,
+          durationSeconds: (Date.now() - startedAt) / 1000,
+        });
+        // A quota-class failure is remembered so a later run fails over first. A
+        // transient failure (rate limit, timeout) records nothing.
+        if (controller) {
+          const entry = controller.record(engine.name, error, keyRun.keyIndex);
+          if (entry) {
+            const keyNote = keyRun.keyIndex === undefined ? '' : ` API key ${keyRun.keyIndex + 1}`;
+            cooldownNotes.push(
+              `The ${engine.name} engine${keyNote} hit its quota and is now cooling until ${entry.until}.`,
+            );
+          }
         }
+        const hasNextKey = runIndex + 1 < keyRuns.length;
+        if (hasNextKey && isApiKeyFailure(error)) {
+          continue;
+        }
+        break;
       }
+    }
+
+    if (!output) {
       continue;
     }
 
-    const durationSeconds = (Date.now() - startedAt) / 1000;
+    const durationSeconds = (Date.now() - successfulStartedAt) / 1000;
     // Surface the engine's own spend (exa dollars, firecrawl credits) on the
     // attempt, when it reported any. The orchestrator otherwise drops it.
     attempts.push({
       engine: engine.name,
+      ...(apiKeys.length > 1 ? { keyIndex: successfulKeyIndex } : {}),
       ok: true,
       durationSeconds,
       ...engineSpend(output.meta.usage),
     });
     // This engine answered, so clear any cooldown it was carrying from before.
-    controller?.clear(engine.name);
+    controller?.clear(engine.name, successfulKeyIndex);
 
     // Routing and runtime warnings, kept apart from the engine's epistemic
     // uncertainty. Config typos and degrade caveats travel on the plan.
     const warnings = [...plan.notes, ...cooldownNotes, ...(controller?.warnings ?? [])];
     if (failures.length > 0) {
-      warnings.push(`Fell back to ${engine.name} after: ${failures.join(' | ')}`);
+      const rotatedWithinEngine =
+        failuresBeforeEngine === 0 &&
+        failures.length > failuresBeforeEngine &&
+        successfulKeyIndex !== undefined;
+      warnings.push(
+        rotatedWithinEngine && successfulKeyIndex !== undefined
+          ? `Rotated to ${engine.name} API key ${successfulKeyIndex + 1} after: ${failures.join(' | ')}`
+          : `Fell back to ${engine.name} after: ${failures.join(' | ')}`,
+      );
       // A web engine answering an X request is second-hand evidence whether the
       // X engine was missing or died mid-run.
       if (plan.degradeNote && !engine.roles.includes('social')) {

@@ -15,14 +15,16 @@ import {
   type Role,
   ROLES,
 } from './config.ts';
-import { coolingEntry, currentStatePath, loadCooldownState } from './cooldown.ts';
-import { grokAuthFile } from './providers/grok.ts';
 import {
-  findEngine,
-  ROLE_PREFERENCE,
-  type SearchEngine,
-} from './providers/index.ts';
+  coolingEntry,
+  currentStatePath,
+  loadCooldownState,
+  parseCooldownStateKey,
+} from './cooldown.ts';
+import { grokAuthFile } from './providers/grok.ts';
+import { findEngine, ROLE_PREFERENCE, type SearchEngine } from './providers/index.ts';
 import { commandOnPath } from './system.ts';
+import { splitApiKeys } from './util/apiKeys.ts';
 
 /** The Node floor this build promises. Kept in step with package.json engines. */
 export const MIN_NODE = '22.13.0';
@@ -53,6 +55,8 @@ export interface RoleDiagnosis {
 /** One engine that is currently cooling, with how long is left. */
 export interface CooldownDiagnosis {
   engine: string;
+  /** Zero-based API key index for per-key cooldowns. Absent on legacy engine cooldowns. */
+  keyIndex?: number;
   /** ISO time it may recover. */
   until: string;
   /** Human remaining time, e.g. "1h 30m" or "45m". */
@@ -114,10 +118,32 @@ const ROLE_JOB: Record<Role, string> = {
 const INSTALL_AGY = 'curl -fsSL https://antigravity.google/cli/install.sh | bash && agy';
 const INSTALL_GROK = 'curl -fsSL https://x.ai/cli/install.sh | bash && grok';
 
+function configuredApiKeys(
+  fromEnv: string | undefined,
+  fromFile: string | undefined,
+): { count: number; source: 'env' | 'file' | null } {
+  const envKeys = splitApiKeys(fromEnv);
+  if (envKeys.length > 0) {
+    return { count: envKeys.length, source: 'env' };
+  }
+  const fileKeys = splitApiKeys(fromFile);
+  return { count: fileKeys.length, source: fileKeys.length > 0 ? 'file' : null };
+}
+
+function apiKeyPresentReason(count: number, source: 'env' | 'file'): string {
+  return `API key present (${count} ${count === 1 ? 'key' : 'keys'}, from ${source})`;
+}
+
 /** Compare two dotted numeric versions. Returns negative, zero, or positive. */
 function compareVersions(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
-  const pb = b.replace(/^v/, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const pa = a
+    .replace(/^v/, '')
+    .split('.')
+    .map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b
+    .replace(/^v/, '')
+    .split('.')
+    .map((n) => Number.parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
     const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
     if (diff !== 0) {
@@ -152,43 +178,46 @@ function diagnoseEngine(
   }
 
   if (engine.name === 'tavily') {
-    const fromEnv = env.TAVILY_API_KEY?.trim();
-    const fromFile = config.engines?.tavily?.apiKey?.trim();
-    const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
-    const ready = Boolean(keySource);
+    const { count, source: keySource } = configuredApiKeys(
+      env.TAVILY_API_KEY,
+      config.engines?.tavily?.apiKey,
+    );
+    const ready = count > 0;
     return {
       engine: engine.name,
       enabled,
       ready,
       keySource,
-      reason: ready
-        ? `API key present (from ${keySource})`
+      reason: keySource
+        ? apiKeyPresentReason(count, keySource)
         : 'no API key (not in TAVILY_API_KEY or the config file)',
       ...(ready ? {} : { fix: 'modsearch config set tavily.apiKey <key>' }),
     };
   }
 
   if (engine.name === 'exa') {
-    const fromEnv = env.EXA_API_KEY?.trim();
-    const fromFile = config.engines?.exa?.apiKey?.trim();
-    const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
-    const ready = Boolean(keySource);
+    const { count, source: keySource } = configuredApiKeys(
+      env.EXA_API_KEY,
+      config.engines?.exa?.apiKey,
+    );
+    const ready = count > 0;
     return {
       engine: engine.name,
       enabled,
       ready,
       keySource,
-      reason: ready
-        ? `API key present (from ${keySource})`
+      reason: keySource
+        ? apiKeyPresentReason(count, keySource)
         : 'no API key (not in EXA_API_KEY or the config file)',
       ...(ready ? {} : { fix: 'modsearch config set exa.apiKey <key>' }),
     };
   }
 
   if (engine.name === 'firecrawl') {
-    const fromEnv = env.FIRECRAWL_API_KEY?.trim();
-    const fromFile = config.engines?.firecrawl?.apiKey?.trim();
-    const keySource: 'env' | 'file' | null = fromEnv ? 'env' : fromFile ? 'file' : null;
+    const { count, source: keySource } = configuredApiKeys(
+      env.FIRECRAWL_API_KEY,
+      config.engines?.firecrawl?.apiKey,
+    );
     const configuredEngine = chosenEngine(config);
     // Keyless fetch is on by default; only an explicit `keylessFetch: false`
     // turns it off, and an explicit Firecrawl engine choice overrides even
@@ -205,7 +234,7 @@ function diagnoseEngine(
         ready: true,
         keySource,
         reason: keySource
-          ? `API key present (from ${keySource})`
+          ? apiKeyPresentReason(count, keySource)
           : 'keyless: works with no key and no signup (Firecrawl grants 1,000 free credits/month, metered per IP per day). Set a free key for your own quota.',
       };
     }
@@ -216,7 +245,7 @@ function diagnoseEngine(
       ready,
       keySource,
       reason: keySource
-        ? `API key present (from ${keySource})`
+        ? apiKeyPresentReason(count, keySource)
         : keylessFetch
           ? 'keyless fetch (default): public pages are read by a cloud browser, no key or signup needed. Opt out with: modsearch config set firecrawl.keylessFetch false'
           : 'keyless fetch is switched off (firecrawl.keylessFetch false), so Firecrawl is excluded from automatic page fetch.',
@@ -289,18 +318,22 @@ function diagnoseCooldown(
   }
   const state = loadCooldownState(statePath);
   const engines: CooldownDiagnosis[] = [];
-  for (const engine of Object.keys(state.engineCooldowns)) {
-    const entry = coolingEntry(state, engine, now);
+  for (const stateKey of Object.keys(state.engineCooldowns)) {
+    const target = parseCooldownStateKey(stateKey);
+    const entry = coolingEntry(state, target.engine, now, target.keyIndex);
     if (entry) {
       engines.push({
-        engine,
+        engine: target.engine,
+        ...(target.keyIndex === undefined ? {} : { keyIndex: target.keyIndex }),
         until: entry.until,
         remaining: formatRemaining(Date.parse(entry.until) - now.getTime()),
         reason: entry.reason.split('\n')[0].slice(0, 120),
       });
     }
   }
-  engines.sort((a, b) => a.engine.localeCompare(b.engine));
+  engines.sort(
+    (a, b) => a.engine.localeCompare(b.engine) || (a.keyIndex ?? -1) - (b.keyIndex ?? -1),
+  );
   return { enabled: true, statePath, engines };
 }
 
@@ -451,7 +484,8 @@ export function formatDoctorReport(report: DoctorReport): string {
   } else {
     lines.push('  switch: on');
     for (const c of report.cooldown.engines) {
-      lines.push(`  - ${c.engine.padEnd(16)} cooling, ${c.remaining} left (until ${c.until})`);
+      const label = c.keyIndex === undefined ? c.engine : `${c.engine} key ${c.keyIndex + 1}`;
+      lines.push(`  - ${label.padEnd(16)} cooling, ${c.remaining} left (until ${c.until})`);
       if (c.reason) {
         lines.push(`      reason: ${c.reason}`);
       }

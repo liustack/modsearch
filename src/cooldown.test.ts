@@ -7,6 +7,7 @@ import {
   clearAllCooldowns,
   clearEngineCooldown,
   coolingEntry,
+  cooldownStateKey,
   DEFAULT_COOLDOWN_MS,
   emptyCooldownState,
   isEngineCooling,
@@ -41,7 +42,11 @@ describe('cooldown state file', () => {
       p,
       JSON.stringify({
         engineCooldowns: {
-          tavily: { until: '2999-01-01T00:00:00.000Z', reason: 'spent', observedAt: '2026-01-01T00:00:00.000Z' },
+          tavily: {
+            until: '2999-01-01T00:00:00.000Z',
+            reason: 'spent',
+            observedAt: '2026-01-01T00:00:00.000Z',
+          },
           broken: { reason: 'no until' },
           alsoBroken: 42,
         },
@@ -57,8 +62,16 @@ describe('cooldown state file', () => {
       p,
       JSON.stringify({
         engineCooldowns: {
-          http: { until: '2999-01-01T00:00:00.000Z', reason: 'x', observedAt: '2026-01-01T00:00:00.000Z' },
-          tavily: { until: '2999-01-01T00:00:00.000Z', reason: 'y', observedAt: '2026-01-01T00:00:00.000Z' },
+          http: {
+            until: '2999-01-01T00:00:00.000Z',
+            reason: 'x',
+            observedAt: '2026-01-01T00:00:00.000Z',
+          },
+          tavily: {
+            until: '2999-01-01T00:00:00.000Z',
+            reason: 'y',
+            observedAt: '2026-01-01T00:00:00.000Z',
+          },
         },
       }),
     );
@@ -66,10 +79,57 @@ describe('cooldown state file', () => {
     expect(Object.keys(state.engineCooldowns).sort()).toEqual(['local', 'tavily']);
   });
 
+  it('applies a legacy engine-level cooldown to every configured key without dropping it', () => {
+    const p = statePath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: {
+          exa: {
+            until: '2999-01-01T00:00:00.000Z',
+            reason: 'spent before per-key cooldowns existed',
+            observedAt: '2026-01-01T00:00:00.000Z',
+          },
+        },
+      }),
+    );
+
+    const state = loadCooldownState(p);
+    const now = at('2026-08-06T00:00:00.000Z');
+    expect(Object.keys(state.engineCooldowns)).toEqual(['exa']);
+    expect(coolingEntry(state, 'exa', now, 0)).toBeDefined();
+    expect(coolingEntry(state, 'exa', now, 1)).toBeDefined();
+  });
+
+  it('normalizes the engine portion of a per-key cooldown without losing its key index', () => {
+    const p = statePath();
+    fs.writeFileSync(
+      p,
+      JSON.stringify({
+        engineCooldowns: {
+          'agy::key:1': {
+            until: '2999-01-01T00:00:00.000Z',
+            reason: 'spent',
+            observedAt: '2026-01-01T00:00:00.000Z',
+          },
+        },
+      }),
+    );
+
+    const state = loadCooldownState(p);
+    expect(Object.keys(state.engineCooldowns)).toEqual(['antigravity-cli::key:1']);
+  });
+
   it('writes 0600 and round-trips through a record', () => {
     const p = statePath();
     const state = emptyCooldownState();
-    recordQuotaCooldown(state, 'exa', new Error('out of credits'), at('2026-08-06T00:00:00.000Z'), p);
+    recordQuotaCooldown(
+      state,
+      'exa',
+      new Error('out of credits'),
+      at('2026-08-06T00:00:00.000Z'),
+      p,
+    );
     expectPosixMode(p, 0o600);
     const reloaded = loadCooldownState(p);
     expect(reloaded.engineCooldowns.exa.reason).toContain('out of credits');
@@ -117,7 +177,9 @@ describe('classifyQuota', () => {
   });
 
   it('does not persist a per-second rate limit', () => {
-    expect(classifyQuota(new Error('tavily returned 429 Too Many Requests: rate limit'), now)).toBeNull();
+    expect(
+      classifyQuota(new Error('tavily returned 429 Too Many Requests: rate limit'), now),
+    ).toBeNull();
   });
 
   it('ignores errors that are not about quota', () => {
@@ -166,6 +228,23 @@ describe('recording and clearing', () => {
     expect(clearEngineCooldown(state, 'exa', p)).toBe(false);
   });
 
+  it('records and clears quota cooldowns independently by key index', () => {
+    const p = statePath();
+    const state = emptyCooldownState();
+    recordQuotaCooldown(state, 'exa', new Error('out of credits'), now, p, undefined, 0);
+    recordQuotaCooldown(state, 'exa', new Error('out of credits'), now, p, undefined, 1);
+
+    const first = cooldownStateKey('exa', 0);
+    const second = cooldownStateKey('exa', 1);
+    expect(Object.keys(state.engineCooldowns).sort()).toEqual([first, second]);
+    expect(coolingEntry(state, 'exa', now, 0)).toBeDefined();
+    expect(coolingEntry(state, 'exa', now, 1)).toBeDefined();
+
+    expect(clearEngineCooldown(state, 'exa', p, undefined, 0)).toBe(true);
+    expect(loadCooldownState(p).engineCooldowns[first]).toBeUndefined();
+    expect(loadCooldownState(p).engineCooldowns[second]).toBeDefined();
+  });
+
   it('wipes the whole state file', () => {
     const p = statePath();
     const state = emptyCooldownState();
@@ -197,7 +276,13 @@ describe('concurrent writes merge instead of clobbering', () => {
     recordQuotaCooldown(emptyCooldownState(), 'exa', new Error('out of credits'), now, p);
     const short = loadCooldownState(p).engineCooldowns.exa.until;
     // A fresh snapshot records a far-future reset for the same engine.
-    recordQuotaCooldown(emptyCooldownState(), 'exa', new Error('quota. Resets in 94h19m9s'), now, p);
+    recordQuotaCooldown(
+      emptyCooldownState(),
+      'exa',
+      new Error('quota. Resets in 94h19m9s'),
+      now,
+      p,
+    );
     const long = loadCooldownState(p).engineCooldowns.exa.until;
     expect(Date.parse(long)).toBeGreaterThan(Date.parse(short));
     // A later shorter record must not shorten the live cooldown.

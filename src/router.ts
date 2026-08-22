@@ -1,5 +1,5 @@
 import { chosenEngine, engineSettings, type ModsearchConfig, type Role } from './config.ts';
-import { coolingEntry, type CooldownState } from './cooldown.ts';
+import { coolingEngineEntry, type CooldownState } from './cooldown.ts';
 import {
   FETCH_FLOOR,
   findEngine,
@@ -10,6 +10,7 @@ import {
   type SearchEngine,
   type Source,
 } from './providers/index.ts';
+import { splitApiKeys } from './util/apiKeys.ts';
 
 /** One run's cooldown snapshot: which engines are cooling, judged against `now`. */
 export interface CooldownView {
@@ -180,7 +181,7 @@ export function planRole(
   // engine is moved to the back so a healthy one is tried first, but it stays
   // in the chain so it is still reached when everything else fails.
   if (cooldown) {
-    return { chain: reorderByCooldown(chain, cooldown, notes), notes };
+    return { chain: reorderByCooldown(chain, cooldown, notes, settingsFor), notes };
   }
 
   return { chain, notes };
@@ -195,11 +196,13 @@ function reorderByCooldown(
   chain: SearchEngine[],
   cooldown: CooldownView,
   notes: string[],
+  settingsFor: (name: string) => { apiKey?: string },
 ): SearchEngine[] {
   const active: SearchEngine[] = [];
   const cooling: SearchEngine[] = [];
   for (const engine of chain) {
-    const entry = coolingEntry(cooldown.state, engine.name, cooldown.now);
+    const keyCount = splitApiKeys(settingsFor(engine.name).apiKey).length;
+    const entry = coolingEngineEntry(cooldown.state, engine.name, keyCount, cooldown.now);
     if (entry) {
       cooling.push(engine);
       const reason = entry.reason.split('\n')[0].slice(0, 140);
@@ -234,7 +237,13 @@ export function planRun(input: PlanInput): SourcePlan[] {
   const webRequested = sources.includes('web');
   return sources.flatMap((source): SourcePlan[] => {
     const role = SOURCE_ROLE[source];
-    const { chain, notes } = planRole(role, input.config, input.requestedEngine, env, input.cooldown);
+    const { chain, notes } = planRole(
+      role,
+      input.config,
+      input.requestedEngine,
+      env,
+      input.cooldown,
+    );
 
     if (source === 'x') {
       // X has one engine. When it is unusable, the web is the only thing left,

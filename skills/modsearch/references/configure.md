@@ -71,7 +71,7 @@ JSON has no comments, so here is every field:
 | `allowPrivateNetwork` | boolean | top level | Local network policy: allow the local fetcher to reach reserved and private address ranges. It never affects firecrawl: a target that is, or resolves to, a reserved address is kept off the cloud regardless, because the switch authorizes local access, not disclosing internal hostnames to a third-party service. `false` by default. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
 | `engines.<name>.enabled` | boolean | every engine | Whether automatic routing may use this engine. Missing means enabled. Set `false` to exclude it. Setting `true` removes the override and returns to the built-in default. An explicit `--engine` still forces that engine for one run. |
-| `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | The engine's API key. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
+| `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl` | One API key, or multiple keys separated by commas. Whitespace and empty comma items are ignored. Authentication, rate-limit, and quota failures rotate through the keys in order. Network, 5xx, and parsing failures go directly to the next engine. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY`, which win over the file. |
 | `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL`. Empty unsets it. See the endpoint section below. |
 | `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | Allow public-page fetch through Firecrawl without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off Firecrawl's cloud; a configured key or an explicit Firecrawl engine choice still enables it. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
@@ -83,6 +83,7 @@ JSON has no comments, so here is every field:
 modsearch config set engine tavily            # choose the search engine
 modsearch config set engine ""                # back to automatic
 modsearch config set tavily.apiKey <key>      # engine credentials
+modsearch config set tavily.apiKey <key1,key2> # rotate keys in this order
 modsearch config set tavily.apiKey            # no value: hidden prompt (see below)
 modsearch config set tavily.baseURL <url>     # a compatible third-party endpoint
 modsearch config set tavily.enabled false     # keep Tavily out of automatic failover
@@ -185,12 +186,12 @@ modsearch config set allowPrivateNetwork true   # make it permanent (top-level, 
 
 ## Quota cooldown failover
 
-When an engine fails with a quota-class error, modsearch remembers it in `~/.modsearch/state.json` (separate from `config.json`) and moves it to the back of the fallback chain until it recovers, so the next run fails over to a healthy engine first instead of hitting the same wall. This is a softened circuit breaker, not load sharing: healthy engines keep the whole job, a spent one is only tried last.
+When an API key fails with a quota-class error, modsearch remembers that key in `~/.modsearch/state.json` (separate from `config.json`). The next run tries healthy keys in the same engine first. The engine moves to the back of the fallback chain only when every configured key is cooling. Engines without API keys keep one engine-level cooldown. This is a softened circuit breaker, not load sharing: healthy keys and engines keep the whole job, while cooling ones remain available as last attempts.
 
-- The spent engine is never dropped. If everything else fails or is unavailable, it is still tried, and a success clears its cooldown at once.
+- A cooling key is never dropped. A success clears that key's cooldown at once. Old engine-level state entries still load and apply to every configured key until a successful key clears the legacy entry.
 - A precise reset time in the engine's message (agy's `Resets in 94h19m9s`) is honored. A quota error without one cools for 45 minutes. A per-second rate limit is transient and never recorded.
-- An explicit `-e`/`--engine` ignores cooldown entirely, matching the hard-force rule.
-- The result's `warnings` name any engine that is cooling and until when.
+- An explicit `-e`/`--engine` remains a hard force with no cross-engine fallback. Within a multi-key engine, healthy keys are still tried before cooling keys.
+- The result's `warnings` identify the key that entered cooldown. Routing warnings name an engine only when all of its configured keys are cooling and it moves to the back.
 
 The switch is on by default:
 
@@ -200,7 +201,7 @@ modsearch config set cooldown on    # re-enable
 modsearch state clear               # forget every cooldown now
 ```
 
-`modsearch doctor` shows the switch and anything cooling right now, with the time left.
+`modsearch doctor` shows the switch and every engine or key cooling right now, with the time left.
 
 ## Troubleshooting
 

@@ -465,6 +465,17 @@ function coerceBoolean(value) {
   return undefined;
 }
 
+/** Whether a comma-separated API-key value contains at least one real key. */
+function hasApiKeys(value) {
+  return (
+    typeof value === 'string' &&
+    value
+      .split(',')
+      .map((key) => key.trim())
+      .some((key) => key !== '')
+  );
+}
+
 /** ~/.modsearch/config.json, the one file every harness shares. */
 function modsearchConfigPath() {
   return join(homedir(), '.modsearch', 'config.json');
@@ -530,7 +541,7 @@ function envSettingsFor(engine, env = process.env) {
   const bindings = Object.hasOwn(ENGINE_ENV_BINDINGS, engine) ? ENGINE_ENV_BINDINGS[engine] : {};
   for (const [field, variable] of Object.entries(bindings)) {
     const value = typeof env[variable] === 'string' ? env[variable].trim() : '';
-    if (value !== '') {
+    if (value !== '' && (field !== 'apiKey' || hasApiKeys(value))) {
       settings[field] = value;
     }
   }
@@ -548,8 +559,8 @@ function engineSummary(config = readModsearchConfig(), env = process.env) {
   for (const name of CARD_ENGINES) {
     const fromFile = fileSettingsFor(name, config);
     const fromEnv = envSettingsFor(name, env);
-    const fileKey = typeof fromFile.apiKey === 'string' && fromFile.apiKey.trim() !== '';
-    const envKey = typeof fromEnv.apiKey === 'string';
+    const fileKey = hasApiKeys(fromFile.apiKey);
+    const envKey = hasApiKeys(fromEnv.apiKey);
     engines[name] = {
       baseURL: fromEnv.baseURL ?? (typeof fromFile.baseURL === 'string' ? fromFile.baseURL : ''),
       model: typeof fromFile.model === 'string' ? fromFile.model : '',

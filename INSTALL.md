@@ -164,6 +164,11 @@ All three keyed services have a free tier and need no card. Run settings through
 the launcher (replace the path with your TARGET from Step 1), so they work even on
 a host without npx:
 
+One engine may take multiple keys. Join them with commas, for example
+`first-key,second-key`. Authentication, rate-limit, and quota failures rotate to
+the next key. Network, 5xx, and response parsing failures move directly to the
+next engine instead.
+
 ```bash
 bash ~/.claude/skills/modsearch/scripts/run.sh config set tavily.apiKey <key>       # 1,000 credits/month
 bash ~/.claude/skills/modsearch/scripts/run.sh config set exa.apiKey <key>          # $10/month credit, ~1,400 searches
