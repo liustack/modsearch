@@ -23,6 +23,12 @@ export interface PinnedTarget {
   family: number;
 }
 
+/** Advisory DNS evidence used only before disclosing a URL to a cloud crawler. */
+export interface CloudDisclosureInspection {
+  reserved: boolean;
+  addresses: string[];
+}
+
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   'localhost.localdomain',
@@ -143,8 +149,8 @@ export async function assertSafeRemoteTarget(
  * a reserved range? These never make sense to hand to a cloud crawler, so a
  * cloud-fetch engine (firecrawl) skips them regardless of the allowPrivateNetwork
  * switch: forwarding one would leak an internal address to the cloud. It reads
- * nothing from DNS. A public-looking hostname that only *resolves* to a reserved
- * IP is handled by isReservedTarget below and is also kept off the cloud.
+ * nothing from DNS. A public-looking hostname is handled by the advisory cloud
+ * disclosure inspection below.
  */
 export function isLiteralReservedTarget(url: URL): boolean {
   if (isBlockedHostname(url.hostname)) {
@@ -161,33 +167,56 @@ export function isLiteralReservedTarget(url: URL): boolean {
 }
 
 /**
- * Check for cloud-fetch engines such as Firecrawl: does this target resolve to
- * a private or reserved address that must stay off the remote crawler?
+ * Check for cloud-fetch engines such as Firecrawl: do all usable DNS answers
+ * prove this target private or reserved and therefore unsafe to disclose?
  *
  * This is not a security boundary. The local engine's assertSafeRemoteTarget
  * stays the SSRF guard: it pins the connection and refuses on any doubt. This
- * one controls cloud disclosure. It never connects or pins. A DNS failure
- * returns false because this process cannot prove the target is reserved. The
- * local-only private-network switch does not change this result.
+ * one controls cloud disclosure. DNS-derived 198.18/15 addresses are treated as
+ * standard proxy fake-IP placeholders, and any genuinely public answer allows
+ * the cloud fetch. It never connects or pins. A DNS failure returns false
+ * because this process cannot prove the target is reserved. The local-only
+ * private-network switch does not change this result.
  */
 export async function isReservedTarget(url: URL): Promise<boolean> {
+  return (await inspectCloudDisclosureTarget(url)).reserved;
+}
+
+/** Inspect a target for cloud disclosure and retain its DNS evidence for errors. */
+export async function inspectCloudDisclosureTarget(url: URL): Promise<CloudDisclosureInspection> {
   if (isBlockedHostname(url.hostname)) {
-    return true;
+    return { reserved: true, addresses: [] };
   }
 
   const hostname = stripIpv6Brackets(url.hostname);
   const ipFamily = isIP(hostname);
   if (ipFamily > 0) {
-    return isPrivateIpAddress(hostname);
+    return { reserved: isPrivateIpAddress(hostname), addresses: [hostname] };
   }
 
   try {
     const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
-    return resolved.some((record) => isPrivateIpAddress(record.address));
+    const addresses = resolved.map((record) => record.address);
+    return {
+      reserved:
+        addresses.length > 0 && addresses.every((address) => isPrivateForCloudDisclosure(address)),
+      addresses,
+    };
   } catch {
     // Cannot confirm it is private from here, so do not block the cloud engine.
-    return false;
+    return { reserved: false, addresses: [] };
   }
+}
+
+/** Cloud crawlers treat the standard proxy fake-IP pool as a public DNS placeholder. */
+function isPrivateForCloudDisclosure(ipAddress: string): boolean {
+  if (isIP(ipAddress) === 4) {
+    const value = ipv4ToNumber(ipAddress);
+    if (inRange(value, '198.18.0.0', '198.19.255.255')) {
+      return false;
+    }
+  }
+  return isPrivateIpAddress(ipAddress);
 }
 
 function stripIpv6Brackets(hostname: string): string {

@@ -16,12 +16,17 @@ describe('http network guards', () => {
     },
   );
 
-  it.each(['127.0.0.1', '10.0.0.5', '192.168.1.1', '169.254.169.254', '::1', 'fc00::1'])(
-    'treats %s as private',
-    (ip) => {
-      expect(isPrivateIpAddress(ip)).toBe(true);
-    },
-  );
+  it.each([
+    '127.0.0.1',
+    '10.0.0.5',
+    '192.168.1.1',
+    '169.254.169.254',
+    '198.18.92.141',
+    '::1',
+    'fc00::1',
+  ])('treats %s as private', (ip) => {
+    expect(isPrivateIpAddress(ip)).toBe(true);
+  });
 
   it('allows ordinary public addresses', () => {
     expect(isPrivateIpAddress('93.184.216.34')).toBe(false);
@@ -72,9 +77,9 @@ describe('assertSafeRemoteTarget returns the pinned IP', () => {
   it('blocks private IPv4, IPv6, and mapped-private literals before pinning', async () => {
     await expect(assertSafeRemoteTarget(u('http://127.0.0.1/'), false)).rejects.toThrow(/private/i);
     await expect(assertSafeRemoteTarget(u('http://[::1]/'), false)).rejects.toThrow(/private/i);
-    await expect(
-      assertSafeRemoteTarget(u('http://[::ffff:127.0.0.1]/'), false),
-    ).rejects.toThrow(/private/i);
+    await expect(assertSafeRemoteTarget(u('http://[::ffff:127.0.0.1]/'), false)).rejects.toThrow(
+      /private/i,
+    );
   });
 
   it('pins a private literal when the guard is waived', async () => {
@@ -98,6 +103,7 @@ describe('isLiteralReservedTarget: names and IPs that never go to the cloud', ()
   it('flags literal reserved IPs, loopback, and inherently local names', () => {
     expect(isLiteralReservedTarget(u('http://10.0.0.5/'))).toBe(true);
     expect(isLiteralReservedTarget(u('http://192.168.1.1/admin'))).toBe(true);
+    expect(isLiteralReservedTarget(u('http://198.18.92.141/'))).toBe(true);
     expect(isLiteralReservedTarget(u('http://127.0.0.1/'))).toBe(true);
     expect(isLiteralReservedTarget(u('http://[::1]/'))).toBe(true);
     expect(isLiteralReservedTarget(u('http://localhost/'))).toBe(true);
@@ -128,5 +134,4 @@ describe('isReservedTarget: advisory skip for cloud-fetch engines', () => {
     expect(await isReservedTarget(u('http://93.184.216.34/'))).toBe(false);
     expect(await isReservedTarget(u('http://[2606:4700:4700::1111]/'))).toBe(false);
   });
-
 });

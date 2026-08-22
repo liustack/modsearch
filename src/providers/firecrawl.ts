@@ -5,13 +5,17 @@
 // runs a real browser in the cloud, so JavaScript-rendered pages come back with
 // content the local engine cannot see.
 //
-// The fetch path validates the target with the network module first: a private
-// or reserved address is meaningless to a cloud crawler, so firecrawl declines
-// it. An automatic chain can then try local. A forced run returns an error.
-// --allow-private-network authorizes local access, never cloud disclosure.
+// The fetch path validates the target with the network module first. Literal
+// private targets and hostnames proven private by the cloud-disclosure policy
+// are declined. An automatic chain can then try local. A forced run returns an
+// error. --allow-private-network authorizes local access, never cloud disclosure.
 import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
-import { isLiteralReservedTarget, isReservedTarget, normalizeFetchUrl } from './http/network.ts';
+import {
+  inspectCloudDisclosureTarget,
+  isLiteralReservedTarget,
+  normalizeFetchUrl,
+} from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
 import { MAX_CONTENT_CHARS } from './limits.ts';
@@ -200,16 +204,21 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   const apiKeySecrets = [...new Set([...apiKeys, ...(options.apiKeySecrets ?? [])])];
   const target = normalizeFetchUrl(options.url);
 
-  // The cloud crawler never receives a target that is, or resolves to, a
-  // private or reserved address, and --allow-private-network does not change
-  // that: the switch authorizes LOCAL access to such addresses, not disclosing
-  // an internal hostname, path, and query to a third-party cloud service. A
-  // VPN fake-ip cannot be told apart from a real internal name from here, so
-  // both are kept off the wire. An automatic chain may fall through to the
-  // local engine. A forced Firecrawl run instead returns the actionable error.
-  if (isLiteralReservedTarget(target) || (await isReservedTarget(target))) {
+  // A literal private target never leaves the machine. DNS-only classification
+  // is advisory for cloud disclosure: standard 198.18/15 proxy fake IPs count
+  // as public placeholders, and one real public answer makes the hostname
+  // public. --allow-private-network remains local-only and never bypasses this.
+  if (isLiteralReservedTarget(target)) {
     throw new Error(
       `firecrawl does not fetch the private or reserved target ${target.hostname}. Use the local engine instead.`,
+    );
+  }
+  const disclosure = await inspectCloudDisclosureTarget(target);
+  if (disclosure.reserved) {
+    const resolved =
+      disclosure.addresses.length > 0 ? ` -> ${disclosure.addresses.join(', ')}` : '';
+    throw new Error(
+      `firecrawl does not fetch the private or reserved target ${target.hostname}${resolved}. If a VPN or proxy on this machine uses fake-IP DNS, a public hostname may look reserved here. Use the local engine instead.`,
     );
   }
 

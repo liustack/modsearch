@@ -36,9 +36,11 @@ read_when:
 
 ## VPN 与保留地址段
 
-Firecrawl 公网页面抓取是一条云端边界：公网页面的 URL 会被发给 Firecrawl 的服务，由云端浏览器读取。它默认开启（裸安装能读 JavaScript 页面靠的就是它），每次云端抓取的结果都带一条注明路径的 warning。想让自动抓取只走本地，运行 `modsearch config set firecrawl.keylessFetch false`。配置了 Firecrawl key 或显式选择 Firecrawl 引擎时仍会启用。私有和保留地址目标在任何配置下都不会发往云端，见下文。
+Firecrawl 公网页面抓取是一条云端边界：公网页面的 URL 会被发给 Firecrawl 的服务，由云端浏览器读取。它默认开启（裸安装能读 JavaScript 页面靠的就是它），每次云端抓取的结果都带一条注明路径的 warning。想让自动抓取只走本地，运行 `modsearch config set firecrawl.keylessFetch false`。配置了 Firecrawl key 或显式选择 Firecrawl 引擎时仍会启用。URL 中直写的私有和保留地址目标在任何配置下都不会发往云端。DNS 解析结果按下文更窄的披露规则处理。
 
-分流隧道的 VPN 客户端常把公网主机名映射进 `198.18.0.0/15` 这类保留段，普通网站也会触发防护。`--allow-private-network`（或顶层的 `modsearch config set allowPrivateNetwork true`）只对本地抓取器放行：firecrawl 永远不会收到保留地址或解析到保留地址的目标，因为这个开关授权的是本地访问，不是把内部主机名交给云服务。不要用它去够真正的内网地址。
+分流隧道的 VPN 客户端常把公网主机名映射进 `198.18.0.0/15` 这类保留段，普通网站在本地守卫看来也会像私网。`--allow-private-network`（或顶层的 `modsearch config set allowPrivateNetwork true`）只对本地抓取器放行，不授权云端披露。不要用它去访问真正的内网地址。
+
+Firecrawl 的云端披露判定对 DNS 结果采用更窄的规则。Clash、Surge 和 mihomo 都把 `198.18.0.0/15` 用作标准 fake-ip 池，因此这段地址在该判定中视为疑似 fake-ip 占位值。只有所有解析结果都是真私网或保留地址时，主机名才不会交给 Firecrawl。只要有一个公网地址就会放行。这个例外只作用于 DNS 解析结果。URL 中直写的 `198.18.0.0/15` 地址仍会被拒绝，本地 SSRF 守卫也继续把整个地址段判为私网，socket 固定路径仍经过原有安全检查。
 
 ## 不可信的页面内容
 

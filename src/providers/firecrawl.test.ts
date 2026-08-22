@@ -211,6 +211,70 @@ describe('firecrawl search path', () => {
 });
 
 describe('firecrawl fetch path', () => {
+  it('fetches a public hostname when local DNS returns a Surge-style fake IP', async () => {
+    lookupMock.mockResolvedValue([{ address: '198.18.92.141', family: 4 }]);
+    const calls = mockFetchJson({
+      success: true,
+      data: {
+        markdown: '# Node.js releases',
+        links: [],
+        metadata: { statusCode: 200 },
+      },
+    });
+
+    await expect(
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'https://nodejs.org/en/about/previous-releases',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+      }),
+    ).resolves.toBeDefined();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('fetches when dual-stack DNS returns a fake IPv4 and a public IPv6 address', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '198.18.92.141', family: 4 },
+      { address: '2606:4700::6810:d583', family: 6 },
+    ]);
+    const calls = mockFetchJson({
+      success: true,
+      data: { markdown: '# Node.js releases', links: [], metadata: { statusCode: 200 } },
+    });
+
+    await expect(
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'https://nodejs.org/en/about/previous-releases',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+      }),
+    ).resolves.toBeDefined();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('fetches when DNS returns both a private address and a real public address', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '10.1.2.3', family: 4 },
+      { address: '93.184.216.34', family: 4 },
+    ]);
+    const calls = mockFetchJson({
+      success: true,
+      data: { markdown: '# Public route', links: [], metadata: { statusCode: 200 } },
+    });
+
+    await expect(
+      executeFirecrawl({
+        mode: 'fetch',
+        url: 'https://mixed.example.com/page',
+        timeoutMs: 30000,
+        settings: { apiKey: 'fc-test' },
+      }),
+    ).resolves.toBeDefined();
+    expect(calls).toHaveLength(1);
+  });
+
   it('posts to the v2 scrape endpoint and maps markdown, links, and metadata', async () => {
     const links = Array.from({ length: 25 }, (_, i) => `https://a.example.com/l${i}`);
     const calls = mockFetchJson({
@@ -334,10 +398,9 @@ describe('firecrawl fetch path', () => {
     expect(lookupMock).not.toHaveBeenCalled();
   });
 
-  it('keeps a reserved-resolving host off the cloud even with the private-network switch on', async () => {
+  it('rejects a truly private-resolving host with its address and a fake-IP hint', async () => {
     // The switch authorizes local access to private addresses. It never
-    // authorizes handing the hostname and path to a third-party crawler: a VPN
-    // fake-ip and a real internal name are indistinguishable from here.
+    // authorizes handing the hostname and path to a third-party crawler.
     lookupMock.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
     const calls = mockFetchJson({
       success: true,
@@ -355,12 +418,15 @@ describe('firecrawl fetch path', () => {
         settings: { apiKey: 'fc-test' },
         allowPrivateNetwork: true,
       }),
-    ).rejects.toThrow(/private|reserved/i);
+    ).rejects.toThrow(/internal\.example\.com -> 10\.1\.2\.3.*fake-IP/i);
     expect(calls).toHaveLength(0);
   });
 
-  it('skips a public host that resolves to a reserved IP when the switch is off', async () => {
-    lookupMock.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
+  it('rejects a hostname when every resolved address is private and lists them all', async () => {
+    lookupMock.mockResolvedValue([
+      { address: '10.1.2.3', family: 4 },
+      { address: '192.168.1.9', family: 4 },
+    ]);
     const calls = mockFetchJson({ success: true, data: {} });
     await expect(
       executeFirecrawl({
@@ -369,7 +435,7 @@ describe('firecrawl fetch path', () => {
         timeoutMs: 30000,
         settings: { apiKey: 'fc-test' },
       }),
-    ).rejects.toThrow(/private|reserved/i);
+    ).rejects.toThrow(/10\.1\.2\.3, 192\.168\.1\.9.*fake-IP/i);
     expect(calls).toHaveLength(0);
     expect(lookupMock).toHaveBeenCalled();
   });
