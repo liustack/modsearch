@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>Give models that cannot reach the web the missing piece: web search, X search, and page fetch. Free, no signup, no API key.</b></p>
+<p align="center"><b>In the chat app your model can search the web. On the API it cannot. ModSearch puts the web back: web search, X search, page fetch. Free, no signup, no API key.</b></p>
 
 <p align="center">🥇 <b>The strongest free web search plugin for DeepSeek Harness (dsh)</b> 🥇</p>
 
@@ -43,6 +43,26 @@ Hit a problem? [Open an issue](https://github.com/liustack/modsearch/issues/new/
 - **Searches X (Twitter).** With Grok Build installed, ModSearch queries the corpus that web indexes cannot reach.
 - **Install once, use everywhere.** Works in Claude Code, Codex, Pi, and OpenCode.
 
+## See it work
+
+All four screenshots are unedited runs, the first two from the Codex desktop app and the last two from dsh web, driving DeepSeek models with no web access of their own.
+
+Give it a blog link and ask what the post says. Twenty-five seconds later: a structured summary of the whole post, with no browser involved.
+
+![Text-only DeepSeek summarising a blog link through ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
+Give it no target at all, just "anything interesting in AI today?". Thirty-six seconds later: six sourced stories, with a closing note on which details came from aggregation and deserve a second look. The note comes from the `uncertainty` field.
+
+![An open-ended question comes back as six sourced stories with a stated confidence caveat](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+
+Ask dsh web for today's top AI stories. dsh's native search tool row runs straight on the modsearch engine chain, and eighteen seconds later three stories come back, each with a source link.
+
+![dsh web's native search running on the modsearch engine chain, returning three sourced stories](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-search.png)
+
+Ask which Node.js line is still in maintenance. `read_page` reads the release page and the release schedule in turn, and sixty seconds later the verdict arrives with a version status table and sources at the end.
+
+![read_page reading two pages and returning the Node.js maintenance verdict](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-fetch.png)
+
 ## Supported engines
 
 Firecrawl works with zero setup. Every other engine is one command away. Keys live in `~/.modsearch/config.json` (0600, masked when shown):
@@ -80,26 +100,6 @@ dsh users have a path that never touches the command line. Settings → Plugins 
 ## Usage
 
 Once installed, you do not need to remember any commands. Just chat. Ask anything that needs checking, or paste a URL, and the skill triggers on its own: it picks an engine, runs the search or fetch, and the answer comes back with sources.
-
-## See it work
-
-All four screenshots are unedited runs, the first two from the Codex desktop app and the last two from dsh web, driving DeepSeek models with no web access of their own.
-
-Give it a blog link and ask what the post says. Twenty-five seconds later: a structured summary of the whole post, with no browser involved.
-
-![Text-only DeepSeek summarising a blog link through ModSearch](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
-
-Give it no target at all, just "anything interesting in AI today?". Thirty-six seconds later: six sourced stories, with a closing note on which details came from aggregation and deserve a second look. The note comes from the `uncertainty` field.
-
-![An open-ended question comes back as six sourced stories with a stated confidence caveat](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
-
-Ask dsh web for today's top AI stories. dsh's native search tool row runs straight on the modsearch engine chain, and eighteen seconds later three stories come back, each with a source link.
-
-![dsh web's native search running on the modsearch engine chain, returning three sourced stories](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-search.png)
-
-Ask which Node.js line is still in maintenance. `read_page` reads the release page and the release schedule in turn, and sixty seconds later the verdict arrives with a version status table and sources at the end.
-
-![read_page reading two pages and returning the Node.js maintenance verdict](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-fetch.png)
 
 ## Documentation
 

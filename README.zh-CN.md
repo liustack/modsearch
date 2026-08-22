@@ -4,7 +4,7 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>为不能联网的模型补上联网能力：联网搜索、X 搜索、单页抓取。免费，免注册，免 API key。</b></p>
+<p align="center"><b>在官方 App 里模型能联网，切到 API 就不能了。ModSearch 把联网补回来：网页搜索、X 搜索、单页抓取。免费，免注册，免 API key。</b></p>
 
 <p align="center">🥇 <b>全网最强的 DeepSeek Harness (dsh) 免费联网搜索插件</b> 🥇</p>
 
@@ -43,6 +43,26 @@ DeepSeek 和 GLM 等模型没有联网能力或联网能力羸弱。ModSearch �
 - **可搜索 X（推特）。** 安装 Grok Build 后，可检索网页索引覆盖不到的 X 内容。
 - **一次安装，多端可用。** 支持 Claude Code、Codex、Pi、OpenCode。
 
+## 实测
+
+四张截图全部原样记录，前两张来自 Codex 桌面 App，后两张来自 dsh web，驱动的都是自身不能联网的 DeepSeek 模型。
+
+给出一个博客链接，询问文章内容。25 秒后返回全文的结构化摘要，全程未打开浏览器。
+
+![不能联网的 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
+
+不指定目标，只问「今天有什么有趣的 AI 新闻」。36 秒后返回六条带来源的结果，并在结尾说明哪些信息来自检索聚合、细节可能有出入。该提醒来自 `uncertainty` 字段。
+
+![开放问题返回六条带来源的结果，并附可信度说明](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+
+在 dsh web 里问今天有哪些重要的 AI 新闻。dsh 原生的搜索工具行直接跑在 modsearch 引擎链上，18 秒返回三条当日消息，每条带来源链接。
+
+![dsh web 的原生搜索跑在 modsearch 引擎链上，返回三条带来源的当日新闻](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-search.zh-CN.png)
+
+问 Node.js 现在哪条版本线还在维护。`read_page` 先后读官网版本页和发布计划表，59 秒给出结论和版本状态表，来源附在结尾。
+
+![read_page 读取两个页面后给出 Node.js 维护线结论](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-fetch.zh-CN.png)
+
 ## 支持的引擎
 
 Firecrawl 零配置直接可用，其余引擎各一条命令。key 存在 `~/.modsearch/config.json`（0600 权限，展示时打码）：
@@ -80,26 +100,6 @@ dsh 用户还有一条不碰命令行的路。设置页的「插件 → 插件�
 ## 用法
 
 装好之后不需要记任何命令。正常聊天，提出需要查证的问题或给出一个链接，skill 自动触发：选引擎、跑搜索或抓取，答案带着来源回来。
-
-## 实测
-
-四张截图全部原样记录，前两张来自 Codex 桌面 App，后两张来自 dsh web，驱动的都是自身不能联网的 DeepSeek 模型。
-
-给出一个博客链接，询问文章内容。25 秒后返回全文的结构化摘要，全程未打开浏览器。
-
-![不能联网的 DeepSeek 通过 ModSearch 总结博客链接](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-fetch.png)
-
-不指定目标，只问「今天有什么有趣的 AI 新闻」。36 秒后返回六条带来源的结果，并在结尾说明哪些信息来自检索聚合、细节可能有出入。该提醒来自 `uncertainty` 字段。
-
-![开放问题返回六条带来源的结果，并附可信度说明](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
-
-在 dsh web 里问今天有哪些重要的 AI 新闻。dsh 原生的搜索工具行直接跑在 modsearch 引擎链上，18 秒返回三条当日消息，每条带来源链接。
-
-![dsh web 的原生搜索跑在 modsearch 引擎链上，返回三条带来源的当日新闻](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-search.zh-CN.png)
-
-问 Node.js 现在哪条版本线还在维护。`read_page` 先后读官网版本页和发布计划表，59 秒给出结论和版本状态表，来源附在结尾。
-
-![read_page 读取两个页面后给出 Node.js 维护线结论](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-fetch.zh-CN.png)
 
 ## 文档
 
