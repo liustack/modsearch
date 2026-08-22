@@ -27,7 +27,7 @@ X is a separate corpus, not a competing search engine, so it never replaces web 
 
 modsearch runs with no config file at all: search and fetch work as installed on Firecrawl's keyless free quota. It looks at what is on the machine and uses the best thing available. Only create a config when the user wants to change that.
 
-Antigravity CLI is the strongest free upgrade, because it synthesizes cited answers and covers both search and fetch with no key:
+Antigravity CLI is the best free upgrade, because it synthesizes cited answers and covers both search and fetch with no key:
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash

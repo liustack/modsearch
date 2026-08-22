@@ -27,7 +27,7 @@ X 是独立语料，不是竞争的搜索引擎，所以它永远不会顶替网
 
 modsearch 没有配置文件也能跑：装完就在 Firecrawl 的免注册免费额度上搜索和抓取。它看这台机器上有什么，用最好的那个。只有用户想改变这一点时才需要建配置。
 
-最强的免费升级是 Antigravity CLI，它写带引用的综述，一个工具同时覆盖搜索和抓取，还不要 key：
+首选的免费升级是 Antigravity CLI，它写带引用的综述，一个工具同时覆盖搜索和抓取，还不要 key：
 
 ```bash
 curl -fsSL https://antigravity.google/cli/install.sh | bash

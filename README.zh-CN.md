@@ -4,9 +4,9 @@
 
 <h1 align="center">ModSearch</h1>
 
-<p align="center"><b>为不能联网的模型补上联网能力：网页搜索、X 搜索、单页抓取。免费，免注册，免 API key。</b></p>
+<p align="center"><b>为不能联网的模型补上联网能力：联网搜索、X 搜索、单页抓取。免费，免注册，免 API key。</b></p>
 
-<p align="center">🥇 <b>全网最强的 DeepSeek Harness (dsh) 联网搜索插件</b> 🥇</p>
+<p align="center">🥇 <b>全网最强的 DeepSeek Harness (dsh) 免费联网搜索插件</b> 🥇</p>
 
 <p align="center">引擎：<b>Firecrawl</b>（免注册，默认）· <b>Antigravity CLI</b> · <b>Tavily</b> · <b>Exa</b> · <b>Grok（X）</b> · <b>local</b>，自动故障转移</p>
 
@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
-DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型网页搜索、X 搜索、单页抓取能力。装完即用：默认引擎是 Firecrawl 的免注册通道，[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，不用注册账号，不用 API key，不用绑卡。
+DeepSeek 和 GLM 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型联网搜索、X 搜索、单页抓取能力。装完即用：默认引擎是 Firecrawl 的免注册通道，[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，不用注册账号，不用 API key，不用绑卡。
 
 ## 交流
 
@@ -36,7 +36,7 @@ DeepSeek-V4-Flash 等模型没有联网能力或联网能力羸弱。ModSearch �
 
 ## 特性
 
-- **🥇 全网最强的 DeepSeek Harness (dsh) 联网搜索插件：** 一条命令 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.8.0`，dsh 内置的 `web_search` 就跑在 modsearch 引擎链上，无需 API key，原生引用卡片全部保留。旁边再落两个 dsh 没有的工具：搜 X（推特）的 `x_search` 和带焦点读单页的 `read_page`。更新就是再跑一遍同一条命令。这里点名版本号而不用 `@latest`，是因为 pnpm 11 会扣住最近 24 小时内发布的版本，并让 dist-tag 在剩余的旧版本中解析。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
+- **🥇 全网最强的 DeepSeek Harness (dsh) 免费联网搜索插件：** 一条命令即刻安装 `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.8.0`。细节见[接入指南](docs/harness-setup.zh-CN.md#deepseek-harness-dsh)。
 - **开箱免费，免注册。** 搜索和单页抓取默认跑在 Firecrawl 免注册通道上：[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，没有账号、没有 API key、没有绑卡。后备通道也全部免费：Antigravity CLI 只需浏览器登录，Tavily、Exa 和免费的 Firecrawl key 各带独立的月度额度，均不要求绑卡。
 - **自动故障转移。** 一个通道失败或额度耗尽时自动切换下一个。
 - **单引擎多密钥轮换。** Tavily、Exa、Firecrawl 都可配置逗号分隔的多个密钥。鉴权、限流或配额失败时先轮换到下一个密钥，再按引擎链故障转移。
@@ -83,7 +83,7 @@ dsh 用户还有一条不碰命令行的路。设置页的「插件 → 插件�
 
 ## 实测
 
-两张截图均为 Codex 桌面 App 中的原样记录，驱动的是自身不能联网的 DeepSeek-V4-Flash。
+四张截图全部原样记录，前两张来自 Codex 桌面 App，后两张来自 dsh web，驱动的都是自身不能联网的 DeepSeek 模型。
 
 给出一个博客链接，询问文章内容。25 秒后返回全文的结构化摘要，全程未打开浏览器。
 
@@ -92,6 +92,14 @@ dsh 用户还有一条不碰命令行的路。设置页的「插件 → 插件�
 不指定目标，只问「今天有什么有趣的 AI 新闻」。36 秒后返回六条带来源的结果，并在结尾说明哪些信息来自检索聚合、细节可能有出入。该提醒来自 `uncertainty` 字段。
 
 ![开放问题返回六条带来源的结果，并附可信度说明](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-codex-search.png)
+
+在 dsh web 里问今天有哪些重要的 AI 新闻。dsh 原生的搜索工具行直接跑在 modsearch 引擎链上，18 秒返回三条当日消息，每条带来源链接。
+
+![dsh web 的原生搜索跑在 modsearch 引擎链上，返回三条带来源的当日新闻](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-search.zh-CN.png)
+
+问 Node.js 现在哪条版本线还在维护。`read_page` 先后读官网版本页和发布计划表，59 秒给出结论和版本状态表，来源附在结尾。
+
+![read_page 读取两个页面后给出 Node.js 维护线结论](https://raw.githubusercontent.com/liustack/modsearch/main/assets/demo-dsh-web-fetch.zh-CN.png)
 
 ## 文档
 
@@ -126,11 +134,11 @@ dsh 用户还有一条不碰命令行的路。设置页的「插件 → 插件�
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=liustack%2Fmodlens%2Cliustack%2Fmodsearch&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=liustack%2Fmodsearch&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/modlens%2Cliustack/modsearch&type=date&theme=dark&legend=top-left&sealed_token=Or7BuI_WngbmbQXmU5MOkRi0mu8ZaeY9zRa58EIgcS7P3rwC-hgRNTUvf0IRK2SJL86kdzcR15m7kFiQNWljDgM_z-aroCB17QE25tS-e2dUlNmU7N6r2w" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/modlens%2Cliustack/modsearch&type=date&legend=top-left&sealed_token=Or7BuI_WngbmbQXmU5MOkRi0mu8ZaeY9zRa58EIgcS7P3rwC-hgRNTUvf0IRK2SJL86kdzcR15m7kFiQNWljDgM_z-aroCB17QE25tS-e2dUlNmU7N6r2w" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=liustack/modlens%2Cliustack/modsearch&type=date&legend=top-left&sealed_token=Or7BuI_WngbmbQXmU5MOkRi0mu8ZaeY9zRa58EIgcS7P3rwC-hgRNTUvf0IRK2SJL86kdzcR15m7kFiQNWljDgM_z-aroCB17QE25tS-e2dUlNmU7N6r2w" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=liustack/modsearch&type=date&theme=dark&legend=top-left&sealed_token=ymc92zQxHuDgpexZjaqDbEhMCuCjGHskpQGkzkwwrU0FksWoq5MasrMA64y9G2CxNV9O3EFeRjKneWSDYmHH4HWjpUiaAme0haCp-1Y72cRmHDv8coW35A" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=liustack/modsearch&type=date&legend=top-left&sealed_token=ymc92zQxHuDgpexZjaqDbEhMCuCjGHskpQGkzkwwrU0FksWoq5MasrMA64y9G2CxNV9O3EFeRjKneWSDYmHH4HWjpUiaAme0haCp-1Y72cRmHDv8coW35A" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=liustack/modsearch&type=date&legend=top-left&sealed_token=ymc92zQxHuDgpexZjaqDbEhMCuCjGHskpQGkzkwwrU0FksWoq5MasrMA64y9G2CxNV9O3EFeRjKneWSDYmHH4HWjpUiaAme0haCp-1Y72cRmHDv8coW35A" />
  </picture>
 </a>
 

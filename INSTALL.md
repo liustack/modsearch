@@ -118,7 +118,7 @@ modsearch does three jobs, and none of them blocks on setup:
 If the user gave you an engine key, jump to the keyed-engine block at the end of
 this step and configure it now.
 
-The strongest free upgrade is Antigravity CLI (`agy`): it writes synthesized,
+The best free upgrade is Antigravity CLI (`agy`): it writes synthesized,
 cited answers, needs no API key, and also reads pages. It requires a one-time
 browser sign-in that only the user can complete. Handle it in three idempotent
 steps, each safe to re-run.
