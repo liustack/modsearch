@@ -335,6 +335,72 @@ window.__ModuleLoader__.load({
       };
     }
 
+    // Native <select> popups honor color-scheme, not inherit color. WebView2
+    // still paints that popup as light unless a scheme is declared, so the
+    // control must set one and give each option its own background.
+    function parseCssColor(value) {
+      if (typeof value !== 'string') {
+        return null;
+      }
+      const s = value.trim();
+      const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
+      if (hex) {
+        const h = hex[1];
+        if (h.length === 3) {
+          return [
+            parseInt(h.charAt(0) + h.charAt(0), 16),
+            parseInt(h.charAt(1) + h.charAt(1), 16),
+            parseInt(h.charAt(2) + h.charAt(2), 16),
+          ];
+        }
+        return [
+          parseInt(h.slice(0, 2), 16),
+          parseInt(h.slice(2, 4), 16),
+          parseInt(h.slice(4, 6), 16),
+        ];
+      }
+      const rgb =
+        /^rgba?\(\s*([0-9]*\.?[0-9]+)(?:\s*,\s*|\s+)([0-9]*\.?[0-9]+)(?:\s*,\s*|\s+)([0-9]*\.?[0-9]+)/i.exec(
+          s,
+        );
+      if (!rgb) {
+        return null;
+      }
+      return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
+    }
+
+    function cardThemeIsDark() {
+      if (typeof getComputedStyle === 'function') {
+        try {
+          const target = document.body || document.documentElement;
+          const rgb = parseCssColor(getComputedStyle(target).color);
+          if (rgb) {
+            const luminance =
+              0.2126 * (rgb[0] / 255) + 0.7152 * (rgb[1] / 255) + 0.0722 * (rgb[2] / 255);
+            return luminance > 0.5;
+          }
+        } catch {
+          // Unreadable computed color is not a theme answer.
+        }
+      }
+      const media =
+        typeof matchMedia === 'function'
+          ? matchMedia
+          : typeof window.matchMedia === 'function'
+            ? window.matchMedia
+            : null;
+      if (typeof media === 'function') {
+        try {
+          if (media('(prefers-color-scheme: dark)').matches === true) {
+            return true;
+          }
+        } catch {
+          // A throwing matchMedia is not a theme answer.
+        }
+      }
+      return false;
+    }
+
     // `localeRef` is a { current } handle on dsh's locale service, not the
     // service itself: it is optional and may land after the card is built, so
     // it is read at render time rather than captured here. Absent, both
@@ -617,6 +683,10 @@ window.__ModuleLoader__.load({
               );
             });
 
+            const darkCard = cardThemeIsDark();
+            const optionPaint = darkCard
+              ? { color: '#f2f2f2', background: '#23262a' }
+              : { color: '#23262a', background: '#f2f2f2' };
             body = h(
               'div',
               null,
@@ -640,13 +710,14 @@ window.__ModuleLoader__.load({
                       color: 'inherit',
                       font: 'inherit',
                       fontSize: '13px',
+                      colorScheme: darkCard ? 'dark' : 'light',
                     },
                   },
-                  [h('option', { key: '', value: '' }, t.automatic)].concat(
+                  [h('option', { key: '', value: '', style: optionPaint }, t.automatic)].concat(
                     preferable(summary, draft).map((name) =>
                       h(
                         'option',
-                        { key: name, value: name },
+                        { key: name, value: name, style: optionPaint },
                         name === 'firecrawl' ? `${name}${t.keylessSuffix}` : name,
                       ),
                     ),

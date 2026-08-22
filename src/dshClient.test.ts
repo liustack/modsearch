@@ -39,6 +39,8 @@ function evaluate(globals: {
   lang?: string;
   css?: unknown;
   fetch?: (url: string, init?: { method?: string; body?: unknown }) => Promise<unknown>;
+  getComputedStyle?: (elt: unknown) => { color?: string };
+  matchMedia?: (query: string) => { matches: boolean };
 }): Definition {
   let loaded: Definition | undefined;
   const windowStub = {
@@ -56,12 +58,25 @@ function evaluate(globals: {
   };
   const fetchStub =
     globals.fetch ?? (() => Promise.resolve({ ok: true, status: 200, json: () => ({}) }));
-  new Function('window', 'document', 'CSS', 'fetch', 'navigator', SOURCE)(
+  // Extra parameters shadow Node globals as undefined unless a test injects
+  // them, so the card's theme probe is a no-op in every existing path.
+  new Function(
+    'window',
+    'document',
+    'CSS',
+    'fetch',
+    'navigator',
+    'getComputedStyle',
+    'matchMedia',
+    SOURCE,
+  )(
     windowStub,
     documentStub,
     globals.css,
     fetchStub,
     { language: globals.lang ?? 'en' },
+    globals.getComputedStyle,
+    globals.matchMedia,
   );
   if (!loaded) {
     throw new Error('client.js never called __ModuleLoader__.load');
@@ -399,8 +414,15 @@ function textOf(value: unknown): string {
 }
 
 /** One expanded card, rendered in English, with the parts tests ask about. */
-function render(summary: Record<string, unknown>, lang = 'en'): Rendered {
-  const card = evaluate({ lang }).factory(() => ({})).__card;
+function render(
+  summary: Record<string, unknown>,
+  lang = 'en',
+  probes?: {
+    getComputedStyle?: (elt: unknown) => { color?: string };
+    matchMedia?: (query: string) => { matches: boolean };
+  },
+): Rendered {
+  const card = evaluate({ lang, ...probes }).factory(() => ({})).__card;
   const draft = card.nextDraft(summary, String(summary.engine ?? ''));
   const states = [true, summary, draft, ''];
   const built: Node[] = [];
@@ -741,6 +763,71 @@ describe('the preference list offers only engines a preference can mean', () => 
     expect(view.options.find((option) => option.value === 'firecrawl')?.label).toBe(
       'firecrawl（免注册免费）',
     );
+  });
+});
+
+describe('the preferred-engine menu stays readable in the host theme', () => {
+  // Native popups ignore inherit color. On a dark card they would otherwise
+  // paint as white-on-white, which is a list nobody can read.
+  const LIGHT_OPTION = { color: '#23262a', background: '#f2f2f2' };
+  const DARK_OPTION = { color: '#f2f2f2', background: '#23262a' };
+
+  function menuOf(view: Rendered): { select: Node | undefined; options: Node[] } {
+    return {
+      select: view.nodes.find((node) => node.type === 'select'),
+      options: view.nodes.filter((node) => node.type === 'option'),
+    };
+  }
+
+  function schemeOf(select: Node | undefined): unknown {
+    return (select?.props.style as Record<string, unknown> | undefined)?.colorScheme;
+  }
+
+  it('keeps the native light look when the card theme cannot be read', () => {
+    expect(() => render(SUMMARY)).not.toThrow();
+    const { select, options } = menuOf(render(SUMMARY));
+    expect(schemeOf(select)).toBe('light');
+    expect(options.length).toBeGreaterThan(0);
+    for (const option of options) {
+      expect(option.props.style).toEqual(LIGHT_OPTION);
+    }
+  });
+
+  it('paints a dark popup when the card text is light', () => {
+    const { select, options } = menuOf(
+      render(SUMMARY, 'en', {
+        getComputedStyle: () => ({ color: 'rgb(242, 242, 242)' }),
+      }),
+    );
+    expect(schemeOf(select)).toBe('dark');
+    for (const option of options) {
+      expect(option.props.style).toEqual(DARK_OPTION);
+    }
+  });
+
+  it('keeps a light popup when the card text is dark, even if the OS prefers dark', () => {
+    const { select, options } = menuOf(
+      render(SUMMARY, 'en', {
+        getComputedStyle: () => ({ color: 'rgb(35, 38, 42)' }),
+        matchMedia: () => ({ matches: true }),
+      }),
+    );
+    expect(schemeOf(select)).toBe('light');
+    for (const option of options) {
+      expect(option.props.style).toEqual(LIGHT_OPTION);
+    }
+  });
+
+  it('follows an OS dark preference when the card color cannot be read', () => {
+    const { select, options } = menuOf(
+      render(SUMMARY, 'en', {
+        matchMedia: (query) => ({ matches: query === '(prefers-color-scheme: dark)' }),
+      }),
+    );
+    expect(schemeOf(select)).toBe('dark');
+    for (const option of options) {
+      expect(option.props.style).toEqual(DARK_OPTION);
+    }
   });
 });
 
