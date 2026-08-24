@@ -57,7 +57,8 @@ export function tempConfigPath(): string {
 export function envWithBinaries(...binaries: string[]): NodeJS.ProcessEnv {
   const dir = tempDir('modsearch-bin-');
   for (const name of binaries) {
-    fs.writeFileSync(path.join(dir, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const file = IS_WINDOWS && path.extname(name) === '' ? `${name}.exe` : name;
+    fs.writeFileSync(path.join(dir, file), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   }
   return { PATH: dir };
 }

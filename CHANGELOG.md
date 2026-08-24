@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.9.1 - 2026-08-24
+
+- Windows automatic routing now discovers native `.exe` engine CLIs from a bare command name. `commandOnPath("agy")` previously checked only a literal extensionless file, so a valid `%LOCALAPPDATA%\agy\bin\agy.exe` installation was reported as unavailable even after browser sign-in. Doctor passed that false verdict to the dsh settings card, which then hid Antigravity CLI and left only keyless Firecrawl visible (#20). Executable discovery now matches the project's shell-free spawn boundary by resolving bare Windows commands to `.exe` only, while explicit paths and Unix lookup keep their prior behavior. The shared Windows test fixture now uses real `.exe` filenames, and focused tests guard against Unix suffix leakage, duplicate extensions, and accidental `.cmd` or `.bat` acceptance.
+
 ## 5.9.0 - 2026-08-22
 
 - A single Tavily, Exa, or Firecrawl engine can now use multiple API keys (#18). Both `engines.<name>.apiKey` and the corresponding environment variable accept a comma-separated list, trim each item, and ignore empty entries. Requests use the configured order and rotate only after authentication, rate-limit, or quota failures. Network, 5xx, and response-parsing failures skip the remaining keys and preserve the existing cross-engine fallback. Quota cooldown is recorded per key, and an engine moves to the back only when every configured key is cooling. Legacy engine-level cooldown state still loads. Every sibling key is registered for redaction, `doctor` reports the key count, and the dsh settings card explains the syntax. Single-key and keyless attempts keep their previous JSON shape, while multi-key attempts add a zero-based `keyIndex`.
