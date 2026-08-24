@@ -10,7 +10,7 @@ shell syntax.
 
 ## Pinned version
 
-- Pinned CLI version: 5.9.0
+- Pinned CLI version: 5.9.1
 - npm package: `@liustack/modsearch`
 - CLI binary name: `modsearch`
 
