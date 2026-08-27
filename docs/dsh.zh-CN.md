@@ -35,7 +35,7 @@ npx -y @deepseek-ai/dsh --profile web --dump-config
 把插件装进实际启动的 profile。浏览器界面通常使用 `web`：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.9.1
+npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.10.0
 ```
 
 安装后重启 dsh，再确认真正解析到的包：
@@ -68,7 +68,7 @@ dsh 插件不维护第二份引擎配置。它继承同一组环境变量，并�
 先跑离线体检：
 
 ```sh
-npx -y @liustack/modsearch@5.9.1 doctor
+npx -y @liustack/modsearch@5.10.0 doctor
 ```
 
 常用配置：
@@ -169,7 +169,7 @@ npx -y @deepseek-ai/dsh --profile web
 用当前精确版本刷新 profile 中记录的请求：
 
 ```sh
-npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.9.1
+npx -y @deepseek-ai/dsh plugin --profile <name> add @liustack/modsearch@5.10.0
 ```
 
 卸载命令：
