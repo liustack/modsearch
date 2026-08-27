@@ -107,6 +107,9 @@ export async function assertSafeRemoteTarget(
   const ipFamily = isIP(hostname);
   if (ipFamily > 0) {
     if (!allowPrivateNetwork && isPrivateIpAddress(hostname)) {
+      if (isLoopbackIpAddress(hostname)) {
+        throw new Error(privateNetworkBlockMessage(hostname));
+      }
       throw new Error(`Blocked private network target: ${hostname}`);
     }
     return { hostname, address: hostname, family: ipFamily };
@@ -128,11 +131,7 @@ export async function assertSafeRemoteTarget(
   if (!allowPrivateNetwork) {
     const blocked = resolved.find((record) => isPrivateIpAddress(record.address));
     if (blocked) {
-      // VPN and proxy clients routinely map public hosts into reserved ranges
-      // (198.18/15 especially), so a real site can look private from here.
-      throw new Error(
-        `Blocked private network target: ${hostname} -> ${blocked.address}. If a VPN or proxy on this machine maps public hosts into reserved ranges, allow it with --allow-private-network, or: modsearch config set allowPrivateNetwork true`,
-      );
+      throw new Error(privateNetworkBlockMessage(hostname, blocked.address));
     }
   }
 
@@ -217,6 +216,54 @@ function isPrivateForCloudDisclosure(ipAddress: string): boolean {
     }
   }
   return isPrivateIpAddress(ipAddress);
+}
+
+const ALLOW_PRIVATE_NETWORK_HINT =
+  'allow it with --allow-private-network, or: modsearch config set allowPrivateNetwork true';
+
+function privateNetworkBlockMessage(hostname: string, resolvedAddress?: string): string {
+  const target = resolvedAddress ? `${hostname} -> ${resolvedAddress}` : hostname;
+  const blockedAddress = resolvedAddress ?? hostname;
+  if (isLoopbackIpAddress(blockedAddress)) {
+    return `Blocked private network target: ${target}. If a VPN or proxy on this machine maps public hosts into reserved ranges, or a hosts-file accelerator (such as Watt Toolkit / Steam++) points public domains at 127.0.0.1, ${ALLOW_PRIVATE_NETWORK_HINT}`;
+  }
+  return `Blocked private network target: ${target}. If a VPN or proxy on this machine maps public hosts into reserved ranges, ${ALLOW_PRIVATE_NETWORK_HINT}`;
+}
+
+function isLoopbackIpAddress(ipAddress: string): boolean {
+  const normalized = ipAddress.trim().toLowerCase();
+  const family = isIP(normalized);
+  if (family === 4) {
+    return isLoopbackIPv4(normalized);
+  }
+  if (family === 6) {
+    return isLoopbackIPv6(normalized);
+  }
+  return false;
+}
+
+function isLoopbackIPv4(ipAddress: string): boolean {
+  return inRange(ipv4ToNumber(ipAddress), '127.0.0.0', '127.255.255.255');
+}
+
+function isLoopbackIPv6(ipAddress: string): boolean {
+  const groups = expandIpv6(ipAddress);
+  if (groups?.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    const mapped = [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.');
+    return isLoopbackIPv4(mapped);
+  }
+
+  const normalized = ipAddress.split('%')[0];
+  const mapped = extractMappedIpv4(normalized);
+  if (mapped) {
+    return isLoopbackIPv4(mapped);
+  }
+
+  const value = ipv6ToBigInt(normalized);
+  if (value === null) {
+    return false;
+  }
+  return inIpv6Range(value, '::1', 128);
 }
 
 function stripIpv6Brackets(hostname: string): string {

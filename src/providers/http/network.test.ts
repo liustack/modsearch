@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertSafeRemoteTarget,
   isBlockedHostname,
@@ -7,6 +7,15 @@ import {
   isReservedTarget,
   normalizeFetchUrl,
 } from './network.ts';
+
+// Hostname-resolution cases stay offline. Literal-IP targets never reach this.
+const { lookupMock } = vi.hoisted(() => ({ lookupMock: vi.fn() }));
+vi.mock('dns/promises', () => ({ lookup: lookupMock }));
+
+beforeEach(() => {
+  lookupMock.mockReset();
+  lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+});
 
 describe('http network guards', () => {
   it.each(['localhost', 'app.localhost', 'metadata.google.internal', 'metadata.amazonaws.com'])(
@@ -133,5 +142,66 @@ describe('isReservedTarget: advisory skip for cloud-fetch engines', () => {
   it('does not flag ordinary public literals', async () => {
     expect(await isReservedTarget(u('http://93.184.216.34/'))).toBe(false);
     expect(await isReservedTarget(u('http://[2606:4700:4700::1111]/'))).toBe(false);
+  });
+});
+
+describe('hostname-resolution block messages', () => {
+  const allowHint =
+    'allow it with --allow-private-network, or: modsearch config set allowPrivateNetwork true';
+
+  async function blockedMessage(address: string, family: number): Promise<string> {
+    lookupMock.mockResolvedValue([{ address, family }]);
+    try {
+      await assertSafeRemoteTarget(new URL('http://github.com/'), false);
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      return (error as Error).message;
+    }
+    throw new Error('expected assertSafeRemoteTarget to reject');
+  }
+
+  it.each([
+    { address: '127.0.0.1', family: 4 },
+    { address: '::1', family: 6 },
+    { address: '::ffff:127.0.0.1', family: 6 },
+    { address: '::ffff:7f00:1', family: 6 },
+  ])('names a hosts-file accelerator when DNS returns $address', async ({ address, family }) => {
+    const message = await blockedMessage(address, family);
+    expect(message).toContain('Watt Toolkit / Steam++');
+    expect(message).toContain('hosts');
+    expect(message).toContain(allowHint);
+  });
+
+  it.each([
+    { address: '198.18.91.58', family: 4 },
+    { address: '10.0.0.5', family: 4 },
+  ])('keeps VPN wording for reserved non-loopback $address', async ({ address, family }) => {
+    const message = await blockedMessage(address, family);
+    expect(message).toMatch(/VPN or proxy/);
+    expect(message).toContain(allowHint);
+    expect(message).not.toContain('Watt Toolkit');
+    expect(message).not.toContain('Steam++');
+    expect(message).not.toContain('hosts-file accelerator');
+  });
+});
+
+describe('literal loopback block messages', () => {
+  const allowHint =
+    'allow it with --allow-private-network, or: modsearch config set allowPrivateNetwork true';
+
+  it.each([
+    'http://127.23.45.67/',
+    'http://[::1]/',
+    'http://[::ffff:127.1.2.3]/',
+  ])('names a hosts-file accelerator for %s', async (url) => {
+    await expect(assertSafeRemoteTarget(new URL(url), false)).rejects.toThrow(
+      new RegExp(`Watt Toolkit / Steam\\+\\+.*${allowHint}`),
+    );
+  });
+
+  it('keeps the literal non-loopback private message unchanged', async () => {
+    await expect(assertSafeRemoteTarget(new URL('http://10.0.0.5/'), false)).rejects.toThrow(
+      /^Blocked private network target: 10\.0\.0\.5$/,
+    );
   });
 });
