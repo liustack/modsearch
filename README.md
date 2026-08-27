@@ -115,6 +115,8 @@ Once installed, you do not need to remember any commands. Just chat. Ask anythin
 | [Security](docs/security.md) | SSRF guards, DNS-rebinding protection, untrusted input |
 | [CHANGELOG](CHANGELOG.md) | Finding what changed in a version |
 
+GitHub and other sites blocked because Steam++ / Watt Toolkit or a VPN pointed them at this machine or a reserved address? See [Blocked private network target](docs/troubleshooting.md#blocked-private-network-target).
+
 ## Contributing
 
 This repo does not accept pull requests. The project is maintained by the author alone. Every line is reviewed in person, and that review is the premise of its reliability. Two effective ways to contribute:

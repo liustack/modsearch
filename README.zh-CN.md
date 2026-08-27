@@ -115,6 +115,8 @@ dsh 用户还有一条不碰命令行的路。设置页的「插件 → 插件�
 | [安全说明](docs/security.zh-CN.md)                             | SSRF 防护、DNS 重绑定防护、不可信输入的处理 |
 | [更新日志](CHANGELOG.md)                                 | 查询版本变更                                |
 
+GitHub 等站点被 Steam++ / Watt Toolkit、VPN 指到本机或保留地址导致抓取被拦？见[私有网络目标被拦](docs/troubleshooting.zh-CN.md#私有网络目标被拦)。
+
 ## 参与方式
 
 本仓库不接受 PR。项目由作者独立维护，所有代码经作者本人审阅，这是它可靠性的前提。两种有效的参与方式：

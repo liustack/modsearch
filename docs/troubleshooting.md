@@ -102,9 +102,17 @@ this machine maps public hosts into reserved ranges, allow it with
 --allow-private-network, or: modsearch config set allowPrivateNetwork true
 ```
 
-The SSRF guard refused an address in a reserved range. Two very different causes:
+```
+Blocked private network target: github.com -> 127.0.0.1. If a VPN or proxy on
+this machine maps public hosts into reserved ranges, or a hosts-file accelerator
+(such as Watt Toolkit / Steam++) points public domains at 127.0.0.1, allow it with
+--allow-private-network, or: modsearch config set allowPrivateNetwork true
+```
+
+The SSRF guard refused an address in a reserved range. Three different causes:
 
 - **A VPN or proxy** mapping public hostnames into ranges like `198.18.0.0/15`. Common with split-tunnel clients. Allow it with the flag or the config setting above.
+- **A hosts-file accelerator** such as Watt Toolkit / Steam++. It writes public domains into the hosts file pointing at `127.0.0.1`, and a local process listens on 443 and forwards. Allow it with `modsearch config set allowPrivateNetwork true`. After allowing, modsearch automatically trusts the OS certificate store on Node 22.15+, so a certificate issued by the proxy's locally installed CA can verify. Node 22.13 and 22.14 cannot read the OS store through this API, so upgrade to 22.15+. To enable system CAs for the whole Node process, `NODE_OPTIONS=--use-system-ca` is available on Node 22.15+, while `NODE_USE_SYSTEM_CA=1` requires Node 22.19+ or 24.6+. Firecrawl is a cloud engine and cannot reach loopback on this machine. This case only works with the local engine.
 - **A genuinely internal address**, which is exactly what the guard exists for. Do not disable the guard to reach it.
 
 ## Page came back nearly empty

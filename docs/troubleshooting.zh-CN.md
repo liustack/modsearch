@@ -102,9 +102,17 @@ this machine maps public hosts into reserved ranges, allow it with
 --allow-private-network, or: modsearch config set allowPrivateNetwork true
 ```
 
-SSRF 防护拒绝了一个保留地址段里的地址。两种截然不同的成因：
+```
+Blocked private network target: github.com -> 127.0.0.1. If a VPN or proxy on
+this machine maps public hosts into reserved ranges, or a hosts-file accelerator
+(such as Watt Toolkit / Steam++) points public domains at 127.0.0.1, allow it with
+--allow-private-network, or: modsearch config set allowPrivateNetwork true
+```
+
+SSRF 防护拒绝了一个保留地址段里的地址。三种截然不同的成因：
 
 - **VPN 或代理**把公网主机名映射进 `198.18.0.0/15` 这类地址段，分流隧道客户端很常见。用上面的参数或配置放行。
+- **hosts 文件加速器**，例如 Watt Toolkit / Steam++。它把公网域名写进 hosts，指向 `127.0.0.1`，本机进程在 443 上监听并转发。用 `modsearch config set allowPrivateNetwork true` 放行。放行后，Node 22.15+ 上 modsearch 会自动信任操作系统证书库，由代理的本地已安装 CA 签发的证书就能通过校验。Node 22.13 和 22.14 没有通过这个 API 读取系统证书库的能力，请升级到 22.15+。如果要给整个 Node 进程启用系统 CA，Node 22.15+ 可设 `NODE_OPTIONS=--use-system-ca`，`NODE_USE_SYSTEM_CA=1` 则需要 Node 22.19+ 或 24.6+。firecrawl 是云端引擎，够不到本机回环地址，此场景只能走 local 引擎。
 - **真正的内网地址**，这正是防护存在的意义。不要为了够它而关掉防护。
 
 ## 页面抓回来几乎是空的
