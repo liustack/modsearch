@@ -8,6 +8,7 @@
 // (with every redirect hop re-validated), reads the body under caps, and maps
 // the result onto the shared engine contract. The SSRF guards live in
 // ./http/network.ts and the markup handling in ./http/htmlExtract.ts.
+import * as tls from 'node:tls';
 import { Agent } from 'undici';
 import { assertSafeRemoteTarget, normalizeFetchUrl, type PinnedTarget } from './http/network.ts';
 import {
@@ -102,7 +103,7 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
       // Validate, then pin the socket to the exact IP that was validated. Each
       // redirect hop repeats both, so a mid-run DNS change cannot slip through.
       const pinned = await assertSafeRemoteTarget(currentUrl, allowPrivateNetwork);
-      const dispatcher = pinnedDispatcher(pinned);
+      const dispatcher = pinnedDispatcher(pinned, allowPrivateNetwork);
       dispatchers.push(dispatcher);
 
       const { response } = await fetchOnce(currentUrl, dispatcher, deadline, timeoutMs, userAgent);
@@ -181,7 +182,10 @@ export async function runFetch(options: FetchOptions): Promise<FetchResult> {
  * still drives the Host header and TLS SNI, so a DNS answer that changes after
  * the check cannot redirect the socket.
  */
-function pinnedDispatcher(pinned: PinnedTarget): Agent {
+function pinnedDispatcher(pinned: PinnedTarget, allowPrivateNetwork: boolean): Agent {
+  // `ca` replaces Node's default trust store, so merge default + system rather
+  // than passing system alone.
+  const ca = allowPrivateNetwork ? mergedOsCaCertificates() : undefined;
   return new Agent({
     connect: {
       lookup: (_hostname, options, callback) => {
@@ -201,8 +205,43 @@ function pinnedDispatcher(pinned: PinnedTarget): Agent {
           );
         }
       },
+      ...(ca ? { ca } : {}),
     },
   });
+}
+
+type GetCACertificates = (type?: string) => string[];
+
+// undefined: not loaded. null: unavailable or empty. array: merged PEM list.
+let cachedOsCa: string[] | null | undefined;
+
+function mergedOsCaCertificates(): string[] | undefined {
+  if (cachedOsCa !== undefined) {
+    return cachedOsCa ?? undefined;
+  }
+
+  const getCACertificates = (tls as { getCACertificates?: GetCACertificates }).getCACertificates;
+  if (typeof getCACertificates !== 'function') {
+    cachedOsCa = null;
+    return undefined;
+  }
+
+  try {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const cert of [...getCACertificates('default'), ...getCACertificates('system')]) {
+      if (seen.has(cert)) {
+        continue;
+      }
+      seen.add(cert);
+      merged.push(cert);
+    }
+    cachedOsCa = merged.length === 0 ? null : merged;
+    return cachedOsCa ?? undefined;
+  } catch {
+    cachedOsCa = null;
+    return undefined;
+  }
 }
 
 /**
