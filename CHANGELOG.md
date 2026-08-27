@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.10.0 - 2026-08-28
+
+- With `allowPrivateNetwork` on, the local fetcher now trusts the operating system's certificate store alongside Node's bundled CAs (#22). Hosts-file accelerators such as Watt Toolkit (Steam++) point public domains at `127.0.0.1` and terminate TLS with a locally installed self-signed CA, so allowing the private target still failed certificate verification unless Node was launched with `NODE_USE_SYSTEM_CA=1`. The merged list keeps every bundled CA, loads once per process through `tls.getCACertificates` (Node 22.15+, older runtimes keep the previous behavior), and applies only while the switch is on: with `allowPrivateNetwork` off nothing reads the system store and connections verify exactly as before. Certificate verification itself is never relaxed. The blocked-target error now names hosts-file accelerators when the refused address is loopback, literal `127.0.0.1` URLs included, and the troubleshooting, security, and README pages document the scenario in both languages.
+
 ## 5.9.1 - 2026-08-24
 
 - Windows automatic routing now discovers native `.exe` engine CLIs from a bare command name. `commandOnPath("agy")` previously checked only a literal extensionless file, so a valid `%LOCALAPPDATA%\agy\bin\agy.exe` installation was reported as unavailable even after browser sign-in. Doctor passed that false verdict to the dsh settings card, which then hid Antigravity CLI and left only keyless Firecrawl visible (#20). Executable discovery now matches the project's shell-free spawn boundary by resolving bare Windows commands to `.exe` only, while explicit paths and Unix lookup keep their prior behavior. The shared Windows test fixture now uses real `.exe` filenames, and focused tests guard against Unix suffix leakage, duplicate extensions, and accidental `.cmd` or `.bat` acceptance.
