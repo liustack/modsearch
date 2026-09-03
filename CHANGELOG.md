@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.10.1 - 2026-09-04
+
+- The English and Chinese README installation sections now offer the canonical skills.sh command, `npx skills add liustack/modsearch`, alongside the agent-directed `INSTALL.md` path. This gives users who prefer a direct installer one command without changing the agent-first setup flow.
+
 ## 5.10.0 - 2026-08-28
 
 - With `allowPrivateNetwork` on, the local fetcher now trusts the operating system's certificate store alongside Node's bundled CAs (#22). Hosts-file accelerators such as Watt Toolkit (Steam++) point public domains at `127.0.0.1` and terminate TLS with a locally installed self-signed CA, so allowing the private target still failed certificate verification unless Node was launched with `NODE_USE_SYSTEM_CA=1`. The merged list keeps every bundled CA, loads once per process through `tls.getCACertificates` (Node 22.15+, older runtimes keep the previous behavior), and applies only while the switch is on: with `allowPrivateNetwork` off nothing reads the system store and connections verify exactly as before. Certificate verification itself is never relaxed. The blocked-target error now names hosts-file accelerators when the refused address is loopback, literal `127.0.0.1` URLs included, and the troubleshooting, security, and README pages document the scenario in both languages.
