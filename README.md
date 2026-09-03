@@ -36,7 +36,7 @@ Hit a problem? [Open an issue](https://github.com/liustack/modsearch/issues/new/
 
 ## Features
 
-- **🥇 The strongest free web search plugin for DeepSeek Harness (dsh):** one command installs it, `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.10.0`. Details in [harness setup](docs/harness-setup.md#deepseek-harness-dsh).
+- **🥇 The strongest free web search plugin for DeepSeek Harness (dsh):** one command installs it, `npx -y @deepseek-ai/dsh plugin --profile web add @liustack/modsearch@5.10.1`. Details in [harness setup](docs/harness-setup.md#deepseek-harness-dsh).
 - **Free out of the box, no signup.** Search and page fetch run on Firecrawl Keyless by default: [1,000 free credits/month](https://www.firecrawl.dev/blog/firecrawl-keyless-launch), no account, no API key, no card. Every fallback channel is free too: Antigravity CLI needs only a browser sign-in, and Tavily, Exa, and a free Firecrawl key each add their own monthly quota with no card required.
 - **Automatic failover.** When a channel fails or exhausts its quota, the next one takes over.
 - **Per-engine key rotation.** Give Tavily, Exa, or Firecrawl multiple comma-separated keys. Authentication, rate-limit, and quota failures rotate to the next key before the engine chain falls back.
