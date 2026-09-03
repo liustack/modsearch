@@ -84,6 +84,12 @@ Keys can also come from the environment (`TAVILY_API_KEY`, `EXA_API_KEY`, `FIREC
 
 > Install and configure the modsearch skill following INSTALL.md at https://github.com/liustack/modsearch, then run the health check and tell me the result.
 
+Prefer a direct command? Install the same skill through [skills.sh](https://skills.sh/):
+
+```bash
+npx skills add liustack/modsearch
+```
+
 **Step 2 (optional), add more free engines.** Antigravity CLI writes better synthesized answers. A free Tavily, Exa, or Firecrawl key adds a personal quota on top of the keyless one. None requires a card. agy's browser sign-in is the only step that needs your hands:
 
 ```bash

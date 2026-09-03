@@ -84,6 +84,12 @@ key 也可以走环境变量（`TAVILY_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API
 
 > 按 https://github.com/liustack/modsearch 的 INSTALL.md 安装并配置 modsearch skill，完成后运行体检并把结果告诉我。
 
+也可以直接通过 [skills.sh](https://skills.sh/) 安装同一个 skill：
+
+```bash
+npx skills add liustack/modsearch
+```
+
 **第二步（可选），再加免费引擎。** Antigravity CLI 的综述质量更高，Tavily、Exa 或免费 Firecrawl key 能在免注册额度之上再加一份个人额度，都不要求绑卡。只有 agy 的浏览器登录需要你亲手完成：
 
 ```bash
