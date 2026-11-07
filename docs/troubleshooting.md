@@ -36,6 +36,17 @@ modsearch config set keenable.apiKey <key>
 
 Page fetch (`-u`) still ends at the built-in local engine when cloud engines fail.
 
+## Behind an HTTP proxy
+
+```
+firecrawl request failed: fetch failed; cause: getaddrinfo EAI_AGAIN api.firecrawl.dev
+firecrawl does not allow keyless use from a proxy or VPN exit IP. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom.
+```
+
+modsearch reads `http_proxy` / `https_proxy` / `no_proxy` (either case) for every engine API call and for page fetch, with no extra Node flag. The proxy has to be in the environment of the process that starts modsearch. A harness launched by a service manager, not a login shell, often lacks it, and then the attempt lines show a DNS or connection cause such as `EAI_AGAIN`, `ENOTFOUND`, or `ECONNREFUSED`. Export the variables where the harness starts, or in its service unit. Versions before 5.10.12 honored the proxy only for page fetch, so search failed on every engine with a bare `fetch failed`.
+
+Firecrawl refuses keyless calls from IPs it reads as a VPN or a proxy. Waiting does not help: configure a free Firecrawl key, or let Keenable and You.com answer (they come next in the chain without any change).
+
 ## Quota exhausted
 
 ```

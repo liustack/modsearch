@@ -36,6 +36,17 @@ modsearch config set keenable.apiKey <key>
 
 云端引擎失败时，单页抓取（`-u`）仍会落到内置本地引擎。
 
+## 走 HTTP 代理出网
+
+```
+firecrawl request failed: fetch failed; cause: getaddrinfo EAI_AGAIN api.firecrawl.dev
+firecrawl does not allow keyless use from a proxy or VPN exit IP. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom.
+```
+
+modsearch 的每个引擎 API 调用和单页抓取都会读 `http_proxy` / `https_proxy` / `no_proxy`（大小写都认），不需要额外的 Node 参数。前提是代理变量在拉起 modsearch 的那个进程的环境里。由服务管理器（而不是登录 shell）启动的宿主常常缺这几个变量，这时尝试列表里会出现 `EAI_AGAIN`、`ENOTFOUND`、`ECONNREFUSED` 这类 DNS 或连接错误。把变量导出到宿主启动的地方，或写进它的服务配置。5.10.12 之前只有单页抓取认代理，搜索会在所有引擎上报一句光秃秃的 `fetch failed`。
+
+Firecrawl 会拒绝来自 VPN 或代理 IP 的免注册请求，等多久都没用：配一个免费的 Firecrawl key，或者让 Keenable 和 You.com 来答（它们本来就排在后面，什么都不用改）。
+
 ## 额度耗尽
 
 ```
