@@ -121,6 +121,14 @@ function ensureOk(
   }
   if (response.status === 401 || response.status === 403) {
     if (!apiKey) {
+      // Firecrawl turns anonymous calls away from IPs it reads as a VPN or a
+      // proxy, which a machine behind a corporate or Clash-style proxy always
+      // is. Waiting does not help there, so say what does.
+      if (/VPN or proxy/i.test(detail)) {
+        throw new Error(
+          `firecrawl does not allow keyless use from a proxy or VPN exit IP. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom. (${detail})`,
+        );
+      }
       throw new Error(
         `firecrawl rejected the keyless request (${response.status}). Anonymous access may be unavailable or rate-limited. Set your own key: modsearch config set firecrawl.apiKey <key>${detail ? ` (${detail})` : ''}`,
       );

@@ -646,6 +646,21 @@ describe('firecrawl error classification', () => {
     await expect(request).rejects.toThrow(/keyless request/);
     await expect(request).rejects.not.toThrow(/rejected the API key/);
   });
+
+  it('says plainly when Firecrawl refuses keyless access from a proxy or VPN exit', async () => {
+    const body =
+      '{"success":false,"error":"Unfortunately, your IP address looks like a VPN or proxy, so Firecrawl can\'t be used without an API key from here."}';
+    mockFetchJson({}, { ok: false, status: 403, text: body });
+    const request = executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: {},
+    });
+    await expect(request).rejects.toThrow(
+      /firecrawl does not allow keyless use from a proxy or VPN exit IP\. Set a free key: modsearch config set firecrawl\.apiKey <key>, or use keenable or youcom\./,
+    );
+  });
 });
 
 describe('timeout clamping', () => {
