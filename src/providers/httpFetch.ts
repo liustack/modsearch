@@ -18,6 +18,7 @@ import {
 } from './http/htmlExtract.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { MAX_CONTENT_CHARS } from './limits.ts';
+import { formatErrorWithCause } from '../util/errorCause.ts';
 import { resolveProxyForUrl } from '../util/proxy.ts';
 
 export interface FetchOptions {
@@ -454,22 +455,6 @@ function isAbortError(error: unknown): boolean {
   return err.name === 'AbortError' || err.code === 'ABORT_ERR';
 }
 
-function formatErrorWithCause(error: unknown): string {
-  if (error instanceof Error) {
-    const cause = (error as Error & { cause?: unknown }).cause;
-    if (cause instanceof Error) {
-      return `${error.message}; cause: ${cause.message}`;
-    }
-
-    if (cause !== undefined) {
-      return `${error.message}; cause: ${String(cause)}`;
-    }
-
-    return error.message;
-  }
-
-  return String(error);
-}
 
 // ---------- modsearch engine surface ----------
 
