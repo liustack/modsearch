@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.10.12 - 2026-11-07
+
+- Search now works on machines whose only way out is an HTTP proxy (#48). Every engine API call ignored `http_proxy` / `https_proxy` unless Node was started with `NODE_USE_ENV_PROXY`, which a harness rarely sets, so search failed on every engine while page fetches worked. Engine calls now follow the same proxy and `no_proxy` rules as page fetch. A failed call also names its cause (`ECONNREFUSED`, `EAI_AGAIN`) instead of a bare `fetch failed`.
+- When Firecrawl refuses keyless use because your IP looks like a VPN or proxy, the error now says so and points at a free key or the other keyless engines, instead of suggesting you wait.
+
 ## 5.10.11 - 2026-10-28
 
 - Antigravity CLI searches work again with no model configured (#46). agy no longer offers `gemini-3.6-flash-low`, the default modsearch passed, so every call failed with `invalid model selection`. The default is now `gemini-3.8-flash-low`. If you set `antigravity-cli.model` yourself as a workaround, it keeps working. `agy models` lists the ids your agy accepts.
