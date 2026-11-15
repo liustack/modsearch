@@ -86,6 +86,10 @@ A skipped case writes a short artifact with `skipped: true` and the reason.
 
 `search-exa` and `fetch-firecrawl` force one specific engine. The Exa case treats a missing key as not exercised. Firecrawl supports keyless fetch, so its case always exercises the engine when network access is available. Either case reports a spent quota as blocked rather than presenting it as a product failure or a pass.
 
+## Comparing the keyless engines
+
+`pnpm build && pnpm eval:compare` runs `compare-engines.mjs`: the same queries and URLs through each keyless engine (Keenable, Firecrawl, You.com for search, Keenable and Firecrawl for fetch), forced with `-e` under an empty HOME. Search is scored by where an official or authoritative host first appears in the top 10 (rank 1, top 3, MRR), fetch by whether a known phrase from the page came back. It spends only keyless pools, about 72 searches and 30 fetches. Rows and a summary land in `results/<date>/compare/`. Use it before changing the default engine order, and read the misses in `rows.json` before trusting a score: a host pattern can be too narrow.
+
 ## Adding a case
 
 Drop a new `cases/<id>.mjs` exporting a case object. Keep the assertion

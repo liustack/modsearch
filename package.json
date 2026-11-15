@@ -17,6 +17,7 @@
     "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm build",
     "eval": "node evals/run.mjs",
+    "eval:compare": "node evals/compare-engines.mjs",
     "docs:list": "node scripts/docs-list.js"
   },
   "files": [
