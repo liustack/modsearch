@@ -324,9 +324,18 @@ function ownToolBudget() {
  * The environment a spawned CLI needs. Electron exposes the desktop
  * executable as process.execPath, and its child must enter Node mode or the
  * CLI path and flags are handed back to the app.
+ *
+ * Project config is switched off: one dsh process serves every workspace and
+ * a tool call does not say which one it came from, so the CLI's working
+ * directory is dsh's own, not the workspace's. A project file found from
+ * there would apply to every workspace at once.
  */
 function childEnv() {
-  return process.versions.electron ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : process.env;
+  return {
+    ...process.env,
+    MODSEARCH_PROJECT_CONFIG: 'off',
+    ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+  };
 }
 
 /**

@@ -1,4 +1,10 @@
-import { chosenEngine, engineSettings, type ModsearchConfig, type Role } from './config.ts';
+import {
+  chosenEngine,
+  engineChoiceIsConsent,
+  engineSettings,
+  type ModsearchConfig,
+  type Role,
+} from './config.ts';
 import { coolingEngineEntry, type CooldownState } from './cooldown.ts';
 import {
   FETCH_FLOOR,
@@ -151,11 +157,19 @@ export function planRole(
         `Unknown engine "${configured}" (engine in the config file), so modsearch chose one that works.`,
       );
     } else if (engine.roles.includes(role)) {
-      if (enabled(engine)) {
+      if (!enabled(engine)) {
+        notes.push(
+          `The configured ${engine.name} preference is disabled by engines.${engine.name}.enabled, so modsearch skipped it.`,
+        );
+      } else if (engineChoiceIsConsent(config) || usable(engine)) {
+        // The user's own choice is added even when not usable on its face:
+        // choosing a cloud engine is consent to its keyless fetch, and a
+        // missing key should fail loudly rather than be skipped. A project
+        // file's choice carries no such weight, so it must be usable as is.
         add(engine);
       } else {
         notes.push(
-          `The configured ${engine.name} preference is disabled by engines.${engine.name}.enabled, so modsearch skipped it.`,
+          `The project config prefers ${engine.name}, which is not set up for ${role} here, so modsearch skipped it.`,
         );
       }
     }

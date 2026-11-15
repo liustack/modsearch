@@ -300,6 +300,183 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
   }
 }
 
+/**
+ * A project's own `.modsearch/config.json`, found by walking up from the
+ * working directory the way editors find workspace settings. A project
+ * directory may be someone else's clone, so the file can only narrow what the
+ * user's global config allows, never widen it:
+ *
+ * - `engine` sets the preferred search engine. A project's choice is not
+ *   consent to keyless cloud fetch (see engineChoiceIsConsent).
+ * - `engines.<name>.enabled: false` keeps an engine out of automatic routing.
+ *   `true` cannot switch back on what the global config switched off.
+ * - `engines.<name>.model` picks the model.
+ *
+ * Everything else (keys, binaries, endpoints, keylessFetch, cooldown,
+ * allowPrivateNetwork) is read from the global file only. A `bin` from a clone
+ * would run any program, and a `baseURL` would send the user's key anywhere.
+ * Ignored entries are reported by path, never silently applied.
+ */
+export interface ProjectConfig {
+  path: string;
+  engine?: string;
+  engines: Record<string, { enabled?: false; model?: string }>;
+  /** Dotted paths the file set that a project config may not set. */
+  ignored: string[];
+}
+
+/** `MODSEARCH_PROJECT_CONFIG=off` skips the lookup (a host that serves many projects from one cwd). */
+export function projectConfigDisabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MODSEARCH_PROJECT_CONFIG?.trim().toLowerCase() === 'off';
+}
+
+/**
+ * The nearest `.modsearch/config.json` at or above `cwd`, or undefined. The
+ * walk stops at the home directory without checking it, because
+ * `~/.modsearch/config.json` is the global file, not a project's. Both the
+ * HOME-derived directory and the account's real one stop it, so a run under a
+ * redirected HOME still never mistakes the account's global file for a project.
+ */
+export function findProjectConfigPath(
+  cwd: string = process.cwd(),
+  home: string = os.homedir(),
+): string | undefined {
+  const stops = new Set([path.resolve(home)]);
+  try {
+    stops.add(path.resolve(os.userInfo().homedir));
+  } catch {
+    // No passwd entry for this uid (some containers): HOME is all there is.
+  }
+  let dir = path.resolve(cwd);
+  for (;;) {
+    if (stops.has(dir)) {
+      return undefined;
+    }
+    const candidate = path.join(dir, '.modsearch', 'config.json');
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return undefined;
+    }
+    dir = parent;
+  }
+}
+
+/** Read a project file, keeping only what a project may set. */
+export function loadProjectConfig(filePath: string): ProjectConfig {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (error) {
+    throw new Error(
+      `Failed to read the project config ${filePath}: ${(error as Error).message}. Fix or delete the file.`,
+    );
+  }
+  const project: ProjectConfig = { path: filePath, engines: Object.create(null), ignored: [] };
+  if (!isPlainObject(parsed)) {
+    throw new Error(`The project config ${filePath} is not a JSON object. Fix or delete the file.`);
+  }
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key === 'engine' && typeof value === 'string') {
+      project.engine = value;
+    } else if (key === 'engines' && isPlainObject(value)) {
+      for (const [rawName, settings] of Object.entries(value)) {
+        const name = canonicalEngineName(rawName);
+        if (!findEngine(name) || !isPlainObject(settings)) {
+          project.ignored.push(`engines.${rawName}`);
+          continue;
+        }
+        for (const [field, fieldValue] of Object.entries(settings)) {
+          if (field === 'enabled' && coerceBoolean(fieldValue) === false) {
+            project.engines[name] = { ...project.engines[name], enabled: false };
+          } else if (field === 'model' && typeof fieldValue === 'string') {
+            project.engines[name] = { ...project.engines[name], model: fieldValue };
+          } else {
+            project.ignored.push(`engines.${rawName}.${field}`);
+          }
+        }
+      }
+    } else {
+      project.ignored.push(key);
+    }
+  }
+  return project;
+}
+
+/** Engine choices that came from a project file, keyed by the merged config. */
+const PROJECT_ENGINE_CHOICE = new WeakSet<ModsearchConfig>();
+
+/** Lay a project file over the global config. The global object is not mutated. */
+export function applyProjectConfig(
+  global: ModsearchConfig,
+  project: ProjectConfig,
+): ModsearchConfig {
+  const globalEngines = isPlainObject(global.engines) ? global.engines : {};
+  const engines: Record<string, EngineSettings> = Object.create(null);
+  for (const [name, settings] of Object.entries(globalEngines)) {
+    engines[name] = { ...settings };
+  }
+  for (const [name, settings] of Object.entries(project.engines)) {
+    engines[name] = { ...engines[name], ...settings };
+  }
+  const merged: ModsearchConfig = { ...global, engines };
+  if (project.engine !== undefined) {
+    merged.engine = project.engine;
+    PROJECT_ENGINE_CHOICE.add(merged);
+  }
+  const seen = SEEN_API_KEYS.get(global);
+  if (seen) {
+    SEEN_API_KEYS.set(merged, seen);
+  }
+  return merged;
+}
+
+/**
+ * Does the configured engine count as the user's consent to its keyless cloud
+ * fetch, overriding `keylessFetch: false`? Only when the user chose it in
+ * their own global config. A project file cannot opt anyone into the cloud.
+ */
+export function engineChoiceIsConsent(config: ModsearchConfig): boolean {
+  return !PROJECT_ENGINE_CHOICE.has(config);
+}
+
+export interface EffectiveConfig {
+  config: ModsearchConfig;
+  /** The project file that was applied, if one was found. */
+  project?: ProjectConfig;
+}
+
+/** The global config with the nearest project file laid over it. */
+export function loadEffectiveConfig(
+  options: {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    configPath?: string;
+    home?: string;
+  } = {},
+): EffectiveConfig {
+  const global = loadConfigFile(options.configPath ?? currentConfigPath());
+  if (projectConfigDisabled(options.env ?? process.env)) {
+    return { config: global };
+  }
+  const projectPath = findProjectConfigPath(options.cwd, options.home);
+  if (!projectPath) {
+    return { config: global };
+  }
+  const project = loadProjectConfig(projectPath);
+  return { config: applyProjectConfig(global, project), project };
+}
+
+/** One line for stderr when a project file set things it may not. */
+export function describeIgnoredProjectFields(project: ProjectConfig): string | undefined {
+  if (project.ignored.length === 0) {
+    return undefined;
+  }
+  return `modsearch: ignored ${project.ignored.join(', ')} in ${project.path}. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. Keys, binaries, endpoints, and network settings come from ~/.modsearch/config.json.`;
+}
+
 /** The engine the user asked for, if any. */
 export function chosenEngine(config: ModsearchConfig): string | undefined {
   return config.engine?.trim() || undefined;
@@ -616,11 +793,16 @@ function redactValues<T>(value: T, keys: string[]): T {
 export function renderEffectiveConfig(
   config: ModsearchConfig,
   env: NodeJS.ProcessEnv = process.env,
+  project?: ProjectConfig,
 ): string {
-  const tag = (value: string | boolean, source: 'file' | 'env') => `${value} (${source})`;
+  const tag = (value: string | boolean, source: 'file' | 'project' | 'env') =>
+    `${value} (${source})`;
 
   const out: Record<string, unknown> = {};
   out.engine = config.engine ? tag(config.engine, 'file') : '(unset: automatic)';
+  if (project?.engine !== undefined) {
+    out.engine = project.engine ? tag(project.engine, 'project') : '(unset: automatic) (project)';
+  }
   out.cooldown = config.cooldown ? tag(config.cooldown, 'file') : 'on (default)';
   out.allowPrivateNetwork =
     config.allowPrivateNetwork === undefined
@@ -675,6 +857,19 @@ export function renderEffectiveConfig(
     }
   }
 
+  // The project file lays its few allowed fields over the global file.
+  if (project) {
+    for (const [name, settings] of Object.entries(project.engines)) {
+      const target = ensure(name);
+      if (settings.enabled === false) {
+        target.enabled = tag(false, 'project');
+      }
+      if (settings.model !== undefined) {
+        target.model = tag(shown('model', settings.model, []), 'project');
+      }
+    }
+  }
+
   // Environment overrides, exactly the bindings engineSettings applies. An env
   // value wins over the file, so it overwrites the tag too.
   for (const [engineName, bindings] of Object.entries(ENV_BINDINGS)) {
@@ -692,6 +887,14 @@ export function renderEffectiveConfig(
   }
 
   out.engines = engines;
+  if (project) {
+    out.projectConfig = project.path;
+    if (project.ignored.length > 0) {
+      notes.push(
+        `project config entries ignored (a project may set only engine, engines.<name>.enabled false, engines.<name>.model): ${project.ignored.join(', ')}`,
+      );
+    }
+  }
   if (notes.length > 0) {
     out.notes = notes;
   }

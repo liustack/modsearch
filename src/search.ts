@@ -1,4 +1,4 @@
-import { engineSettings, loadConfigFile, type ModsearchConfig } from './config.ts';
+import { engineSettings, loadEffectiveConfig, type ModsearchConfig } from './config.ts';
 import { coolingEntry, type CooldownController } from './cooldown.ts';
 import {
   enginesForRole,
@@ -195,7 +195,7 @@ export async function runSearch(options: RunSearchOptions): Promise<RunSearchRes
   const mode = resolveMode(query, url);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const env = options.env ?? process.env;
-  const config = options.config ?? loadConfigFile();
+  const config = options.config ?? loadEffectiveConfig().config;
 
   const plans = planRun({
     mode,

@@ -8,7 +8,9 @@ import * as path from 'path';
 import {
   CONFIG_PATH,
   initConfigFile,
+  describeIgnoredProjectFields,
   loadConfigFile,
+  loadEffectiveConfig,
   renderEffectiveConfig,
   setConfigValue,
 } from './config.ts';
@@ -95,7 +97,11 @@ program
 
       // Load the config once so the cooldown controller reads the same switch
       // the run does. Off returns no controller, and the run touches no state.
-      const config = loadConfigFile();
+      const { config, project } = loadEffectiveConfig();
+      const ignored = project && describeIgnoredProjectFields(project);
+      if (ignored) {
+        process.stderr.write(`${ignored}\n`);
+      }
       const result = await runSearch({
         query: options.query,
         url: options.url,
@@ -230,7 +236,9 @@ config
   .description('Print the effective config (file + env, source-tagged) with API keys masked')
   .action(() => {
     try {
-      process.stdout.write(`${renderEffectiveConfig(loadConfigFile(), process.env)}\n`);
+      const global = loadConfigFile();
+      const { project } = loadEffectiveConfig();
+      process.stdout.write(`${renderEffectiveConfig(global, process.env, project)}\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exit(1);

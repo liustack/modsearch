@@ -190,6 +190,21 @@ describe('dsh web search provider', () => {
     });
   });
 
+  it('switches off project config, since the CLI runs in the dsh cwd, not the workspace', async () => {
+    fakeCli(`
+      if (process.env.MODSEARCH_PROJECT_CONFIG !== 'off') {
+        process.stderr.write('project config was left on');
+        process.exit(1);
+      }
+      console.log(JSON.stringify({ results: [${JSON.stringify(okSearchEntry)}] }));
+    `);
+
+    const { providers } = await load();
+    await expect(providers[0].search({ query: 'anything' })).resolves.toMatchObject({
+      content: expect.stringContaining('What the web says.'),
+    });
+  });
+
   it('maps the CLI envelope to the seam result shape', async () => {
     const { providers } = await load();
     expect(providers).toHaveLength(1);
