@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.10.13 - 2026-11-15
 
 - Keenable now reads pages too, so `-u` has a second keyless cloud engine. It needs no key and no signup (a free key moves it to the keyed endpoint), and always asks for a live read rather than Keenable's indexed copy. The page text comes back as Keenable's markdown extraction. With `-q` (or `--prompt`) the focus goes to Keenable as its own prompt, so the content is Keenable's model extract for that focus and not the page text, and a warning says so. A focus over 2,000 characters is dropped with a warning and the full page is returned. Whether its reader runs JavaScript is not documented, so do not count on it. The default fetch chain is now Firecrawl, Keenable, agy, local. Search is unchanged.
 - Keenable fetch follows Firecrawl's privacy rule: a literal private or reserved URL, or a hostname whose DNS answers are all private, is never sent out and falls to the local fetcher. The new `keenable.keylessFetch false` opts out, with the same meaning as `firecrawl.keylessFetch`. To keep automatic fetch local-only you now need to set both. `modsearch doctor` reports a Keenable fetch verdict.
