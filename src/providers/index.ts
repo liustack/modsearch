@@ -113,10 +113,12 @@ export const ROLE_PREFERENCE: Record<Role, string[]> = {
   // keyed backups.
   search: ['firecrawl', 'keenable', 'youcom', 'antigravity-cli', 'tavily', 'exa'],
   // Firecrawl runs a cloud browser for JS-heavy pages, keyless by default
-  // (opt out with firecrawl.keylessFetch false). agy extracts to a focus. The
-  // local needs no setup and returns the page as served, so it stays the
-  // default floor unless the user disables it.
-  fetch: ['firecrawl', 'antigravity-cli', 'local'],
+  // (opt out with firecrawl.keylessFetch false). Keenable is the second
+  // keyless cloud reader on a separate hourly pool, there for when Firecrawl
+  // refuses this IP or runs dry (opt out with keenable.keylessFetch false).
+  // agy extracts to a focus. The local needs no setup and returns the page as
+  // served, so it stays the default floor unless the user disables it.
+  fetch: ['firecrawl', 'keenable', 'antigravity-cli', 'local'],
   // Only xAI can see inside X.
   social: ['grok-cli'],
 };

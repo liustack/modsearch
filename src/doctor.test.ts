@@ -145,7 +145,30 @@ describe('doctor: fetch and X', () => {
     const firecrawl = engine(report, 'fetch', 'firecrawl');
     expect(firecrawl?.ready).toBe(false);
     expect(firecrawl?.reason).toMatch(/keylessFetch false/i);
-    expect(role(report, 'fetch')?.resolved).toBe('local');
+    // Keenable is the next keyless reader.
+    expect(role(report, 'fetch')?.resolved).toBe('keenable');
+  });
+
+  it('reports Keenable keyless fetch and its own opt-out', () => {
+    const on = runDoctor({ config: {}, env: BARE_ENV });
+    expect(engine(on, 'fetch', 'keenable')?.ready).toBe(true);
+    expect(engine(on, 'fetch', 'keenable')?.reason).toMatch(/keenable\.keylessFetch false/);
+
+    const off = runDoctor({
+      config: { engines: { firecrawl: { keylessFetch: false }, keenable: { keylessFetch: false } } },
+      env: BARE_ENV,
+    });
+    const keenable = engine(off, 'fetch', 'keenable');
+    expect(keenable?.ready).toBe(false);
+    expect(keenable?.fix).toBe('modsearch config set keenable.keylessFetch true');
+    expect(role(off, 'fetch')?.resolved).toBe('local');
+
+    // Choosing the engine is consent, as for Firecrawl.
+    const chosen = runDoctor({
+      config: { engine: 'keenable', engines: { keenable: { keylessFetch: false } } },
+      env: BARE_ENV,
+    });
+    expect(engine(chosen, 'fetch', 'keenable')?.ready).toBe(true);
   });
 
   it('keeps keyed Firecrawl fetch ready even when keylessFetch is false', () => {

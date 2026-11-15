@@ -12,12 +12,7 @@
 import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
 import { requestText } from '../util/timedRequest.ts';
-import {
-  type CloudDisclosureInspection,
-  inspectCloudDisclosureTarget,
-  isLiteralReservedTarget,
-  normalizeFetchUrl,
-} from './http/network.ts';
+import { assertCloudDisclosable, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
 import { MAX_CONTENT_CHARS } from './limits.ts';
@@ -209,31 +204,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   // One deadline for the DNS check, the request, and the body.
   const deadline = AbortSignal.timeout(options.timeoutMs);
 
-  // A literal private target never leaves the machine. DNS-only classification
-  // is advisory for cloud disclosure: standard 198.18/15 proxy fake IPs count
-  // as public placeholders, and one real public answer makes the hostname
-  // public. --allow-private-network remains local-only and never bypasses this.
-  if (isLiteralReservedTarget(target)) {
-    throw new Error(
-      `firecrawl does not fetch the private or reserved target ${target.hostname}. Use the local engine instead.`,
-    );
-  }
-  let disclosure: CloudDisclosureInspection;
-  try {
-    disclosure = await inspectCloudDisclosureTarget(target, deadline);
-  } catch (error) {
-    if (deadline.aborted) {
-      throw new Error(`firecrawl timed out after ${options.timeoutMs} ms.`);
-    }
-    throw error;
-  }
-  if (disclosure.reserved) {
-    const resolved =
-      disclosure.addresses.length > 0 ? ` -> ${disclosure.addresses.join(', ')}` : '';
-    throw new Error(
-      `firecrawl does not fetch the private or reserved target ${target.hostname}${resolved}. If a VPN or proxy on this machine uses fake-IP DNS, a public hostname may look reserved here. Use the local engine instead.`,
-    );
-  }
+  await assertCloudDisclosable('firecrawl', target, deadline, options.timeoutMs);
 
   const startedAt = Date.now();
   const data = await firecrawlPost<FirecrawlScrapeResponse>(

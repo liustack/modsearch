@@ -448,3 +448,40 @@ function parseIpv6Groups(groups: string[]): number[] | null {
 
   return parsed;
 }
+
+/**
+ * The gate every cloud fetch engine (firecrawl, keenable) passes before a URL
+ * leaves the machine. A literal private target is refused outright. A hostname
+ * is refused only when every usable DNS answer is private or reserved, with
+ * the 198.18/15 fake-IP placeholders counted as public. --allow-private-network
+ * authorizes the local fetcher only and never reaches this check. One deadline
+ * covers the DNS lookup, so a slow resolver reads as this engine timing out.
+ */
+export async function assertCloudDisclosable(
+  engineName: string,
+  target: URL,
+  deadline: AbortSignal,
+  timeoutMs: number,
+): Promise<void> {
+  if (isLiteralReservedTarget(target)) {
+    throw new Error(
+      `${engineName} does not fetch the private or reserved target ${target.hostname}. Use the local engine instead.`,
+    );
+  }
+  let disclosure: CloudDisclosureInspection;
+  try {
+    disclosure = await inspectCloudDisclosureTarget(target, deadline);
+  } catch (error) {
+    if (deadline.aborted) {
+      throw new Error(`${engineName} timed out after ${timeoutMs} ms.`);
+    }
+    throw error;
+  }
+  if (disclosure.reserved) {
+    const resolved =
+      disclosure.addresses.length > 0 ? ` -> ${disclosure.addresses.join(', ')}` : '';
+    throw new Error(
+      `${engineName} does not fetch the private or reserved target ${target.hostname}${resolved}. If a VPN or proxy on this machine uses fake-IP DNS, a public hostname may look reserved here. Use the local engine instead.`,
+    );
+  }
+}

@@ -9,6 +9,7 @@ import {
   chosenEngine,
   cooldownEnabled,
   currentConfigPath,
+  type EngineSettings,
   engineSettings,
   loadConfigFile,
   type ModsearchConfig,
@@ -130,6 +131,26 @@ function configuredApiKeys(
   return { count: fileKeys.length, source: fileKeys.length > 0 ? 'file' : null };
 }
 
+/**
+ * May this cloud engine fetch with no key? Keyless fetch is on by default and
+ * only an explicit `keylessFetch: false` turns it off. An explicit engine
+ * choice overrides even that (choosing the engine is consent). Mirrors the
+ * providers' isAvailable and the router's unconditional add of the
+ * configured engine.
+ */
+function keylessFetchAllowed(
+  settings: EngineSettings,
+  config: ModsearchConfig,
+  engineName: string,
+): boolean {
+  const configuredEngine = chosenEngine(config);
+  return (
+    settings.keylessFetch === undefined ||
+    settings.keylessFetch === true ||
+    (configuredEngine !== undefined && findEngine(configuredEngine)?.name === engineName)
+  );
+}
+
 function apiKeyPresentReason(count: number, source: 'env' | 'file'): string {
   return `API key present (${count} ${count === 1 ? 'key' : 'keys'}, from ${source})`;
 }
@@ -218,14 +239,31 @@ function diagnoseEngine(
       env.KEENABLE_API_KEY,
       config.engines?.keenable?.apiKey,
     );
+    if (role === 'search') {
+      return {
+        engine: engine.name,
+        enabled,
+        ready: true,
+        keySource,
+        reason: keySource
+          ? apiKeyPresentReason(count, keySource)
+          : 'keyless: works with no key and no signup (1,000 requests/hour, shared by everyone on this IP). Set a free key for 100,000 requests/month of your own.',
+      };
+    }
+    // Same consent rule as Firecrawl: an explicit engine choice overrides the
+    // keylessFetch opt-out.
+    const ready = Boolean(keySource) || keylessFetchAllowed(settings, config, 'keenable');
     return {
       engine: engine.name,
       enabled,
-      ready: true,
+      ready,
       keySource,
       reason: keySource
         ? apiKeyPresentReason(count, keySource)
-        : 'keyless: works with no key and no signup (1,000 requests/hour, shared by everyone on this IP). Set a free key for 100,000 requests/month of your own.',
+        : ready
+          ? "keyless fetch (default): public pages are read by Keenable's cloud reader, no key or signup needed. Opt out with: modsearch config set keenable.keylessFetch false"
+          : 'keyless fetch is switched off (keenable.keylessFetch false), so Keenable is excluded from automatic page fetch.',
+      ...(ready ? {} : { fix: 'modsearch config set keenable.keylessFetch true' }),
     };
   }
 
@@ -244,15 +282,7 @@ function diagnoseEngine(
       env.FIRECRAWL_API_KEY,
       config.engines?.firecrawl?.apiKey,
     );
-    const configuredEngine = chosenEngine(config);
-    // Keyless fetch is on by default; only an explicit `keylessFetch: false`
-    // turns it off, and an explicit Firecrawl engine choice overrides even
-    // that (choosing the engine is consent). Mirrors firecrawlProvider and
-    // the router's unconditional add of the configured engine.
-    const keylessFetch =
-      settings.keylessFetch === undefined ||
-      settings.keylessFetch === true ||
-      (configuredEngine !== undefined && findEngine(configuredEngine)?.name === 'firecrawl');
+    const keylessFetch = keylessFetchAllowed(settings, config, 'firecrawl');
     if (role === 'search') {
       return {
         engine: engine.name,

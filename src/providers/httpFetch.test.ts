@@ -153,11 +153,19 @@ describe('local engine routing', () => {
   it('takes over page fetch when keyless cloud fetch is opted out', () => {
     const noCloud = planRole(
       'fetch',
-      { engines: { firecrawl: { keylessFetch: false } } },
+      { engines: { firecrawl: { keylessFetch: false }, keenable: { keylessFetch: false } } },
       undefined,
       { PATH: '/nonexistent' } as NodeJS.ProcessEnv,
     );
     expect(noCloud.chain.map((engine) => engine.name)).toEqual(['local']);
+    // Each cloud reader has its own switch: opting out of one leaves the other.
+    const firecrawlOnlyOff = planRole(
+      'fetch',
+      { engines: { firecrawl: { keylessFetch: false } } },
+      undefined,
+      { PATH: '/nonexistent' } as NodeJS.ProcessEnv,
+    );
+    expect(firecrawlOnlyOff.chain.map((engine) => engine.name)).toEqual(['keenable', 'local']);
   });
 
   it('never takes over search', () => {

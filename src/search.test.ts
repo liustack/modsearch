@@ -760,8 +760,8 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
   itSpawn(
     'records every engine attempt in order with per-try outcome',
     async () => {
-      // agy fails, firecrawl declines the loopback target offline (a reserved
-      // address never goes to the cloud), then local answers.
+      // agy fails, firecrawl and keenable decline the loopback target offline
+      // (a reserved address never goes to the cloud), then local answers.
       const page = await startLocalPage(
         '<html><body><p>a body long enough to not look empty at all</p></body></html>',
       );
@@ -773,13 +773,20 @@ describe('uncertainty, warnings, and attempts are separate channels', () => {
           ok: boolean;
           error?: string;
         }>;
-        expect(attempts.map((a) => a.engine)).toEqual(['antigravity-cli', 'firecrawl', 'local']);
+        expect(attempts.map((a) => a.engine)).toEqual([
+          'antigravity-cli',
+          'firecrawl',
+          'keenable',
+          'local',
+        ]);
         expect(attempts[0].ok).toBe(false);
         expect(typeof attempts[0].error).toBe('string');
         expect(attempts[1].ok).toBe(false);
         expect(attempts[1].error).toMatch(/private or reserved/);
-        expect(attempts[2].ok).toBe(true);
-        expect(attempts[2].error).toBeUndefined();
+        expect(attempts[2].ok).toBe(false);
+        expect(attempts[2].error).toMatch(/keenable does not fetch the private or reserved/);
+        expect(attempts[3].ok).toBe(true);
+        expect(attempts[3].error).toBeUndefined();
       } finally {
         await page.close();
       }
