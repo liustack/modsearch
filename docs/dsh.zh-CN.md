@@ -83,10 +83,11 @@ modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
 modsearch config set keenable.apiKey <key>
 modsearch config set firecrawl.keylessFetch false
+modsearch config set keenable.keylessFetch false
 modsearch config set cooldown off
 ```
 
-不做任何设置就能开跑：搜索和单页抓取默认运行在 Firecrawl 的免注册免费额度上（每月 1,000 免费 credits，无需注册），搜索还能退到 Keenable 的免注册额度（每个 IP 每小时 1,000 次，无需注册），再退到 You.com 的免注册搜索（每个 IP 每天 100 次，无需注册）。免注册公网抓取默认开启，它会把请求的 URL 交给 Firecrawl 的云端爬虫，结果中的 warning 会标明这条路径。`firecrawl.keylessFetch false` 可让自动抓取只走本地。私有或保留地址不会发给 Firecrawl，而会落到本地抓取器。
+不做任何设置就能开跑：搜索和单页抓取默认运行在 Firecrawl 的免注册免费额度上（每月 1,000 免费 credits，无需注册），搜索还能退到 Keenable 的免注册额度（每个 IP 每小时 1,000 次，无需注册），再退到 You.com 的免注册搜索（每个 IP 每天 100 次，无需注册）。免注册公网抓取默认开启，它会把请求的 URL 交给 Firecrawl 的云端爬虫，Firecrawl 答不了时交给 Keenable 的阅读器，结果中的 warning 会标明这条路径。同时设 `firecrawl.keylessFetch false` 和 `keenable.keylessFetch false`，自动抓取就只走本地。私有或保留地址两者都不会发，而会落到本地抓取器。
 
 完整说明见[引擎配置手册](../skills/modsearch/references/configure.zh-CN.md)和[安全说明](security.zh-CN.md)。
 
@@ -105,6 +106,8 @@ dsh 网页端没有终端，所以插件自带一张设置卡片。dsh 0.1.6-alp
 Tavily、Exa、Firecrawl、Keenable 的官方接口地址内置在 provider 代码里。界面的接口地址只表示覆盖值。留空或清空都会使用内置官方地址，不会把默认 URL 写进配置文件。
 
 其余设置仍然只走 CLI，包括 `bin`、`allowPrivateNetwork`、`cooldown` 和 `keylessFetch`。卡片保存时会原样带过这些字段，也无法新建它们。
+
+插件给它启动的 CLI 设了 `MODSEARCH_PROJECT_CONFIG=off`，所以项目里的 `.modsearch/config.json` 在 dsh 中不会被读取。一个 dsh 进程服务所有工作区，工具调用又不会说明来自哪个工作区，CLI 的当前目录是 dsh 的，不是工作区的，在那里找到的项目文件会是错的。按工作区生效的配置要等 dsh 把工作区路径传给插件。眼下请用 `~/.modsearch/config.json`（或设置卡片）。
 
 密钥的处理：
 

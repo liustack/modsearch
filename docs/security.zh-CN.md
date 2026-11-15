@@ -42,13 +42,17 @@ HTTP 搜索引擎只访问各自的官方主机（除非用 `baseURL` 覆盖）�
 
 ## VPN 与保留地址段
 
-Firecrawl 公网页面抓取是一条云端边界：公网页面的 URL 会被发给 Firecrawl 的服务，由云端浏览器读取。它默认开启（裸安装能读 JavaScript 页面靠的就是它），每次云端抓取的结果都带一条注明路径的 warning。想让自动抓取只走本地，运行 `modsearch config set firecrawl.keylessFetch false`。配置了 Firecrawl key 或显式选择 Firecrawl 引擎时仍会启用。URL 中直写的私有和保留地址目标在任何配置下都不会发往云端。DNS 解析结果按下文更窄的披露规则处理。
+通过 Firecrawl 或 Keenable 抓取公网页面是一条云端边界：公网页面的 URL 会被发给对应服务，由它在云端读取（Firecrawl 用云端浏览器，Keenable 用它的云端阅读器）。两者默认都开启（裸安装能读 JavaScript 页面靠的是 Firecrawl），每次云端抓取的结果都带一条注明路径的 warning。想让自动抓取只走本地，要两个都关：`modsearch config set firecrawl.keylessFetch false` 和 `modsearch config set keenable.keylessFetch false`。配置了该引擎的 key，或在你自己的全局配置里选择了该引擎时仍会启用。`-u` 带 `-q` 时，Keenable 还会收到关注点文本，作为它的 `prompt`。URL 中直写的私有和保留地址目标在任何配置下都不会发往云端。DNS 解析结果按下文更窄的披露规则处理。
 
-Clash、Clash Verge Rev、mihomo 和 Surge 的代理 fake-ip 模式开箱即用。本地守卫和 Firecrawl 的云端披露判定都把 DNS 返回的 `198.18.0.0/15` 地址视为代理 fake-ip 占位值，不需要打开 `allowPrivateNetwork`。本地 socket 仍固定连到校验过的那个 fake-ip，Host 头和 TLS SNI 保留主机名。这个例外只作用于 DNS 解析结果。URL 中直写的 `http://198.18.0.5/` 这类地址在开关关闭时仍会被拒绝，也永远不会发往 Firecrawl。
+Clash、Clash Verge Rev、mihomo 和 Surge 的代理 fake-ip 模式开箱即用。本地守卫和 Firecrawl、Keenable 共用的云端披露判定都把 DNS 返回的 `198.18.0.0/15` 地址视为代理 fake-ip 占位值，不需要打开 `allowPrivateNetwork`。本地 socket 仍固定连到校验过的那个 fake-ip，Host 头和 TLS SNI 保留主机名。这个例外只作用于 DNS 解析结果。URL 中直写的 `http://198.18.0.5/` 这类地址在开关关闭时仍会被拒绝，也永远不会发往云端引擎。
 
 把公网主机名映射进其它保留段的分流隧道 VPN，以及把它们映射到回环地址的 hosts 文件加速器（如 Watt Toolkit / Steam++），仍需要 `--allow-private-network` 或顶层的 `modsearch config set allowPrivateNetwork true`。这个开关只对本地抓取器放行。开关打开时，本地抓取器还会信任操作系统证书库，由本地转发代理的已安装 CA 签发的证书才能通过校验。它不授权云端披露。不要用它去访问真正的内网地址。
 
-Firecrawl 只在扣除 fake-ip 例外后所有解析结果都是私网或保留地址时才扣下主机名。只要有一个公网地址或 fake-ip 地址，公网 URL 就会交给 Firecrawl。本地守卫则相反：只要还有任何一个其它私网或保留地址，即使同时有 fake-ip 或公网地址，也会拦下这个主机名。
+云端引擎只在扣除 fake-ip 例外后所有解析结果都是私网或保留地址时才扣下主机名。只要有一个公网地址或 fake-ip 地址，公网 URL 就会发出去。本地守卫则相反：只要还有任何一个其它私网或保留地址，即使同时有 fake-ip 或公网地址，也会拦下这个主机名。
+
+## 项目配置是一条信任边界
+
+项目目录可能是别人的仓库，所以里面的 `.modsearch/config.json` 不像你自己的 `~/.modsearch/config.json` 那样可信。modsearch 会读它（从当前目录往上找，到家目录为止），但只允许它收紧：选首选搜索引擎、关掉某个引擎、设某个引擎的模型。key、`bin`、`baseURL`、`keylessFetch`、`cooldown`、`allowPrivateNetwork` 和 `enabled: true` 都会被忽略，并在 stderr、`modsearch doctor` 和 `modsearch config show` 里按路径报出来。否则仓库里的 `bin` 能运行任意程序，`baseURL` 能把你的 key 发到任何主机。项目的 `engine` 也不等于同意云端抓取：它不能把你关掉了 `keylessFetch` 的云端引擎重新打开。设 `MODSEARCH_PROJECT_CONFIG=off` 可关闭这个查找。
 
 ## 不可信的页面内容
 

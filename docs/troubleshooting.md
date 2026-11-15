@@ -172,9 +172,18 @@ The SSRF guard refused a private or reserved address. Three possible causes:
 - **A hosts-file accelerator** such as Watt Toolkit / Steam++. It writes public domains into the hosts file pointing at `127.0.0.1`, and a local process listens on 443 and forwards. Allow it with `modsearch config set allowPrivateNetwork true`. After allowing, modsearch automatically trusts the OS certificate store on Node 22.15+, so a certificate issued by the proxy's locally installed CA can verify. Node 22.13 and 22.14 cannot read the OS store through this API, so upgrade to 22.15+. To enable system CAs for the whole Node process, `NODE_OPTIONS=--use-system-ca` is available on Node 22.15+, while `NODE_USE_SYSTEM_CA=1` requires Node 22.19+ or 24.6+. Firecrawl is a cloud engine and cannot reach loopback on this machine. This case only works with the local engine.
 - **A genuinely internal address**, which is exactly what the guard exists for. Do not disable the guard to reach it.
 
+## A cloud engine would not fetch a private target
+
+```
+firecrawl does not fetch the private or reserved target intranet.example. Use the local engine instead.
+keenable does not fetch the private or reserved target 10.0.0.5. Use the local engine instead.
+```
+
+Firecrawl and Keenable read pages on their own servers, so modsearch never sends them a URL that points inside your network. A literal private or reserved address is refused outright. A hostname is refused only when every address it resolves to is private or reserved (the `198.18.0.0/15` fake-IP pool of Clash, Surge, and mihomo does not count). In automatic mode the next engine in the chain takes over and the built-in local engine ends up reading the page. Only a forced `-e firecrawl` or `-e keenable` errors out. `allowPrivateNetwork` does not change this, because it opens private ranges for the local fetcher only.
+
 ## Page came back nearly empty
 
-The local engine runs no JavaScript. A page rendered entirely client-side has almost nothing in its HTML, and the result says so in `uncertainty`. Options: fetch it through agy instead (`-e antigravity-cli`), or find a server-rendered URL for the same content.
+The local engine runs no JavaScript. A page rendered entirely client-side has almost nothing in its HTML, and the result says so in `uncertainty`. Keenable's cloud reader may come back sparse for the same reason (its docs do not say whether it runs JavaScript). Options: fetch it through agy instead (`-e antigravity-cli`), or find a server-rendered URL for the same content.
 
 ## A forced engine that cannot run
 
@@ -205,6 +214,19 @@ Failed to parse ... Fix or delete the file.
 ```
 
 Invalid JSON. `modsearch config init --force` rewrites a clean one, losing whatever was in it.
+
+```
+Failed to read the project config /path/to/repo/.modsearch/config.json: ... Fix or delete the file.
+The project config /path/to/repo/.modsearch/config.json is not a JSON object. Fix or delete the file.
+```
+
+A `.modsearch/config.json` found in the current directory or above it is unreadable, not valid JSON, or not a JSON object. Unlike the global file, it fails the run, so a repository's settings never get half-applied. Fix or delete it. To skip the lookup, set `MODSEARCH_PROJECT_CONFIG=off`. `modsearch doctor` names the file in its `project:` line.
+
+```
+modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. ...
+```
+
+Not an error. The project file set things a project may not set, so they were left out. The line names paths, never values. Keys, `bin`, `baseURL`, `keylessFetch`, `cooldown`, and `allowPrivateNetwork` belong in `~/.modsearch/config.json`. A project's `engine` that names an engine not set up here (Tavily with no key, say) is skipped with a note, and so is a cloud engine whose `keylessFetch` you turned off.
 
 ## Timeouts
 

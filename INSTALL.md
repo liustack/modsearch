@@ -288,6 +288,7 @@ search (search the web)
 fetch (fetch a page)
   resolved: firecrawl
   - firecrawl         READY    keyless fetch (default): public pages are read by a cloud browser ...
+  - keenable          READY    keyless fetch (default): public pages are read by Keenable's cloud reader ...
   - local             READY    built in, needs nothing installed
 
 social (search X)

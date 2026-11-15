@@ -70,7 +70,7 @@ Firecrawl, Keenable, and You.com work with zero setup. Every other engine is one
 | Engine | Does | Free tier | Turn it on |
 | :-- | :-- | :-- | :-- |
 | Firecrawl (default) | web search + page fetch | keyless: 1,000 free credits/month, no signup. A free key adds your own 1,000/month | nothing, it works as installed |
-| Keenable | web search | keyless: 1,000 requests/hour per IP (shared by everyone on that IP), no signup. A free key gives 100,000 requests/month of your own | nothing, it works as installed |
+| Keenable | web search + page fetch | keyless: 1,000 requests/hour per IP (shared by everyone on that IP), no signup. A free key gives 100,000 requests/month of your own | nothing, it works as installed |
 | You.com | web search | keyless: 100 searches/day per IP (shared by everyone on that IP), no signup | nothing, it works as installed |
 | Antigravity CLI | web search + page fetch | free, browser sign-in | install `agy` and sign in |
 | Tavily | web search | 1,000 credits/month, no card | `modsearch config set tavily.apiKey <key>` |

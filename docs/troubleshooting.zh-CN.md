@@ -172,6 +172,15 @@ SSRF 防护拒绝了一个私有或保留地址。可能有三种成因：
 - **hosts 文件加速器**，例如 Watt Toolkit / Steam++。它把公网域名写进 hosts，指向 `127.0.0.1`，本机进程在 443 上监听并转发。用 `modsearch config set allowPrivateNetwork true` 放行。放行后，Node 22.15+ 上 modsearch 会自动信任操作系统证书库，由代理的本地已安装 CA 签发的证书就能通过校验。Node 22.13 和 22.14 没有通过这个 API 读取系统证书库的能力，请升级到 22.15+。如果要给整个 Node 进程启用系统 CA，Node 22.15+ 可设 `NODE_OPTIONS=--use-system-ca`，`NODE_USE_SYSTEM_CA=1` 则需要 Node 22.19+ 或 24.6+。firecrawl 是云端引擎，够不到本机回环地址，此场景只能走 local 引擎。
 - **真正的内网地址**，这正是防护存在的意义。不要为了够它而关掉防护。
 
+## 云端引擎不肯抓私网目标
+
+```
+firecrawl does not fetch the private or reserved target intranet.example. Use the local engine instead.
+keenable does not fetch the private or reserved target 10.0.0.5. Use the local engine instead.
+```
+
+Firecrawl 和 Keenable 在它们自己的服务器上读页面，所以 modsearch 绝不会把指向你内网的 URL 发给它们。URL 中直写的私有或保留地址会被直接拒绝。主机名只有在解析出的所有地址都是私网或保留地址时才会被拒绝（Clash、Surge、mihomo 的 `198.18.0.0/15` fake-ip 池不算）。自动模式下，链上的下一个引擎会接手，最后由内置的本地引擎读页面。只有硬指定 `-e firecrawl` 或 `-e keenable` 才会报错。`allowPrivateNetwork` 改变不了这一点，它只对本地抓取器放开私网段。
+
 ## 页面抓回来几乎是空的
 
 本地引擎不跑 JavaScript。纯客户端渲染的页面 HTML 里几乎没有内容，结果会在 `uncertainty` 里说明。可选项：改走 agy 抓（`-e antigravity-cli`），或找一个服务端渲染的同内容 URL。
@@ -205,6 +214,19 @@ Failed to parse ... Fix or delete the file.
 ```
 
 JSON 无效。`modsearch config init --force` 重写一个干净的，原内容丢弃。
+
+```
+Failed to read the project config /path/to/repo/.modsearch/config.json: ... Fix or delete the file.
+The project config /path/to/repo/.modsearch/config.json is not a JSON object. Fix or delete the file.
+```
+
+当前目录或上层目录里的 `.modsearch/config.json` 读不了、不是合法 JSON，或者不是 JSON 对象。和全局文件不同，它会让这次运行失败，这样仓库里的设置不会只生效一半。修好或删掉它。想跳过这个查找，设 `MODSEARCH_PROJECT_CONFIG=off`。`modsearch doctor` 的 `project:` 一行会指出是哪个文件。
+
+```
+modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. ...
+```
+
+这不是错误。项目文件设了项目不允许设的东西，这些被丢掉了。这一行只报路径，不报值。key、`bin`、`baseURL`、`keylessFetch`、`cooldown` 和 `allowPrivateNetwork` 要写在 `~/.modsearch/config.json` 里。项目的 `engine` 如果指向一个这里没配好的引擎（比如没有 key 的 Tavily），会被跳过并给出说明，你关掉了 `keylessFetch` 的云端引擎也一样。
 
 ## 超时
 

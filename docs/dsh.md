@@ -83,10 +83,11 @@ modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
 modsearch config set keenable.apiKey <key>
 modsearch config set firecrawl.keylessFetch false
+modsearch config set keenable.keylessFetch false
 modsearch config set cooldown off
 ```
 
-No setting is required to start: search and page fetch run on Firecrawl's keyless free quota (1,000 free credits/month, no signup), and search falls back to Keenable's keyless pool (1,000 requests/hour per IP, no signup), then to You.com's keyless search (100 searches/day per IP, no signup). Keyless public-page fetch is on by default. It sends the requested URL to Firecrawl's cloud crawler, and the result warning names that route. `firecrawl.keylessFetch false` keeps automatic fetch local-only. Private and reserved targets are never sent to Firecrawl and fall through to the local fetcher.
+No setting is required to start: search and page fetch run on Firecrawl's keyless free quota (1,000 free credits/month, no signup), and search falls back to Keenable's keyless pool (1,000 requests/hour per IP, no signup), then to You.com's keyless search (100 searches/day per IP, no signup). Keyless public-page fetch is on by default. It sends the requested URL to Firecrawl's cloud crawler, or to Keenable's reader if Firecrawl cannot answer, and the result warning names that route. Setting both `firecrawl.keylessFetch false` and `keenable.keylessFetch false` keeps automatic fetch local-only. Private and reserved targets are never sent to either and fall through to the local fetcher.
 
 See the [full engine configuration reference](../skills/modsearch/references/configure.md) and [security model](security.md).
 
@@ -105,6 +106,8 @@ Every engine is checked by default. Unchecking one writes only `enabled: false`.
 Official Tavily, Exa, Firecrawl, and Keenable endpoints live in the provider code. The base URL field is an override only. Leaving it blank or clearing it uses the built-in official address and writes no default URL into the config file.
 
 Everything else stays CLI only, including `bin`, `allowPrivateNetwork`, `cooldown` and `keylessFetch`. A card save copies them through untouched, and cannot create them.
+
+The plugin sets `MODSEARCH_PROJECT_CONFIG=off` for the CLI it starts, so a `.modsearch/config.json` inside a project is not read in dsh. One dsh process serves every workspace and a tool call does not say which workspace it came from, so the CLI's current directory is dsh's, not the workspace's, and a project file found there would be the wrong one. Per-workspace config waits on dsh passing the workspace path to plugins. Use `~/.modsearch/config.json` (or the card) for now.
 
 Key handling:
 

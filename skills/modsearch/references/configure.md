@@ -11,10 +11,10 @@ Three jobs, called roles. Each role has engines that can do it:
 | Job | Engines | Configurable? |
 | :-- | :-- | :-- |
 | search the public web | `firecrawl`, `keenable`, `youcom`, `antigravity-cli`, `tavily`, `exa` | preferred engine plus per-engine participation |
-| read one URL | the preferred engine if it can fetch, then `firecrawl`, `antigravity-cli`, `local` | per-engine participation |
+| read one URL | the preferred engine if it can fetch, then `firecrawl`, `keenable`, `antigravity-cli`, `local` | per-engine participation |
 | search X (Twitter) | `grok-cli` | per-engine participation |
 
-The search order is fixed at `firecrawl` then `keenable` then `youcom` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `antigravity-cli` then `local`. Every engine participates by default. `engines.<name>.enabled: false` filters one out, availability filters what remains, and quota cooldown reorders the ready chain (see below). Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key. Keenable comes second in search for the same reason, so a bare machine still has a keyless fallback when Firecrawl's allowance runs out. You.com comes third: a smaller keyless pool (100 searches a day per IP) for when both run dry on a busy IP.
+The search order is fixed at `firecrawl` then `keenable` then `youcom` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `keenable` then `antigravity-cli` then `local`. Every engine participates by default. `engines.<name>.enabled: false` filters one out, availability filters what remains, and quota cooldown reorders the ready chain (see below). Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key. Keenable comes second in both chains for the same reason, so a bare machine still has a keyless fallback when Firecrawl's allowance runs out. You.com comes third: a smaller keyless pool (100 searches a day per IP) for when both run dry on a busy IP.
 
 Two facts follow from this table, and they answer most questions:
 
@@ -69,12 +69,12 @@ JSON has no comments, so here is every field:
 | :-- | :-- | :-- | :-- |
 | `engine` | string | top level | Which engine searches. Empty means automatic (the best available here). One of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `keenable`, `youcom`. The aliases `agy`, `antigravity`, `grok`, `http`, `direct` are accepted and normalized to the canonical name. |
 | `cooldown` | `"on"` / `"off"` | top level | Quota cooldown failover. On by default. Off reads and writes no state and routes exactly as before. |
-| `allowPrivateNetwork` | boolean | top level | Allow the local fetcher to reach private or reserved addresses, including other VPN ranges and hosts-file accelerators. Default `false`. DNS answers in `198.18.0.0/15` already pass as fake-IP placeholders without this switch. Literal URLs in that range stay blocked while it is off. This setting never authorizes Firecrawl cloud disclosure. Literal private and reserved targets always stay off the cloud. For DNS answers, Firecrawl withholds the URL only when every address is private or reserved after the fake-IP exemption. |
+| `allowPrivateNetwork` | boolean | top level | Allow the local fetcher to reach private or reserved addresses, including other VPN ranges and hosts-file accelerators. Default `false`. DNS answers in `198.18.0.0/15` already pass as fake-IP placeholders without this switch. Literal URLs in that range stay blocked while it is off. This setting never authorizes cloud disclosure (Firecrawl or Keenable). Literal private and reserved targets always stay off the cloud. For DNS answers, the cloud engine withholds the URL only when every address is private or reserved after the fake-IP exemption. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
 | `engines.<name>.enabled` | boolean | every engine | Whether automatic routing may use this engine. Missing means enabled. Set `false` to exclude it. Setting `true` removes the override and returns to the built-in default. An explicit `--engine` still forces that engine for one run. |
 | `engines.<name>.apiKey` | string | `tavily`, `exa`, `firecrawl`, `keenable` | One API key, or multiple keys separated by commas. Whitespace and empty comma items are ignored. Authentication, rate-limit, and quota failures rotate through the keys in order. Network, 5xx, and parsing failures go directly to the next engine. Also settable via `TAVILY_API_KEY` / `EXA_API_KEY` / `FIRECRAWL_API_KEY` / `KEENABLE_API_KEY`, which win over the file. |
 | `engines.<name>.baseURL` | string | `tavily`, `exa`, `firecrawl`, `keenable` | Endpoint base replacing the official host: a compatible third-party gateway, a proxy, a self-hosted deployment. Must be a full http(s) URL. Also settable via `TAVILY_BASE_URL` / `EXA_BASE_URL` / `FIRECRAWL_BASE_URL` / `KEENABLE_BASE_URL`. Empty unsets it. See the endpoint section below. |
-| `engines.firecrawl.keylessFetch` | boolean | `firecrawl` | Allow public-page fetch through Firecrawl without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off Firecrawl's cloud; a configured key or an explicit Firecrawl engine choice still enables it. |
+| `engines.firecrawl.keylessFetch`, `engines.keenable.keylessFetch` | boolean | `firecrawl`, `keenable` | Allow public-page fetch through that engine's cloud without a key. Default `true` (keyless fetch is on as installed). Set `false` to keep automatic page fetch off that engine's cloud. A configured key or an explicit choice of that engine in your own global config still enables it. |
 | `engines.<name>.bin` | string | `antigravity-cli`, `grok-cli` | Path to the engine's CLI binary. Defaults to `agy` and `grok` found on `PATH`. |
 | `engines.<name>.model` | string | `antigravity-cli` | Model the engine uses. Defaults to `gemini-3.8-flash-low`. |
 
@@ -102,7 +102,37 @@ save it for them: the offer is for the users who care, not a gate.
 
 The shared `enabled` switch applies to search, fetch, and X. Fetching uses the preferred engine when it can fetch, then the enabled engines in the built-in order. Disabling `local` removes the default fetch floor. Disabling `grok-cli` makes an X request take the documented public-web degrade path. A one-off explicit `--engine` ignores these persistent opt-outs.
 
+A project can also carry a small config of its own. See the next section.
+
 A config written before roles existed (one global `provider` plus a `providers` map) is read and mapped automatically. Nothing to migrate by hand.
+
+## Project config
+
+A project can add a `.modsearch/config.json`. modsearch looks for it from the current directory upward and stops at the home directory. `~/.modsearch/config.json` is never taken for a project file. The nearest one wins and it is laid over the global file.
+
+A project file can only narrow, never widen. It may set three things:
+
+```json
+{
+  "engine": "tavily",
+  "engines": {
+    "exa": { "enabled": false },
+    "antigravity-cli": { "model": "gemini-3.8-flash-low" }
+  }
+}
+```
+
+- `engine`: the preferred search engine for this project.
+- `engines.<name>.enabled: false`: keep an engine out of automatic routing here. `true` cannot switch back on what the global file turned off.
+- `engines.<name>.model`: the model for that engine.
+
+Everything else is ignored: `apiKey`, `bin`, `baseURL`, `keylessFetch`, `cooldown`, `allowPrivateNetwork`, `enabled: true`, and engines modsearch does not know. A project directory can be someone else's clone, so a `bin` there would run any program and a `baseURL` would send your key anywhere. Ignored entries are named by path (never by value) on stderr during a search, in `modsearch doctor` (a `project:` line and an `! ignored ...` line, plus `projectConfig` in `--json`), and in `modsearch config show` (values tagged `(project)`).
+
+A project's `engine` is not consent to cloud fetch. If it names a cloud engine whose `keylessFetch` you turned off, or an engine that is not set up (Tavily with no key, say), routing skips it and says so in a note. Only your own global config can opt in.
+
+A broken project file fails the run: `Failed to read the project config <path>: ... Fix or delete the file.` or `The project config <path> is not a JSON object. Fix or delete the file.` `MODSEARCH_PROJECT_CONFIG=off` turns the lookup off. `modsearch config set` still writes only the global file.
+
+The dsh plugin sets `MODSEARCH_PROJECT_CONFIG=off` for the CLI it starts. One dsh process serves every workspace and a tool call does not say which workspace it came from, so the CLI's current directory is dsh's, not the workspace's. Per-workspace config in dsh waits on dsh passing the workspace path to plugins.
 
 ## Engine setup
 
@@ -147,20 +177,28 @@ modsearch config set firecrawl.apiKey <key>
 modsearch config set firecrawl.keylessFetch false   # keep automatic page fetch off the cloud
 ```
 
-Both roles run keyless out of the box. Fetch is where Firecrawl earns its lead: it runs a real browser in the cloud, so JavaScript-rendered pages come back with content the local engine cannot see. That also means a public URL is sent to a third party, and the result warning names that boundary on every cloud fetch. To keep automatic page fetch local-only, set `firecrawl.keylessFetch false`: search stays keyless, and fetch skips Firecrawl unless a key is configured or `-e firecrawl` selects it explicitly. A literal private or reserved target is always skipped, even with `--allow-private-network` on. Hostname DNS answers use a narrower cloud-disclosure rule. The standard Clash, Surge, and mihomo fake-IP pool `198.18.0.0/15` is treated as a placeholder, and a hostname stays off Firecrawl only when every resolved address is genuinely private or reserved. Any public answer allows the public URL through. This exception is DNS-only. The local SSRF guard still treats `198.18.0.0/15` as private, and the switch only lets that local engine reach it.
+Both roles run keyless out of the box. Fetch is where Firecrawl earns its lead: it runs a real browser in the cloud, so JavaScript-rendered pages come back with content the local engine cannot see. That also means a public URL is sent to a third party, and the result warning names that boundary on every cloud fetch. To keep automatic page fetch local-only, set `firecrawl.keylessFetch false` and `keenable.keylessFetch false` (Keenable's reader is a cloud too, see below): search stays keyless, and fetch skips both unless a key is configured or `-e` selects one explicitly. A literal private or reserved target is always skipped, even with `--allow-private-network` on. Hostname DNS answers use a narrower cloud-disclosure rule. The standard Clash, Surge, and mihomo fake-IP pool `198.18.0.0/15` is treated as a placeholder, and a hostname stays off Firecrawl only when every resolved address is genuinely private or reserved. Any public answer allows the public URL through. This exception is DNS-only. The local SSRF guard still treats `198.18.0.0/15` as private, and the switch only lets that local engine reach it.
 
 Every Firecrawl fetch spends a credit and forces a fresh crawl. modsearch sends `maxAge: 0`, which disables Firecrawl's default multi-day cache, so a fetch can never return stale content. The trade is deliberate: a credit per fetch in exchange for currency, which is the point of the tool. If you would rather trade freshness for credits, Firecrawl is not the engine to reach for.
 
-### keenable (search, keyless by default)
+### keenable (search + fetch, keyless by default)
 
-Works with no key and no signup, and sits second in the search order, right after Firecrawl. Keyless requests go to Keenable's public endpoint, which allows 1,000 requests an hour per IP (shared by everyone on that IP) and at most 10 a second. A free key from https://app.keenable.ai moves the calls to the keyed endpoint: no hourly cap, 100,000 requests a month per organization.
+Works with no key and no signup, and sits second in the search order and in the fetch order, right after Firecrawl. Keyless requests go to Keenable's public endpoint, which allows 1,000 requests an hour per IP (shared by everyone on that IP) and at most 10 a second. A free key from https://app.keenable.ai moves the calls to the keyed endpoint: no hourly cap, 100,000 requests a month per organization.
 
 ```bash
 modsearch config set keenable.apiKey <key>
 # or environment: export KEENABLE_API_KEY=<key>
 ```
 
-Keenable searches only, so `-u` with `-e keenable` is an error. Like Exa, it returns ranked links with snippets (and a publish date when Keenable has one) but writes no synthesis, so its summary is mechanical, a warning says so, and the evidence is in `items`.
+In search it returns ranked links with snippets (and a publish date when Keenable has one) but writes no synthesis, like Exa, so its summary is mechanical, a warning says so, and the evidence is in `items`.
+
+Keenable also reads pages (`-u`). Keyless fetch goes to `/v1/fetch/public` and needs no signup. A key moves it to `/v1/fetch`. Every fetch asks for a live read, not Keenable's indexed copy, and the text comes back as Keenable's markdown extraction, not the page as served. Whether its reader runs JavaScript is not documented, so do not count on it. A public URL is sent to Keenable, so the result carries a warning and the same SSRF rule as Firecrawl applies: a literal private or reserved target, or a hostname whose DNS answers are all private (the `198.18.0.0/15` fake-IP pool counts as a placeholder, not private), never leaves the machine. `-u` with `-q` (or `--prompt`) is sent as Keenable's `prompt`, so the content becomes Keenable's model extract for that focus, not the page text, links come back empty, and a warning says so. A focus over 2,000 characters is dropped with a warning and the full page is returned.
+
+```bash
+modsearch config set keenable.keylessFetch false   # keep automatic page fetch off Keenable's cloud
+```
+
+`keenable.keylessFetch false` works like Firecrawl's: a configured key or choosing `engine keenable` in your own global config re-enables it.
 
 ### youcom (search, keyless only)
 
@@ -170,7 +208,7 @@ You.com searches only, so `-u` with `-e youcom` is an error. Like Keenable, it r
 
 ### Third-party compatible endpoints (tavily, exa, firecrawl, keenable)
 
-The four HTTP engines can point at any endpoint that speaks the same API as the official one: a reseller gateway, a regional proxy, a self-hosted deployment. Set `baseURL` and the engine appends its documented path to it (`/search` for tavily and exa, `/v2/search` and `/v2/scrape` for firecrawl, `/v1/search` for keyed keenable and `/v1/search/public` for keyless keenable), so a base of `https://gw.example.com/tavily` posts to `https://gw.example.com/tavily/search`.
+The four HTTP engines can point at any endpoint that speaks the same API as the official one: a reseller gateway, a regional proxy, a self-hosted deployment. Set `baseURL` and the engine appends its documented path to it (`/search` for tavily and exa, `/v2/search` and `/v2/scrape` for firecrawl, `/v1/search` and `/v1/fetch` for keyed keenable, `/v1/search/public` and `/v1/fetch/public` for keyless keenable), so a base of `https://gw.example.com/tavily` posts to `https://gw.example.com/tavily/search`.
 
 The official bases are built into the providers: `https://api.tavily.com`, `https://api.exa.ai`, `https://api.firecrawl.dev`, and `https://api.keenable.ai`. They are not copied into `config.json`. An absent or cleared `baseURL` means to use the built-in official base, which lets a later release correct that default without a stale file overriding it. The dsh settings card follows the same rule.
 

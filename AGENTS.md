@@ -26,7 +26,7 @@ src/
 ├── search.ts     # orchestration: mode, plan, run each source concurrently, envelope
 ├── doctor.ts     # `modsearch doctor`: diagnose config + routing, no quota, no network
 ├── router.ts     # every routing decision: sources, role to engine, fallbacks
-├── config.ts     # layered engine config: flags > env > ~/.modsearch/config.json
+├── config.ts     # layered engine config: flags > env > project .modsearch/config.json (narrow-only) > ~/.modsearch/config.json
 ├── subprocess.ts # running an engine binary and draining its output
 ├── util/
 │   └── spawnHidden.ts # the only core child-process boundary
@@ -39,7 +39,7 @@ src/
     ├── tavily.ts       # Tavily API: search
     ├── exa.ts          # Exa API: search
     ├── firecrawl.ts    # Firecrawl API: search + fetch
-    ├── keenable.ts     # Keenable API: search, keyless by default
+    ├── keenable.ts     # Keenable API: search + fetch, keyless by default
     ├── youcom.ts       # You.com API: search, keyless
     ├── grok.ts         # Grok Build: X
     └── httpFetch.ts    # direct HTTP fetch, no dependencies
