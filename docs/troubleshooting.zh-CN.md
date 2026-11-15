@@ -98,13 +98,22 @@ keenable is out of credits (HTTP 402). ...
 
 当前额度已经用完。对 Firecrawl 而言，它可能是免注册每日额度，也可能是账号额度。其他搜索引擎会自动接手，冷却开着时耗尽的引擎会被挪到链末尾直到恢复。加额度、换引擎，或等待对应周期重置。Keenable 带 key 的额度是每个组织每月 100,000 次，在 https://app.keenable.ai 管理。
 
+## Firecrawl 免注册额度用完
+
+```
+firecrawl's keyless allowance for this IP is used up. Resets in 23h48m52s. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom.
+```
+
+不带 key 时，Firecrawl 给每个 IP 一份不大的每日额度，同一 IP 上的所有人共用。用完后 Firecrawl 会告诉还要等多久，冷却开着时 modsearch 会把 Firecrawl 挪到链末尾直到那时，之后的请求直接交给 Keenable，不用每次先被拒一遍。搜索和抓取都照常可用。想要独享额度，到 https://firecrawl.dev 领个免费 key。
+
 ## Keenable 免注册额度本小时用完
 
 ```
 keenable's keyless pool for this IP is used up for the hour (1,000 requests). Set a free key for your own quota: modsearch config set keenable.apiKey <key> ...
+keenable's keyless pool for this IP is used up. Resets in 30m0s. Set a free key for your own quota: ...
 ```
 
-不带 key 时，Keenable 每个 IP 每小时给 1,000 次，同一 IP 上的所有人共用这份额度（办公室、VPN 出口、云主机都算），每秒最多 10 次。链上的下一个搜索引擎会自动接手。想要一份独享额度，到 https://app.keenable.ai 领个免费 key：带 key 的 Keenable 没有每小时上限，每月 100,000 次。
+第二种写法出现在 Keenable 告知了等待时间时，冷却会精确保持到那一刻。不带 key 时，Keenable 每个 IP 每小时给 1,000 次，同一 IP 上的所有人共用这份额度（办公室、VPN 出口、云主机都算），每秒最多 10 次。链上的下一个搜索引擎会自动接手。想要一份独享额度，到 https://app.keenable.ai 领个免费 key：带 key 的 Keenable 没有每小时上限，每月 100,000 次。
 
 ```bash
 modsearch config set keenable.apiKey <key>

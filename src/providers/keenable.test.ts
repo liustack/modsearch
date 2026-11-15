@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { classifyQuota } from '../cooldown.ts';
 import { isApiKeyFailure } from '../util/apiKeys.ts';
 import { resolveEngine } from './index.ts';
 import { executeKeenable, markdownLinks } from './keenable.ts';
@@ -19,7 +20,10 @@ afterEach(() => {
 });
 
 /** Mock the global fetch with a JSON response, capturing the request. */
-function mockFetchJson(body: unknown, init: { status?: number; text?: string } = {}) {
+function mockFetchJson(
+  body: unknown,
+  init: { status?: number; text?: string; headers?: Record<string, string> } = {},
+) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const status = init.status ?? 200;
   vi.stubGlobal(
@@ -30,6 +34,7 @@ function mockFetchJson(body: unknown, init: { status?: number; text?: string } =
         ok: status >= 200 && status < 300,
         status,
         statusText: status === 200 ? 'OK' : 'Error',
+        headers: new Headers(init.headers),
         text: async () => init.text ?? JSON.stringify(body),
       } as unknown as Response;
     }),
@@ -361,5 +366,24 @@ describe('markdownLinks', () => {
     expect(markdownLinks('[](https://e.com/a)')).toEqual([
       { text: 'https://e.com/a', url: 'https://e.com/a' },
     ]);
+  });
+});
+
+describe('a spent keyless pool', () => {
+  const now = new Date('2026-11-15T14:00:00.000Z');
+
+  it('names the reset time from Retry-After so the cooldown holds Keenable until then', async () => {
+    mockFetchJson({}, { status: 429, text: '{"error":"Too Many Requests"}', headers: { 'retry-after': '1800' } });
+    const error = await search().catch((caught: unknown) => caught);
+    expect((error as Error).message).toMatch(/keyless pool for this IP is used up\. Resets in 30m0s\./);
+    expect(classifyQuota(error, now)?.getTime()).toBe(now.getTime() + 1800 * 1000);
+  });
+
+  it('still cools for the default time when Keenable gives no reset time', async () => {
+    // The pool is hourly, so a spent one is not a per-second blip either way.
+    mockFetchJson({}, { status: 429, text: '{"error":"Too Many Requests"}' });
+    const error = await search().catch((caught: unknown) => caught);
+    expect((error as Error).message).toMatch(/keyless pool for this IP is used up for the hour/);
+    expect(classifyQuota(error, now)).not.toBeNull();
   });
 });

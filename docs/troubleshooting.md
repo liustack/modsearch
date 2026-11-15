@@ -98,13 +98,22 @@ keenable is out of credits (HTTP 402). ...
 
 The current budget is spent. For Firecrawl this can be an anonymous daily allowance or an account quota. Another search engine picks up the work on its own, and with cooldown on the spent engine is moved to the back of the chain until it recovers. Add credit, switch engines, or wait for the relevant reset. Keenable's keyed allowance is 100,000 requests a month per organization, managed at https://app.keenable.ai.
 
+## Firecrawl keyless allowance used up
+
+```
+firecrawl's keyless allowance for this IP is used up. Resets in 23h48m52s. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom.
+```
+
+With no key, Firecrawl grants each IP a small daily allowance, shared by everyone on that IP. Once it is spent, Firecrawl says how long until it comes back, and with cooldown on modsearch moves Firecrawl to the back of the chain until then, so later runs go straight to Keenable instead of being refused first. Search and page fetch keep working. For your own allowance, set a free key from https://firecrawl.dev.
+
 ## Keenable keyless pool used up for the hour
 
 ```
 keenable's keyless pool for this IP is used up for the hour (1,000 requests). Set a free key for your own quota: modsearch config set keenable.apiKey <key> ...
+keenable's keyless pool for this IP is used up. Resets in 30m0s. Set a free key for your own quota: ...
 ```
 
-With no key, Keenable allows 1,000 requests an hour per IP, and everyone on that IP shares the pool (an office, a VPN exit, a cloud host). It also caps the pool at 10 requests a second. The next search engine in the chain picks up the work on its own. For a quota of your own, take a free key from https://app.keenable.ai: a keyed Keenable has no hourly cap and gives 100,000 requests a month.
+The second form appears when Keenable says how long to wait, and the cooldown holds Keenable until exactly then. With no key, Keenable allows 1,000 requests an hour per IP, and everyone on that IP shares the pool (an office, a VPN exit, a cloud host). It also caps the pool at 10 requests a second. The next search engine in the chain picks up the work on its own. For a quota of your own, take a free key from https://app.keenable.ai: a keyed Keenable has no hourly cap and gives 100,000 requests a month.
 
 ```bash
 modsearch config set keenable.apiKey <key>

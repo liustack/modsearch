@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- When Firecrawl's keyless allowance runs out, the error now says when it comes back, and the cooldown keeps Firecrawl at the back of the chain until then. Before, every later search was refused by Firecrawl first (about a second each) before Keenable answered, because the refusal looked like a brief rate limit. Keenable's keyless 429 uses its Retry-After the same way when it sends one.
+
 ## 5.10.13 - 2026-11-15
 
 - Keenable now reads pages too, so `-u` has a second keyless cloud engine. It needs no key and no signup (a free key moves it to the keyed endpoint), and always asks for a live read rather than Keenable's indexed copy. The page text comes back as Keenable's markdown extraction. With `-q` (or `--prompt`) the focus goes to Keenable as its own prompt, so the content is Keenable's model extract for that focus and not the page text, and a warning says so. A focus over 2,000 characters is dropped with a warning and the full page is returned. Whether its reader runs JavaScript is not documented, so do not count on it. The default fetch chain is now Firecrawl, Keenable, agy, local. Search is unchanged.

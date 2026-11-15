@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { classifyQuota } from '../cooldown.ts';
 import { runSearch } from '../search.ts';
 import { BARE_ENV } from '../testing/helpers.ts';
 import { executeFirecrawl, looksLikeClientRenderedShell } from './firecrawl.ts';
@@ -21,7 +22,10 @@ afterEach(() => {
 });
 
 /** Mock the global fetch with a JSON response, capturing each request. */
-function mockFetchJson(body: unknown, init: { ok?: boolean; status?: number; text?: string } = {}) {
+function mockFetchJson(
+  body: unknown,
+  init: { ok?: boolean; status?: number; text?: string; headers?: Record<string, string> } = {},
+) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const fn = vi.fn(async (url: string, requestInit: RequestInit) => {
     calls.push({ url, init: requestInit });
@@ -29,6 +33,7 @@ function mockFetchJson(body: unknown, init: { ok?: boolean; status?: number; tex
       ok: init.ok ?? true,
       status: init.status ?? 200,
       statusText: 'OK',
+      headers: new Headers(init.headers),
       json: async () => body,
       text: async () => init.text ?? JSON.stringify(body),
     } as unknown as Response;
@@ -660,6 +665,51 @@ describe('firecrawl error classification', () => {
     await expect(request).rejects.toThrow(
       /firecrawl does not allow keyless use from a proxy or VPN exit IP\. Set a free key: modsearch config set firecrawl\.apiKey <key>, or use keenable or youcom\./,
     );
+  });
+});
+
+describe('a spent keyless allowance', () => {
+  const now = new Date('2026-11-15T14:00:00.000Z');
+
+  it('names the reset time so the cooldown holds Firecrawl until then', async () => {
+    // The live body Firecrawl sends once an IP's keyless credits are gone.
+    const body =
+      '{"success":false,"error":"You\'ve hit Firecrawl\'s keyless free tier rate limit. To continue now, create a free API key","reason":"credits","retry_after_seconds":85732}';
+    mockFetchJson({}, { ok: false, status: 429, text: body, headers: { 'retry-after': '85731' } });
+    const error = await executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: {},
+    }).catch((caught: unknown) => caught);
+    expect((error as Error).message).toMatch(
+      /keyless allowance for this IP is used up\. Resets in 23h48m52s\. Set a free key: modsearch config set firecrawl\.apiKey <key>, or use keenable or youcom\./,
+    );
+    expect(classifyQuota(error, now)?.getTime()).toBe(now.getTime() + 85732 * 1000);
+  });
+
+  it('falls back to the Retry-After header when the body has no seconds', async () => {
+    const body = '{"success":false,"error":"rate limit","reason":"credits"}';
+    mockFetchJson({}, { ok: false, status: 429, text: body, headers: { 'retry-after': '3600' } });
+    const error = await executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: {},
+    }).catch((caught: unknown) => caught);
+    expect(classifyQuota(error, now)?.getTime()).toBe(now.getTime() + 3600 * 1000);
+  });
+
+  it('leaves a short burst limit transient, so nothing is remembered', async () => {
+    const body = '{"success":false,"error":"Too many requests, slow down"}';
+    mockFetchJson({}, { ok: false, status: 429, text: body, headers: { 'retry-after': '5' } });
+    const error = await executeFirecrawl({
+      mode: 'search',
+      query: 'q',
+      timeoutMs: 30000,
+      settings: {},
+    }).catch((caught: unknown) => caught);
+    expect(classifyQuota(error, now)).toBeNull();
   });
 });
 

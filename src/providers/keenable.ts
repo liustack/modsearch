@@ -13,6 +13,7 @@
 // with `keenable.keylessFetch false`.
 import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
+import { resetClause, retryAfterSeconds, SPENT_ALLOWANCE_MIN_SECONDS } from '../util/retryAfter.ts';
 import { requestText } from '../util/timedRequest.ts';
 import { resolveEndpoint } from './endpoint.ts';
 import { assertCloudDisclosable, normalizeFetchUrl } from './http/network.ts';
@@ -91,12 +92,20 @@ function ensureOk(
   }
   if (!apiKey) {
     // The keyless pool is shared by everyone on this IP, so a 429 here is
-    // not about anything the user configured.
-    throw new Error(
-      response.status === 429
-        ? `keenable's keyless pool for this IP is used up for the hour (1,000 requests). Set a free key for your own quota: modsearch config set keenable.apiKey <key> (100,000 requests/month, https://app.keenable.ai)`
-        : message,
-    );
+    // not about anything the user configured. The pool is hourly, so the
+    // wording reads as quota class either way, and a Retry-After of a minute
+    // or more becomes the exact reset the cooldown holds Keenable until.
+    if (response.status === 429) {
+      const wait = retryAfterSeconds(response);
+      const when =
+        wait !== null && wait >= SPENT_ALLOWANCE_MIN_SECONDS
+          ? `. ${resetClause(wait)}.`
+          : ' for the hour (1,000 requests).';
+      throw new Error(
+        `keenable's keyless pool for this IP is used up${when} Set a free key for your own quota: modsearch config set keenable.apiKey <key> (100,000 requests/month, https://app.keenable.ai)`,
+      );
+    }
+    throw new Error(message);
   }
   // 402 is the spent monthly allowance: the quota class the cooldown layer
   // holds for a day rather than re-hitting.

@@ -11,6 +11,7 @@
 // error. --allow-private-network authorizes local access, never cloud disclosure.
 import { ApiKeyFailureError, isQuotaFailureMessage, splitApiKeys } from '../util/apiKeys.ts';
 import { redactSecrets } from '../util/redact.ts';
+import { resetClause, retryAfterSeconds, SPENT_ALLOWANCE_MIN_SECONDS } from '../util/retryAfter.ts';
 import { requestText } from '../util/timedRequest.ts';
 import { assertCloudDisclosable, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
@@ -135,7 +136,41 @@ function ensureOk(
   if (apiKey && response.status === 429) {
     throw new ApiKeyFailureError(message);
   }
+  if (!apiKey && response.status === 429) {
+    // Firecrawl answers a spent keyless allowance with 429, `reason: credits`
+    // and a wait of most of a day. Naming the reset lets the cooldown skip
+    // Firecrawl until then rather than spend a refused round trip every run.
+    const wait = keylessWait(text, response);
+    if (wait !== null) {
+      throw new Error(
+        `firecrawl's keyless allowance for this IP is used up. ${resetClause(wait)}. Set a free key: modsearch config set firecrawl.apiKey <key>, or use keenable or youcom.`,
+      );
+    }
+  }
   throw new Error(message);
+}
+
+/**
+ * The wait behind a keyless 429 when it is a spent allowance rather than a
+ * burst limit: the body's `retry_after_seconds`, else Retry-After, counted only
+ * when the body says `reason: credits` or the wait is a minute or more.
+ */
+function keylessWait(text: string, response: Response): number | null {
+  let body: { reason?: unknown; retry_after_seconds?: unknown } = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // A non-JSON body still leaves the header to go by.
+  }
+  const fromBody =
+    typeof body.retry_after_seconds === 'number' && body.retry_after_seconds > 0
+      ? Math.round(body.retry_after_seconds)
+      : null;
+  const wait = fromBody ?? retryAfterSeconds(response);
+  if (wait === null) {
+    return null;
+  }
+  return body.reason === 'credits' || wait >= SPENT_ALLOWANCE_MIN_SECONDS ? wait : null;
 }
 
 async function firecrawlSearch(options: EngineRequest): Promise<EngineOutput> {
