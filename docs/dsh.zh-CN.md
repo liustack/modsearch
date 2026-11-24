@@ -63,6 +63,22 @@ bundle 贡献两条 patch：
 | 网页搜索 | 内置 `web_search` | 运行 ModSearch 网页引擎链，保留原生引用卡片。 |
 | X 搜索 | 新增 `x_search` 工具 | 有 Grok Build 时直接使用。网页替代结果会明确标成降级。 |
 | 带焦点读单页 | 新增 `read_page` 工具 | 读取一个 URL，可附问题聚焦。私网目标仍会拦截。dsh 自带的 `web_fetch` 照常保留，用于取原始正文和状态码。 |
+| 网页抓取（需手动选） | 内置 `web_fetch` | 注册为抓取 provider，但默认不选中。你选 `modsearch` 之前，`web_fetch` 仍走 dsh 本地的 `http` 抓取（见下节）。 |
+
+## 让 web_fetch 走 ModSearch
+
+`web_fetch` 默认走 dsh 本地的 `http` 抓取：免费、不限次，还能拿到真实状态码。本地抓回来是空的或被拦，或者不想让 `web_fetch` 走付费的 DeepSeek Fetch API 时，选 `modsearch`。之后页面走和 `read_page` 一样的读取链（先 Firecrawl 免注册，再 Keenable、agy、本地抓取），云端读取和搜索共用同一份免费额度。返回的是读取器提取的 markdown，状态码记为 200，和 dsh 自带 Fetch API 的做法一致。
+
+在 profile patch 里加这一行，同一行保留 `searchProvider`：
+
+```yaml
+- id: web
+  config:
+    searchProvider: modsearch
+    fetchProvider: modsearch
+```
+
+dsh 自带的「网页搜索」页面有个「启用新版 Web 搜索 API」开关。打开并保存，会把搜索和抓取一起切到 DeepSeek 的付费 API，原来走 ModSearch 的搜索也被切走。关上并保存，两者回到 bundle 的默认值（搜索 `modsearch`，抓取 `http`）。
 
 ## 配置搜索引擎
 
@@ -131,6 +147,9 @@ Tavily、Exa、Firecrawl、Keenable 的官方接口地址内置在 provider 代�
     settingsCard: true
     providerTimeoutMs: 40000
     providerDeadlineMs: 55000
+    fetchProvider: true
+    fetchTimeoutMs: 20000
+    fetchDeadlineMs: 25000
 ```
 
 所有字段都可省略：
@@ -143,6 +162,9 @@ Tavily、Exa、Firecrawl、Keenable 的官方接口地址内置在 provider 代�
 | `settingsCard` | `true` | 提供设置卡片与 `/modsearch/config` 路由。关掉后两者都不注册，浏览器那半边也随之停手。 |
 | `providerTimeoutMs` | `40000` | `web_search` provider 路径上单个引擎最多用多久（即 CLI 的 `--timeout`）。要明显小于 `providerDeadlineMs`，备用引擎才轮得到。 |
 | `providerDeadlineMs` | `55000` | `web_search` 整次运行最多用多久，所有引擎合计（即 CLI 的 `--deadline`）。应小于 dsh 的工具预算，自带搜索路由是 60 秒。 |
+| `fetchProvider` | `true` | 把 ModSearch 注册为 `web_fetch` 的可选 provider。注册不等于选中，由 web 行的 `fetchProvider` 决定。 |
+| `fetchTimeoutMs` | `20000` | `web_fetch` provider 路径上单个引擎最多用多久。 |
+| `fetchDeadlineMs` | `25000` | `web_fetch` 整次运行最多用多久。应小于 dsh 的 `web_fetch` 预算，默认 30 秒。 |
 
 只关闭 `x_search` 或 `read_page` 不会影响别的能力。关闭 `searchProvider` 时还要把 web 接缝指向另一个已注册 provider。否则 dsh 仍被配置成选择 `modsearch`，但对应 provider 已不存在：
 
@@ -195,7 +217,7 @@ npx -y @deepseek-ai/dsh plugin --profile <name> remove @liustack/modsearch
 
 - `declares no dsh.bundle`：装到了旧版 ModSearch。按上方精确版本重新安装。
 - `modsearch's CLI build is missing`，或 5.10.6 及更早版本报 `Cannot find module .../dist/main.js`：插件是从 GitHub 仓库装的，没有构建产物。卸载后按包名 `@liustack/modsearch` 重新添加。
-- `web seam has no registerSearchProvider`：dsh 移动了开发预览接口。`x_search` 与 `read_page` 仍会注册，网页搜索则跳过并打印明确日志。修改插件前先检查最新 dsh release。
+- `web seam has no registerSearchProvider` 或 `web seam has no registerFetchProvider`：dsh 移动了开发预览接口。`x_search` 与 `read_page` 仍会注册，对应 provider 跳过并打印明确日志。修改插件前先检查最新 dsh release。
 - `modsearch failed (exit ...)`：运行 `modsearch doctor`。错误会保留 CLI 尝试过的引擎。
 - `plugin list` 有包但 `--dump-config` 没有：检查 `~/.dsh/profiles/<name>/package.json` 的 `dsh.profile.bundles` 中是否存在该包。
 - Electron 又打开一个应用进程，没有运行 CLI：使用 ModSearch 5.4.3 或更高版本。插件会给子进程设置 `ELECTRON_RUN_AS_NODE=1`。

@@ -55,6 +55,10 @@ const OWN_TOOL_BACKSTOP_MS = OWN_TOOL_DEADLINE_MS + 20_000;
 // route): 40s for one engine leaves a fast fallback room inside a 55s run.
 const PROVIDER_TIMEOUT_MS = 40_000;
 const PROVIDER_DEADLINE_MS = 55_000;
+// The fetch provider runs under web_fetch's budget (30s by default): 20s for
+// one engine, 25s for the run, so the CLI's own error lands before the abort.
+const FETCH_PROVIDER_TIMEOUT_MS = 20_000;
+const FETCH_PROVIDER_DEADLINE_MS = 25_000;
 
 export const name = 'modsearch';
 export const inject = ['tools', 'web'];
@@ -62,6 +66,9 @@ export const inject = ['tools', 'web'];
 export function apply(ctx, config = {}) {
   if (config.searchProvider !== false) {
     registerSearchProvider(ctx, config);
+  }
+  if (config.fetchProvider !== false) {
+    registerFetchProvider(ctx, config);
   }
   // Registered as raw JSON-Schema tool definitions (no dsh package imports:
   // the developer-preview registry accepts these and out-of-tree resolution
@@ -169,6 +176,44 @@ function registerSearchProvider(ctx, config) {
         sources: toSources(entry.items),
         // The CLI already enforces --max-results; the seam re-caps regardless.
         truncated: false,
+      };
+    },
+  });
+}
+
+/**
+ * The web seam's fetch capability, backed by the modsearch page readers
+ * (Firecrawl keyless first, then Keenable, agy, and local HTTP). Offered, not
+ * selected: the bundle patch keeps `fetchProvider: http`, because local HTTP
+ * is free and unmetered while the cloud readers draw on the allowance search
+ * runs on. A user who wants web_fetch on modsearch, for pages local HTTP
+ * cannot read or to stay off the paid DeepSeek Fetch API, picks it (#53).
+ *
+ * The readers return their markdown extraction and report no status of the
+ * target, so a read that came back is a 200, as dsh's own Fetch API provider
+ * reports it. Page-level failures arrive as the CLI's attempt trail.
+ */
+function registerFetchProvider(ctx, config) {
+  if (typeof ctx.web?.registerFetchProvider !== 'function') {
+    console.error('[modsearch] web seam has no registerFetchProvider; fetch provider skipped');
+    return;
+  }
+  const timeoutMs = config.fetchTimeoutMs ?? FETCH_PROVIDER_TIMEOUT_MS;
+  const deadlineMs = config.fetchDeadlineMs ?? FETCH_PROVIDER_DEADLINE_MS;
+  ctx.web.registerFetchProvider({
+    id: 'modsearch',
+    available: () => true,
+    async fetch(request, signal) {
+      const entry = await runCli(
+        ['-u', request.url, '--timeout', String(timeoutMs), '--deadline', String(deadlineMs)],
+        signal,
+      );
+      const warnings = Array.isArray(entry.warnings) ? entry.warnings : [];
+      return {
+        url: request.url,
+        statusCode: 200,
+        body: { kind: 'text', content: typeof entry.content === 'string' ? entry.content : '' },
+        truncated: warnings.some((warning) => /^Content truncated\b/.test(warning)),
       };
     },
   });

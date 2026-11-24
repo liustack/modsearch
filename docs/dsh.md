@@ -63,6 +63,22 @@ The plugin then exposes:
 | Web search | Built-in `web_search` | Runs the ModSearch web engine chain and keeps native citation cards. |
 | X search | Added `x_search` tool | Uses Grok Build when available. A web substitute is labeled degraded. |
 | Focused page read | Added `read_page` tool | Reads one URL, optionally focused by a question. Private-network targets stay blocked. dsh's own `web_fetch` stays on for raw page text and status codes. |
+| Page fetch (opt in) | Built-in `web_fetch` | Registered as a fetch provider, not selected. `web_fetch` keeps dsh's local `http` fetch until you pick `modsearch` (see below). |
+
+## Send web_fetch through ModSearch
+
+`web_fetch` stays on dsh's local `http` fetch by default. It is free, has no quota, and returns the real status code. Pick `modsearch` when local fetch comes back empty or blocked, or to keep `web_fetch` off the paid DeepSeek Fetch API. Pages then go through the same readers as `read_page` (Firecrawl keyless first, then Keenable, agy, and local fetch), and those cloud reads use the same free allowance as search. The result is the reader's markdown extraction, reported as HTTP 200, the same way dsh's own Fetch API reports it.
+
+Add this row to your profile patch, keeping `searchProvider` on the same row:
+
+```yaml
+- id: web
+  config:
+    searchProvider: modsearch
+    fetchProvider: modsearch
+```
+
+dsh's own **Web search** page has a **Use the new Web Search API** switch. Saving it on moves both search and fetch to DeepSeek's paid APIs, including the search that ran on ModSearch. Saving it off puts both back to the bundle's defaults (`modsearch` search, `http` fetch).
 
 ## Configure search engines
 
@@ -131,6 +147,9 @@ Plugin switches live in the profile patch, normally `~/.dsh/profiles/<name>/cord
     settingsCard: true
     providerTimeoutMs: 40000
     providerDeadlineMs: 55000
+    fetchProvider: true
+    fetchTimeoutMs: 20000
+    fetchDeadlineMs: 25000
 ```
 
 All fields are optional:
@@ -143,6 +162,9 @@ All fields are optional:
 | `settingsCard` | `true` | Serve the settings card and its `/modsearch/config` route. Off removes both, and the browser half stands down. |
 | `providerTimeoutMs` | `40000` | Time one engine may take on the `web_search` provider path (the CLI's `--timeout`). Keep it well below `providerDeadlineMs` so a fallback engine still gets a turn. |
 | `providerDeadlineMs` | `55000` | Time the whole `web_search` run may take, every engine included (the CLI's `--deadline`). Keep it below dsh's tool budget, 60s for the shipped search route. |
+| `fetchProvider` | `true` | Offer ModSearch as a `web_fetch` provider. Registering it selects nothing: the web row's `fetchProvider` decides. |
+| `fetchTimeoutMs` | `20000` | Time one engine may take on the `web_fetch` provider path. |
+| `fetchDeadlineMs` | `25000` | Time the whole `web_fetch` run may take. Keep it below dsh's `web_fetch` budget, 30s by default. |
 
 Disabling only `x_search` or `read_page` is safe. If `searchProvider` is disabled, also point the web seam at another registered provider. Otherwise dsh is still configured to select `modsearch`, but the provider is absent:
 
@@ -195,7 +217,7 @@ If a user patch still names `searchProvider: modsearch`, change or remove that o
 
 - `declares no dsh.bundle`: an older ModSearch release landed. Reinstall the exact version shown above.
 - `modsearch's CLI build is missing`, or `Cannot find module .../dist/main.js` on 5.10.6 and older: the plugin was installed from the GitHub repository, which ships no build. Remove it and add it again by package name, `@liustack/modsearch`.
-- `web seam has no registerSearchProvider`: dsh moved a developer-preview interface. `x_search` and `read_page` still register, while web search is skipped with a visible log message. Check the latest dsh release before changing the plugin.
+- `web seam has no registerSearchProvider` or `web seam has no registerFetchProvider`: dsh moved a developer-preview interface. `x_search` and `read_page` still register, while that provider is skipped with a visible log message. Check the latest dsh release before changing the plugin.
 - `modsearch failed (exit ...)`: run `modsearch doctor`. The error includes the engine attempts made by the CLI.
 - The package appears in `plugin list` but not `--dump-config`: verify it appears in `dsh.profile.bundles` inside `~/.dsh/profiles/<name>/package.json`.
 - Electron opens another app process instead of running the CLI: use ModSearch 5.4.3 or newer. The plugin sets `ELECTRON_RUN_AS_NODE=1` for its child process.

@@ -90,6 +90,20 @@ interface RegisteredProvider {
   ) => Promise<{ content: string; sources: Array<Record<string, unknown>>; truncated: boolean }>;
 }
 
+interface RegisteredFetchProvider {
+  id: string;
+  available: () => boolean;
+  fetch: (
+    request: { url: string },
+    signal?: AbortSignal,
+  ) => Promise<{
+    url: string;
+    statusCode: number;
+    body: { kind: string; content: string };
+    truncated: boolean;
+  }>;
+}
+
 async function load(config?: Record<string, unknown>) {
   // The plugin is plain JS by design (no build step, no dsh type deps).
   // @ts-expect-error untyped on purpose
@@ -98,6 +112,7 @@ async function load(config?: Record<string, unknown>) {
   };
   const tools = new Map<string, RegisteredTool>();
   const providers: RegisteredProvider[] = [];
+  const fetchProviders: RegisteredFetchProvider[] = [];
   const ctx = {
     tools: {
       register: (definition: RegisteredTool) => {
@@ -108,10 +123,13 @@ async function load(config?: Record<string, unknown>) {
       registerSearchProvider: (provider: RegisteredProvider) => {
         providers.push(provider);
       },
+      registerFetchProvider: (provider: RegisteredFetchProvider) => {
+        fetchProviders.push(provider);
+      },
     },
   };
   plugin.apply(ctx as never, config);
-  return { tools, providers };
+  return { tools, providers, fetchProviders };
 }
 
 /** The named registered tool, or a loud failure when registration skipped it. */
@@ -250,6 +268,93 @@ describe('dsh web search provider', () => {
     await expect(providers[0].search({ query: 'anything' })).rejects.toThrow(
       /build is missing.*GitHub.*@liustack\/modsearch/s,
     );
+  });
+});
+
+const okFetchEntry = {
+  source: 'web',
+  requestedSource: 'web',
+  engine: 'firecrawl',
+  status: 'ok',
+  warnings: ['Fetched through Firecrawl in the cloud, which runs JavaScript.'],
+  attempts: [{ engine: 'firecrawl', ok: true, durationSeconds: 2 }],
+  durationSeconds: 2,
+  summary: 'Example Domain',
+  content: '# Example Domain\n\nThis domain is for use in examples.',
+  links: [{ text: 'More', url: 'https://iana.org' }],
+  uncertainty: [],
+};
+
+describe('dsh web fetch provider (#53)', () => {
+  // Registered so a user can pick modsearch for dsh's native web_fetch. The
+  // bundle patch keeps fetchProvider pinned to http, so nothing changes until
+  // they do: local http is free and unmetered, while the cloud readers draw
+  // on the same keyless allowance search runs on.
+  it('registers under the modsearch id, always offered', async () => {
+    const { fetchProviders } = await load();
+    expect(fetchProviders).toHaveLength(1);
+    expect(fetchProviders[0].id).toBe('modsearch');
+    expect(fetchProviders[0].available()).toBe(true);
+  });
+
+  it('maps the page read to the seam fetch result', async () => {
+    envelopeCli(okFetchEntry);
+    const { fetchProviders } = await load();
+    const result = await fetchProviders[0].fetch({ url: 'https://example.com' });
+    // The cloud readers report no status of the target, so a read that came
+    // back is a 200, as dsh's own Fetch API provider reports it.
+    expect(result).toEqual({
+      url: 'https://example.com',
+      statusCode: 200,
+      body: { kind: 'text', content: okFetchEntry.content },
+      truncated: false,
+    });
+  });
+
+  it('flags a read the engine cut short', async () => {
+    envelopeCli({
+      ...okFetchEntry,
+      warnings: [...okFetchEntry.warnings, 'Content truncated at 50000 characters.'],
+    });
+    const { fetchProviders } = await load();
+    const result = await fetchProviders[0].fetch({ url: 'https://example.com' });
+    expect(result.truncated).toBe(true);
+  });
+
+  it('fits the whole chain inside web_fetch’s 30s budget', async () => {
+    fakeCli(`
+      const entry = ${JSON.stringify(okFetchEntry)};
+      entry.content = JSON.stringify(process.argv.slice(2));
+      console.log(JSON.stringify({ results: [entry] }));
+    `);
+    const { fetchProviders } = await load();
+    const result = await fetchProviders[0].fetch({ url: 'https://example.com' });
+    const argv = JSON.parse(result.body.content) as string[];
+    expect(flag(argv, '-u')).toBe('https://example.com');
+    expect(argv).not.toContain('-q');
+    const engineTimeout = Number(flag(argv, '--timeout'));
+    const deadline = Number(flag(argv, '--deadline'));
+    expect(engineTimeout).toBeLessThan(deadline);
+    expect(deadline).toBeLessThan(30_000);
+  });
+
+  it('names the attempt trail when no engine could read the page', async () => {
+    envelopeCli({
+      ...okFetchEntry,
+      status: 'unavailable',
+      summary: '',
+      content: '',
+      attempts: [{ engine: 'firecrawl', ok: false, error: 'keyless allowance spent' }],
+    });
+    const { fetchProviders } = await load();
+    await expect(fetchProviders[0].fetch({ url: 'https://example.com' })).rejects.toThrow(
+      /firecrawl: keyless allowance spent.*doctor/s,
+    );
+  });
+
+  it('can be switched off in the plugin config', async () => {
+    const { fetchProviders } = await load({ fetchProvider: false });
+    expect(fetchProviders).toHaveLength(0);
   });
 });
 
@@ -470,6 +575,7 @@ function house(options: { settings?: Record<string, unknown> | null } = {}) {
       registerSearchProvider: (provider: RegisteredProvider) => {
         providers.push(provider);
       },
+      registerFetchProvider: () => {},
     },
     inject: (deps: string[], run: (scope: unknown) => void) => {
       injected.push(deps);
@@ -1107,13 +1213,15 @@ describe('dsh settings card route', () => {
 
 describe('dsh plugin config switches', () => {
   it('registers nothing when every surface is switched off', async () => {
-    const { tools, providers } = await load({
+    const { tools, providers, fetchProviders } = await load({
       searchProvider: false,
+      fetchProvider: false,
       xSearch: false,
       readPage: false,
     });
     expect(tools.size).toBe(0);
     expect(providers).toHaveLength(0);
+    expect(fetchProviders).toHaveLength(0);
   });
 
   it('stays a tools-only plugin when the web seam surface moved', async () => {

@@ -4,8 +4,10 @@
 # targeted row's whole config, so this row restates every base key: the base
 # layer pins `searchProvider: deepseek-official` and `fetchProvider: http`,
 # and dropping the fetch pin makes web_fetch ambiguous once the host also
-# registers deepseek-fetch-api (#43). A later profile patch can pin any
-# provider back.
+# registers deepseek-fetch-api (#43). The plugin also registers a modsearch
+# fetch provider, but fetch stays on http by choice: local fetch is free and
+# unmetered, and the cloud readers share search's keyless allowance (#53).
+# A later profile patch can pin any provider.
 - id: web
   config:
     searchProvider: modsearch
