@@ -35,12 +35,7 @@ describe('CLI entry point', () => {
   it('uses Node argv layout when Electron runs as Node', async () => {
     ({ restore: restoreHome } = withTempHome());
     process.env.ELECTRON_RUN_AS_NODE = '1';
-    process.argv = [
-      process.execPath,
-      '/package/dist/main.js',
-      'doctor',
-      '--json',
-    ];
+    process.argv = [process.execPath, '/package/dist/main.js', 'doctor', '--json'];
     Object.defineProperty(process.versions, 'electron', {
       value: '43.4.0',
       configurable: true,
@@ -120,15 +115,23 @@ describe('search flags', () => {
       '--deadline',
       '55000',
     ]);
-    // The clock starts at process start: a slow Node boot spends the same
-    // budget the caller is holding.
     expect(runSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        timeoutMs: 40_000,
-        deadlineMs: 55_000,
-        deadlineStartedAt: performance.timeOrigin,
-      }),
+      expect.objectContaining({ timeoutMs: 40_000, deadlineMs: 55_000 }),
     );
+  });
+
+  it('starts the deadline clock when this run starts, not when the host process did', async () => {
+    // A host that runs the CLI inside a long-lived process (DSH on iOS) has a
+    // performance.timeOrigin hours in the past, so a clock started there had
+    // every engine skipped as out of time before it began (#55). The test
+    // worker stands in for that host: it started well before this import.
+    const before = Date.now();
+    const { runSearch } = await runCli(['-q', 'anything', '--deadline', '55000']);
+    const { deadlineStartedAt } = (
+      runSearch.mock.calls[0] as unknown as [{ deadlineStartedAt: number }]
+    )[0];
+    expect(deadlineStartedAt).toBeGreaterThanOrEqual(before);
+    expect(deadlineStartedAt).toBeLessThanOrEqual(Date.now());
   });
 
   it('lets the event loop drain after pending engine kills land', async () => {

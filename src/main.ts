@@ -28,6 +28,13 @@ if (process.env.MODSEARCH_NESTED) {
   process.exit(1);
 }
 
+// When this run began, for the --deadline clock. Not performance.timeOrigin:
+// a host that runs the CLI inside its own long-lived process (DSH on iOS)
+// carries a time origin hours old, and every engine was then skipped as out
+// of time before it started (#55). Imports have run by now, so only Node's
+// own boot falls outside the budget, a few tens of milliseconds.
+const runStartedAt = Date.now();
+
 /** How long a finished run may wait for abandoned work before it is ended. */
 const EXIT_BACKSTOP_MS = 2_000;
 
@@ -111,9 +118,8 @@ program
         prompt: options.prompt,
         timeoutMs,
         deadlineMs,
-        // Count the deadline from process start, so Node startup and config
-        // loading come out of the budget the caller is holding.
-        deadlineStartedAt: performance.timeOrigin,
+        // Config loading comes out of the budget the caller is holding.
+        deadlineStartedAt: runStartedAt,
         maxResults,
         workdir: options.workdir,
         allowPrivateNetwork: options.allowPrivateNetwork,
