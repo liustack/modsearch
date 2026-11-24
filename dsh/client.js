@@ -88,6 +88,10 @@ window.__ModuleLoader__.load({
         loadFailed: 'load failed',
         saveFailed: 'save failed',
         retry: 'Retry',
+        fetchTitle: 'Page fetch (web_fetch)',
+        fetchLabel: 'Fetch pages through ModSearch',
+        fetchHint:
+          "Off: dsh's local fetch, free with no quota. On: ModSearch's page readers, which read pages local fetch cannot and share the free search allowance. Applies at once.",
       },
       zh: {
         // 不叫「网页搜索」：dsh 自带一张「网页搜索（DeepSeek 搜索提供方）」卡片，
@@ -126,6 +130,10 @@ window.__ModuleLoader__.load({
         loadFailed: '加载失败',
         saveFailed: '保存失败',
         retry: '重试',
+        fetchTitle: '网页抓取（web_fetch）',
+        fetchLabel: '网页抓取也走 ModSearch',
+        fetchHint:
+          '关闭时走 dsh 本地抓取，免费不限次。打开后走 ModSearch 的读取链，能读本地抓不到的页面，和搜索共用免费额度。改动立即生效。',
       },
     };
 
@@ -425,12 +433,13 @@ window.__ModuleLoader__.load({
       return false;
     }
 
-    // A live handle on dsh's optional locale service. The service has an
-    // inject of its own, so it can land after a card mounted, be replaced, or
-    // go away, and a card that only looked at mount kept the page language
-    // for good (#54). The handle is itself subscribable: a subscriber hears
-    // the service changing as well as the language changing inside it.
-    function localeHandle() {
+    // A live handle on an optional dsh service with a getSnapshot/subscribe
+    // pair (the locale service, the web settings form). Each has an inject of
+    // its own, so it can land after a card mounted, be replaced, or go away,
+    // and a card that only looked at mount kept the page language for good
+    // (#54). The handle is itself subscribable: a subscriber hears the
+    // service changing as well as the state changing inside it.
+    function serviceHandle() {
       var current = null;
       var watchers = new Set();
       function swap(locale) {
@@ -468,9 +477,10 @@ window.__ModuleLoader__.load({
       };
     }
 
-    // `locale` is a localeHandle(), optional: absent, both helpers below hand
-    // back nothing and labels() takes its old path.
-    function ConfigCard(react, ui, locale) {
+    // `locale` and `webForm` are serviceHandle()s, both optional. Without
+    // locale, labels() takes the page language. Without webForm (a host with
+    // no configForms service) the web_fetch switch is not offered.
+    function ConfigCard(react, ui, locale, webForm) {
       var h = react.createElement;
       var Input = ui.Input;
 
@@ -480,6 +490,13 @@ window.__ModuleLoader__.load({
       var readLocale = () => {
         var service = locale?.get();
         return service ? service.getSnapshot().active : '';
+      };
+      var subscribeForm = (onChange) => (webForm ? webForm.subscribe(onChange) : () => {});
+      // The form's snapshot keeps its reference until it changes, which is
+      // what useSyncExternalStore asks of a snapshot.
+      var readForm = () => {
+        var form = webForm?.get();
+        return form ? form.getSnapshot() : null;
       };
 
       // The chrome is the native plugin card's, value for value (border,
@@ -527,6 +544,10 @@ window.__ModuleLoader__.load({
             ? react.useSyncExternalStore(subscribeLocale, readLocale)
             : readLocale(),
         );
+        var webSettings =
+          typeof react.useSyncExternalStore === 'function'
+            ? react.useSyncExternalStore(subscribeForm, readForm)
+            : readForm();
         var openState = react.useState(false);
         var summaryState = react.useState(null);
         var draftState = react.useState(null);
@@ -788,6 +809,71 @@ window.__ModuleLoader__.load({
               );
             });
 
+            // web_fetch's provider is dsh's own setting, so this switch writes
+            // it through dsh's settings forms the moment it is clicked rather
+            // than riding the Save button, which writes the config file.
+            // Off returns to the composed default when that is local fetch,
+            // so no override is left behind, and pins local fetch otherwise.
+            const form = webForm?.get();
+            const fetchRow =
+              form && webSettings && webSettings.status === 'ready' && webSettings.writable
+                ? fieldRow(
+                    t.fetchTitle,
+                    h(
+                      'label',
+                      {
+                        style: {
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                        },
+                      },
+                      h('input', {
+                        type: 'checkbox',
+                        'data-setting': 'fetchProvider',
+                        checked: webSettings.value?.fetchProvider === 'modsearch',
+                        onChange: (event) => {
+                          var target = event.target.checked ? 'modsearch' : 'http';
+                          var write =
+                            webSettings.base?.fetchProvider === target
+                              ? form.unset('fetchProvider')
+                              : form.set('fetchProvider', target);
+                          noteState[1]('');
+                          write
+                            .then((accepted) => {
+                              if (!accepted) {
+                                noteState[1](t.saveFailed);
+                              }
+                            })
+                            .catch((error) => {
+                              noteState[1](noteFrom(error, t.saveFailed));
+                            });
+                        },
+                      }),
+                      h(
+                        'span',
+                        null,
+                        t.fetchLabel,
+                        h(
+                          'span',
+                          {
+                            style: {
+                              display: 'block',
+                              marginTop: '2px',
+                              color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.8))',
+                            },
+                          },
+                          t.fetchHint,
+                        ),
+                      ),
+                    ),
+                    'fetch',
+                    t.fetchTitle,
+                  )
+                : null;
+
             const darkCard = cardThemeIsDark();
             const optionPaint = darkCard
               ? { color: '#f2f2f2', background: '#23262a' }
@@ -910,6 +996,7 @@ window.__ModuleLoader__.load({
                 'status',
                 t.autoTitle,
               ),
+              fetchRow,
               h(
                 'div',
                 {
@@ -1106,11 +1193,21 @@ window.__ModuleLoader__.load({
       // never provides locale the card would never register at all. Here a
       // missing service just leaves the handle empty, and the card falls back
       // to the page language.
-      var locale = localeHandle();
+      var locale = serviceHandle();
       ctx.inject(['locale'], (scope) => {
         var release = locale.set(scope.locale);
         if (typeof scope.effect === 'function') {
           scope.effect(() => release, 'modsearch: locale handle');
+        }
+      });
+
+      // dsh's settings forms, for the web_fetch switch. Optional the same
+      // way: hosts before configForms never fill this and show no switch.
+      var webForm = serviceHandle();
+      ctx.inject(['configForms'], (scope) => {
+        var release = webForm.set(scope.configForms.get('web'));
+        if (typeof scope.effect === 'function') {
+          scope.effect(() => release, 'modsearch: web settings handle');
         }
       });
 
@@ -1126,7 +1223,7 @@ window.__ModuleLoader__.load({
               return;
             }
             try {
-              mountCard(scope, locale);
+              mountCard(scope, locale, webForm);
             } catch (error) {
               console.error(`[modsearch] settings card skipped: ${error}`);
             }
@@ -1135,7 +1232,7 @@ window.__ModuleLoader__.load({
       });
     }
 
-    function mountCard(ctx, locale) {
+    function mountCard(ctx, locale, webForm) {
       var react;
       try {
         react = require('react');
@@ -1144,7 +1241,7 @@ window.__ModuleLoader__.load({
         return;
       }
       var ui = require('@deepseek-ai/dsh-client-ui-primitives');
-      var Card = ConfigCard(react, ui, locale);
+      var Card = ConfigCard(react, ui, locale, webForm);
       // slots.inject waits until a slot is declared, so each host fills the
       // one it has and the other wait never fires: from dsh 0.1.6-alpha.2 on
       // hosts declare only the Plugins page's, older ones only the Settings
@@ -1176,7 +1273,7 @@ window.__ModuleLoader__.load({
       savePayload: savePayload,
       secretFieldProps: secretFieldProps,
       ConfigCard: ConfigCard,
-      localeHandle: localeHandle,
+      serviceHandle: serviceHandle,
     };
     // `slots` and `locale` are both optional, so neither is required here:
     // registerCard takes each on its own scoped inject.

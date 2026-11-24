@@ -27,8 +27,13 @@ interface Card {
   toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
   savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
   secretFieldProps: () => Record<string, unknown>;
-  ConfigCard: (react: unknown, ui: unknown, locale?: LocaleHandle) => () => unknown;
-  localeHandle: () => LocaleHandle;
+  ConfigCard: (
+    react: unknown,
+    ui: unknown,
+    locale?: LocaleHandle,
+    webForm?: LocaleHandle,
+  ) => () => unknown;
+  serviceHandle: () => LocaleHandle;
 }
 
 interface LocaleHandle {
@@ -541,8 +546,14 @@ function render(
     getComputedStyle?: (elt: unknown) => { color?: string };
     matchMedia?: (query: string) => { matches: boolean };
   },
+  webForm?: unknown,
 ): Rendered {
   const card = evaluate({ lang, ...probes }).factory(() => ({})).__card;
+  let formHandle: LocaleHandle | undefined;
+  if (webForm !== undefined) {
+    formHandle = card.serviceHandle();
+    formHandle.set(webForm);
+  }
   const draft = card.nextDraft(summary, String(summary.engine ?? ''));
   const states = [true, summary, draft, ''];
   const built: Node[] = [];
@@ -560,7 +571,7 @@ function render(
   const Input = function Input() {
     return null;
   };
-  card.ConfigCard(react, { Input })();
+  card.ConfigCard(react, { Input }, undefined, formHandle)();
   const boxOf = (node: Node): Node | undefined =>
     node.kids.find((kid) => isNode(kid) && kid.props.type === 'checkbox') as Node | undefined;
   return {
@@ -1124,7 +1135,7 @@ describe('the card follows dsh’s own interface language', () => {
     if (options.handle) {
       handle = options.handle(exported);
     } else if (options.locale) {
-      handle = exported.localeHandle();
+      handle = exported.serviceHandle();
       handle.set(options.locale);
     }
     const state: Mounted = { texts: [], renders: 0 };
@@ -1208,7 +1219,7 @@ describe('the card follows dsh’s own interface language', () => {
     const card = mount({
       lang: 'en-US',
       handle: (exported) => {
-        handle = exported.localeHandle();
+        handle = exported.serviceHandle();
         return handle;
       },
     });
@@ -1229,7 +1240,7 @@ describe('the card follows dsh’s own interface language', () => {
     const card = mount({
       lang: 'en-US',
       handle: (exported) => {
-        handle = exported.localeHandle();
+        handle = exported.serviceHandle();
         return handle;
       },
     });
@@ -1256,7 +1267,7 @@ describe('the card follows dsh’s own interface language', () => {
     const card = mount({
       lang: 'zh-CN',
       handle: (exported) => {
-        handle = exported.localeHandle();
+        handle = exported.serviceHandle();
         release = handle.set(locale);
         return handle;
       },
@@ -1269,5 +1280,108 @@ describe('the card follows dsh’s own interface language', () => {
     const renders = card.renders;
     locale.setLocale('zh');
     expect(card.renders).toBe(renders);
+  });
+});
+
+describe('the card can send dsh’s web_fetch through ModSearch (#53)', () => {
+  // dsh's web settings decide which provider web_fetch runs on, and dsh's own
+  // page only offers its local fetch or the paid DeepSeek Fetch API. The card
+  // writes the same setting through dsh's configForms service, so a web user
+  // with no terminal can pick ModSearch. The write lands at once: it is dsh's
+  // setting, not part of the config file the Save button writes.
+  class FakeForm {
+    public writes: Array<[string, string, unknown?]> = [];
+    public answer = true;
+    constructor(
+      private snapshot: {
+        status: string;
+        writable: boolean;
+        value?: Record<string, unknown>;
+        base?: Record<string, unknown>;
+      },
+    ) {}
+    getSnapshot() {
+      return this.snapshot;
+    }
+    subscribe() {
+      return () => {};
+    }
+    set(field: string, value: unknown) {
+      this.writes.push(['set', field, value]);
+      return Promise.resolve(this.answer);
+    }
+    unset(field: string) {
+      this.writes.push(['unset', field]);
+      return Promise.resolve(this.answer);
+    }
+  }
+
+  const ready = (fetchProvider: string, base = 'http') =>
+    new FakeForm({
+      status: 'ready',
+      writable: true,
+      value: { searchProvider: 'modsearch', fetchProvider },
+      base: { searchProvider: 'modsearch', fetchProvider: base },
+    });
+
+  function fetchBox(view: Rendered): Node | undefined {
+    return view.nodes.find(
+      (node) => node.props.type === 'checkbox' && node.props['data-setting'] === 'fetchProvider',
+    );
+  }
+
+  function toggleFetch(view: Rendered, checked: boolean): void {
+    const box = fetchBox(view);
+    if (!box) {
+      throw new Error('the web_fetch switch was not rendered');
+    }
+    (box.props.onChange as (event: unknown) => void)({ target: { checked } });
+  }
+
+  it('offers no switch on a host without dsh’s settings forms', () => {
+    expect(fetchBox(render({ ...SUMMARY, readiness: READINESS }))).toBeUndefined();
+  });
+
+  it('offers no switch where dsh serves no web settings or will not take a write', () => {
+    for (const form of [
+      new FakeForm({ status: 'unavailable', writable: true }),
+      new FakeForm({ status: 'loading', writable: false }),
+      new FakeForm({ ...ready('http').getSnapshot(), writable: false }),
+    ]) {
+      expect(fetchBox(render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, form))).toBe(
+        undefined,
+      );
+    }
+  });
+
+  it('shows whether web_fetch runs on ModSearch now, with what each side costs', () => {
+    const off = render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, ready('http'));
+    expect(fetchBox(off)?.props.checked).toBe(false);
+    expect(off.texts.join(' ')).toMatch(/free/i);
+    const on = render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, ready('modsearch'));
+    expect(fetchBox(on)?.props.checked).toBe(true);
+    // A separate setting, so it sits outside the row of search engines.
+    const engines = on.nodes.find((node) => node.props.key === 'engines');
+    expect(textOf(engines?.kids)).toContain('firecrawl');
+    expect(textOf(engines?.kids)).not.toContain('ModSearch');
+  });
+
+  it('writes modsearch on, and on off goes back to the bundle default rather than pinning it', () => {
+    const form = ready('http');
+    const view = render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, form);
+    toggleFetch(view, true);
+    expect(form.writes).toEqual([['set', 'fetchProvider', 'modsearch']]);
+
+    const onForm = ready('modsearch');
+    const onView = render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, onForm);
+    toggleFetch(onView, false);
+    expect(onForm.writes).toEqual([['unset', 'fetchProvider']]);
+  });
+
+  it('switches off to local fetch where the composed default is not local fetch', () => {
+    const form = ready('modsearch', 'modsearch');
+    const view = render({ ...SUMMARY, readiness: READINESS }, 'en', undefined, form);
+    toggleFetch(view, false);
+    expect(form.writes).toEqual([['set', 'fetchProvider', 'http']]);
   });
 });
