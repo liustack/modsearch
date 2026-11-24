@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.10.16 - 2026-11-25
+
+- Long pages can now be read past the first part (#57). Fetch engines used to keep only the first 50,000 characters of a page, so the rest of a long changelog or API reference was out of reach. They now keep up to 500,000, and a run returns one part of it: `--start` and `--max-length` pick which (default: the first 50,000 characters, as before). The result carries `contentRange` with `start`, `end`, and `total`, and when more is left a warning names the `--start` for the next part. Each CLI run reads the page again.
+- In DeepSeek Harness, `read_page` takes `start_index` and `max_length` (default 20,000 characters, at most 100,000). The first read keeps the whole page in the plugin's memory for five minutes, at most 64 pages, so reading on costs no further engine call. Nothing is written to disk. Before, `read_page` showed the model only the first 20,000 characters of what it fetched.
+- `web_fetch` on ModSearch now reports `truncated` when the page is longer than what it returned.
+
 ## 5.10.15 - 2026-11-25
 
 - In DeepSeek Harness, `web_search` no longer fails in a fraction of a second with every engine "skipped: the run deadline ... was used up before it could start" (#55). The CLI started its `--deadline` clock at `performance.timeOrigin`, the moment the hosting process started. Where a host runs the CLI inside its own long-lived process (DSH on iOS), that moment is hours old, so the budget was already gone before any engine ran. The clock now starts when the CLI's run begins.
