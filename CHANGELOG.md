@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.10.15 - 2026-11-25
+
+- In DeepSeek Harness, `web_search` no longer fails in a fraction of a second with every engine "skipped: the run deadline ... was used up before it could start" (#55). The CLI started its `--deadline` clock at `performance.timeOrigin`, the moment the hosting process started. Where a host runs the CLI inside its own long-lived process (DSH on iOS), that moment is hours old, so the budget was already gone before any engine ran. The clock now starts when the CLI's run begins.
+- dsh's `web_fetch` can now run on ModSearch (#53). Until now it could only use dsh's local fetch, which misses JavaScript-rendered and bot-shy pages, or the paid DeepSeek Fetch API. ModSearch now offers its page readers (Firecrawl keyless first, then Keenable, agy, and local fetch) as a `web_fetch` provider. It is off by default: local fetch is free and has no quota, while the cloud readers share search's free allowance. Turn it on with **Fetch pages through ModSearch** on the ModSearch settings page, which applies at once, or with `fetchProvider: modsearch` on the `web` row of your profile patch. The [dsh guide](docs/dsh.md#send-web_fetch-through-modsearch) also explains why dsh's own **Use the new Web Search API** switch moves search off ModSearch as well.
+- The dsh settings card now follows dsh's interface language even when dsh's language service loads after the card (#54). Before, a card that mounted first stayed in the page language until something else redrew it, and then stopped hearing language switches.
+
 ## 5.10.14 - 2026-11-15
 
 - When Firecrawl's keyless allowance runs out, the error now says when it comes back, and the cooldown keeps Firecrawl at the back of the chain until then. Before, every later search was refused by Firecrawl first (about a second each) before Keenable answered, because the refusal looked like a brief rate limit. Keenable's keyless 429 uses its Retry-After the same way when it sends one.
