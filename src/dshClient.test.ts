@@ -27,7 +27,12 @@ interface Card {
   toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
   savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
   secretFieldProps: () => Record<string, unknown>;
-  ConfigCard: (react: unknown, ui: unknown, localeRef?: unknown) => () => unknown;
+  ConfigCard: (react: unknown, ui: unknown, locale?: LocaleHandle) => () => unknown;
+  localeHandle: () => LocaleHandle;
+}
+
+interface LocaleHandle {
+  set: (locale: unknown) => () => void;
 }
 
 interface Definition {
@@ -1108,8 +1113,20 @@ describe('the card follows dsh’s own interface language', () => {
     renders: number;
   }
 
-  function mount(options: { lang: string; locale?: FakeLocale }): Mounted {
+  function mount(options: {
+    lang: string;
+    locale?: FakeLocale;
+    handle?: (card: Card) => LocaleHandle;
+  }): Mounted {
     const definition = evaluate({ lang: options.lang });
+    const exported = definition.factory(() => ({})).__card;
+    let handle: LocaleHandle | undefined;
+    if (options.handle) {
+      handle = options.handle(exported);
+    } else if (options.locale) {
+      handle = exported.localeHandle();
+      handle.set(options.locale);
+    }
     const state: Mounted = { texts: [], renders: 0 };
     let subscribed = false;
     const react = {
@@ -1143,13 +1160,7 @@ describe('the card follows dsh’s own interface language', () => {
     const Input = function Input() {
       return null;
     };
-    const Card = definition
-      .factory(() => ({}))
-      .__card.ConfigCard(
-        react,
-        { Input },
-        options.locale ? { current: options.locale } : undefined,
-      );
+    const Card = exported.ConfigCard(react, { Input }, handle);
     Card();
     return state;
   }
@@ -1187,5 +1198,76 @@ describe('the card follows dsh’s own interface language', () => {
     expect(card.renders).toBe(1);
     expect(card.texts).toContain(EN_TITLE);
     expect(card.texts).not.toContain(ZH_TITLE);
+  });
+
+  // The locale service has an inject of its own, so it can land after the
+  // card mounted, be replaced, or go away. A card that only looked for it at
+  // mount kept the page language and never heard a switch (#54).
+  it('adopts a locale service that arrives after the card mounted', () => {
+    let handle: LocaleHandle | undefined;
+    const card = mount({
+      lang: 'en-US',
+      handle: (exported) => {
+        handle = exported.localeHandle();
+        return handle;
+      },
+    });
+    expect(card.texts).toContain(EN_TITLE);
+
+    const locale = new FakeLocale('zh');
+    handle?.set(locale);
+    expect(card.texts).toContain(ZH_TITLE);
+    expect(locale.subscribeCalls).toBe(1);
+
+    locale.setLocale('en');
+    expect(card.texts).toContain(EN_TITLE);
+  });
+
+  it('follows a replacement service, and the old one’s disposer cannot detach it', () => {
+    let handle: LocaleHandle | undefined;
+    const first = new FakeLocale('zh');
+    const card = mount({
+      lang: 'en-US',
+      handle: (exported) => {
+        handle = exported.localeHandle();
+        return handle;
+      },
+    });
+    const releaseFirst = handle?.set(first);
+    const second = new FakeLocale('en');
+    handle?.set(second);
+    // Scope teardown order is the host's business: the first scope may be
+    // disposed after the second one took over.
+    releaseFirst?.();
+    expect(card.texts).toContain(EN_TITLE);
+
+    const renders = card.renders;
+    first.setLocale('zh');
+    expect(card.renders).toBe(renders);
+
+    second.setLocale('zh');
+    expect(card.texts).toContain(ZH_TITLE);
+  });
+
+  it('falls back to the page language once the service goes away', () => {
+    let handle: LocaleHandle | undefined;
+    const locale = new FakeLocale('en');
+    let release: (() => void) | undefined;
+    const card = mount({
+      lang: 'zh-CN',
+      handle: (exported) => {
+        handle = exported.localeHandle();
+        release = handle.set(locale);
+        return handle;
+      },
+    });
+    expect(card.texts).toContain(EN_TITLE);
+
+    release?.();
+    expect(card.texts).toContain(ZH_TITLE);
+
+    const renders = card.renders;
+    locale.setLocale('zh');
+    expect(card.renders).toBe(renders);
   });
 });

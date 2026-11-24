@@ -425,23 +425,61 @@ window.__ModuleLoader__.load({
       return false;
     }
 
-    // `localeRef` is a { current } handle on dsh's locale service, not the
-    // service itself: it is optional and may land after the card is built, so
-    // it is read at render time rather than captured here. Absent, both
-    // helpers below hand back nothing and labels() takes its old path.
-    function ConfigCard(react, ui, localeRef) {
+    // A live handle on dsh's optional locale service. The service has an
+    // inject of its own, so it can land after a card mounted, be replaced, or
+    // go away, and a card that only looked at mount kept the page language
+    // for good (#54). The handle is itself subscribable: a subscriber hears
+    // the service changing as well as the language changing inside it.
+    function localeHandle() {
+      var current = null;
+      var watchers = new Set();
+      function swap(locale) {
+        current = locale;
+        for (var watcher of Array.from(watchers)) {
+          watcher();
+        }
+      }
+      return {
+        get: () => current,
+        // Hands back the release for this service only: scope teardown order
+        // is the host's, so a stale release must not detach its replacement.
+        set: (locale) => {
+          swap(locale);
+          return () => {
+            if (current === locale) {
+              swap(null);
+            }
+          };
+        },
+        subscribe: (onChange) => {
+          var follow = (locale) => (locale ? locale.subscribe(onChange) : () => {});
+          var unfollow = follow(current);
+          var watcher = () => {
+            unfollow();
+            unfollow = follow(current);
+            onChange();
+          };
+          watchers.add(watcher);
+          return () => {
+            watchers.delete(watcher);
+            unfollow();
+          };
+        },
+      };
+    }
+
+    // `locale` is a localeHandle(), optional: absent, both helpers below hand
+    // back nothing and labels() takes its old path.
+    function ConfigCard(react, ui, locale) {
       var h = react.createElement;
       var Input = ui.Input;
 
       // Built once per card so useSyncExternalStore is not handed a new
       // subscribe on every render, which would resubscribe every render.
-      var subscribeLocale = (onChange) => {
-        var locale = localeRef?.current;
-        return locale ? locale.subscribe(onChange) : () => {};
-      };
+      var subscribeLocale = (onChange) => (locale ? locale.subscribe(onChange) : () => {});
       var readLocale = () => {
-        var locale = localeRef?.current;
-        return locale ? locale.getSnapshot().active : '';
+        var service = locale?.get();
+        return service ? service.getSnapshot().active : '';
       };
 
       // The chrome is the native plugin card's, value for value (border,
@@ -1068,16 +1106,11 @@ window.__ModuleLoader__.load({
       // never provides locale the card would never register at all. Here a
       // missing service just leaves the handle empty, and the card falls back
       // to the page language.
-      var localeRef = { current: null };
+      var locale = localeHandle();
       ctx.inject(['locale'], (scope) => {
-        localeRef.current = scope.locale;
+        var release = locale.set(scope.locale);
         if (typeof scope.effect === 'function') {
-          scope.effect(
-            () => () => {
-              localeRef.current = null;
-            },
-            'modsearch: locale handle',
-          );
+          scope.effect(() => release, 'modsearch: locale handle');
         }
       });
 
@@ -1093,7 +1126,7 @@ window.__ModuleLoader__.load({
               return;
             }
             try {
-              mountCard(scope, localeRef);
+              mountCard(scope, locale);
             } catch (error) {
               console.error(`[modsearch] settings card skipped: ${error}`);
             }
@@ -1102,7 +1135,7 @@ window.__ModuleLoader__.load({
       });
     }
 
-    function mountCard(ctx, localeRef) {
+    function mountCard(ctx, locale) {
       var react;
       try {
         react = require('react');
@@ -1111,7 +1144,7 @@ window.__ModuleLoader__.load({
         return;
       }
       var ui = require('@deepseek-ai/dsh-client-ui-primitives');
-      var Card = ConfigCard(react, ui, localeRef);
+      var Card = ConfigCard(react, ui, locale);
       // slots.inject waits until a slot is declared, so each host fills the
       // one it has and the other wait never fires: from dsh 0.1.6-alpha.2 on
       // hosts declare only the Plugins page's, older ones only the Settings
@@ -1143,6 +1176,7 @@ window.__ModuleLoader__.load({
       savePayload: savePayload,
       secretFieldProps: secretFieldProps,
       ConfigCard: ConfigCard,
+      localeHandle: localeHandle,
     };
     // `slots` and `locale` are both optional, so neither is required here:
     // registerCard takes each on its own scoped inject.
