@@ -45,6 +45,8 @@ Output is always a `results` array, one entry per corpus:
 | `-m, --model <name>` | Engine model | `gemini-3.8-flash-low` |
 | `--prompt <text>` | Extra constraints for this run, passed to the engine | |
 | `--max-results <n>` | Maximum search results | `8` |
+| `--start <n>` | Page fetch only: the character of the page to start returning at. Pass the value a warning named to read the next part | `0` |
+| `--max-length <n>` | Page fetch only: how many characters of the page one run returns | `50000` |
 | `--timeout <ms>` | Time one engine may take. A failed engine hands over to the next with a fresh budget | `180000` |
 | `--deadline <ms>` | Time the whole run may take, every engine included, counted from the moment the CLI starts. Each engine gets the smaller of `--timeout` and what is left, and engines whose turn comes after it are skipped. An engine that ignores the stop signal at the deadline can hold the exit up to 2 more seconds while it is killed | none |
 | `--workdir <path>` | Working directory for engines that run a command | current directory |

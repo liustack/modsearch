@@ -16,7 +16,7 @@ import { requestText } from '../util/timedRequest.ts';
 import { assertCloudDisclosable, normalizeFetchUrl } from './http/network.ts';
 import type { EngineRequest, EngineOutput, SearchEngine } from './index.ts';
 import { resolveEndpoint } from './endpoint.ts';
-import { MAX_CONTENT_CHARS } from './limits.ts';
+import { MAX_DOCUMENT_CHARS } from './limits.ts';
 
 const DEFAULT_LIMIT = 10;
 const FIRECRAWL_DEFAULT_BASE = 'https://api.firecrawl.dev';
@@ -274,8 +274,8 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
   // Cap the markdown at the same ceiling the local engine uses, so a huge page
   // cannot flood a model's context no matter which fetch engine served it.
   const rawContent = data.data?.markdown ?? '';
-  const truncated = rawContent.length > MAX_CONTENT_CHARS;
-  const content = truncated ? rawContent.slice(0, MAX_CONTENT_CHARS) : rawContent;
+  const truncated = rawContent.length > MAX_DOCUMENT_CHARS;
+  const content = truncated ? rawContent.slice(0, MAX_DOCUMENT_CHARS) : rawContent;
   const links = normalizeLinks(data.data?.links);
   const summary =
     metadata.title ||
@@ -297,7 +297,7 @@ async function firecrawlFetch(options: EngineRequest): Promise<EngineOutput> {
     'Fetched through Firecrawl in the cloud, which runs JavaScript. The content is Firecrawl markdown extraction, not the raw page as served.',
   ];
   if (truncated) {
-    warnings.push(`Content truncated at ${MAX_CONTENT_CHARS} characters.`);
+    warnings.push(`Content truncated at ${MAX_DOCUMENT_CHARS} characters.`);
   }
 
   return {

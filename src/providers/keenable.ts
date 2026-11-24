@@ -18,7 +18,7 @@ import { requestText } from '../util/timedRequest.ts';
 import { resolveEndpoint } from './endpoint.ts';
 import { assertCloudDisclosable, normalizeFetchUrl } from './http/network.ts';
 import type { EngineOutput, EngineRequest, SearchEngine } from './index.ts';
-import { MAX_CONTENT_CHARS } from './limits.ts';
+import { MAX_DOCUMENT_CHARS } from './limits.ts';
 
 const DEFAULT_MAX_RESULTS = 10;
 /** Keenable rejects max_results outside 1-50. */
@@ -243,7 +243,7 @@ async function keenableFetch(options: EngineRequest): Promise<EngineOutput> {
 
   const params = new URLSearchParams({
     url: target.toString(),
-    max_chars: String(MAX_CONTENT_CHARS),
+    max_chars: String(MAX_DOCUMENT_CHARS),
     // Read the page now rather than Keenable's indexed copy: stale content is
     // fatal for a tool whose whole point is current information.
     live: 'true',
@@ -271,8 +271,8 @@ async function keenableFetch(options: EngineRequest): Promise<EngineOutput> {
   // Keenable cuts at max_chars already. The local slice keeps the shared cap
   // true even for a gateway behind baseURL that ignores the parameter.
   const rawContent = data.content ?? '';
-  const content = rawContent.slice(0, MAX_CONTENT_CHARS);
-  const truncated = data.truncated === true || rawContent.length > MAX_CONTENT_CHARS;
+  const content = rawContent.slice(0, MAX_DOCUMENT_CHARS);
+  const truncated = data.truncated === true || rawContent.length > MAX_DOCUMENT_CHARS;
   const finalUrl = data.url || target.toString();
 
   if (prompt) {
@@ -285,7 +285,7 @@ async function keenableFetch(options: EngineRequest): Promise<EngineOutput> {
     );
   }
   if (truncated) {
-    warnings.push(`Content truncated at ${MAX_CONTENT_CHARS} characters.`);
+    warnings.push(`Content truncated at ${MAX_DOCUMENT_CHARS} characters.`);
   }
 
   const uncertainty: string[] = [];

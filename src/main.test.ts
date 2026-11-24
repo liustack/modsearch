@@ -162,6 +162,42 @@ describe('search flags', () => {
     expect(runSearch).toHaveBeenCalledWith(expect.objectContaining({ deadlineMs: undefined }));
   });
 
+  it('passes --start and --max-length through for a page fetch (#57)', async () => {
+    const { runSearch } = await runCli([
+      '-u',
+      'https://example.com',
+      '--start',
+      '50000',
+      '--max-length',
+      '20000',
+    ]);
+    expect(runSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ startIndex: 50_000, maxLength: 20_000 }),
+    );
+  });
+
+  for (const [flags, message] of [
+    [['--start', '-1'], 'Invalid --start'],
+    [['--start', '12abc'], 'Invalid --start'],
+    [['--max-length', '0'], 'Invalid --max-length'],
+  ] as const) {
+    it(`rejects ${flags.join(' ')}`, async () => {
+      const { runSearch, stderr, loading } = await runCli(['-u', 'https://example.com', ...flags]);
+      await loading;
+      expect(process.exitCode).toBe(1);
+      expect(runSearch).not.toHaveBeenCalled();
+      expect(String(stderr.mock.calls.map((call) => call[0]).join(''))).toContain(message);
+    });
+  }
+
+  it('refuses a page window on a search, which has no page to window', async () => {
+    const { runSearch, stderr, loading } = await runCli(['-q', 'anything', '--start', '10']);
+    await loading;
+    expect(process.exitCode).toBe(1);
+    expect(runSearch).not.toHaveBeenCalled();
+    expect(String(stderr.mock.calls.map((call) => call[0]).join(''))).toContain('-u');
+  });
+
   it('rejects a --deadline that is not a positive integer', async () => {
     const { runSearch, stderr, loading } = await runCli(['-q', 'anything', '--deadline', '0']);
     await loading;

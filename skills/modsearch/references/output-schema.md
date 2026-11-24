@@ -185,6 +185,7 @@ The engine result flattened into the entry:
       "durationSeconds": 8.1,
       "summary": "About page for the Node.js project.",
       "content": "# About Node.js\nNode.js is a JavaScript runtime...",
+      "contentRange": { "start": 0, "end": 48, "total": 48 },
       "links": [
         { "text": "Downloads", "url": "https://nodejs.org/en/download" }
       ],
@@ -204,6 +205,13 @@ The engine result flattened into the entry:
 
 - `content` is the page's main content as markdown (agy) or as served text (the
   local engine, which runs no JavaScript and adds no synthesis).
+- `contentRange` is `{ start, end, total }` in characters: where this run's
+  `content` sits in the whole page. A run returns 50,000 characters from
+  `--start` (default 0) unless `--max-length` says otherwise. When `end` is
+  below `total`, a warning names the `--start` to pass for the next part. Each
+  run reads the page again. The engines keep up to 500,000 characters of a
+  page, and a longer one carries a truncation warning. modsearch stamps this
+  field, never the engine.
 - `links` is the useful outbound links, at most 20. It can be empty.
 
 ## Notes

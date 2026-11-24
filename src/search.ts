@@ -8,6 +8,7 @@ import {
   type SearchEngine,
   type Source,
 } from './providers/index.ts';
+import { MAX_CONTENT_CHARS } from './providers/limits.ts';
 import { parseSources, planRun, SOURCE_ROLE, type SourcePlan } from './router.ts';
 import { runCommand } from './subprocess.ts';
 import { isApiKeyFailure, splitApiKeys } from './util/apiKeys.ts';
@@ -38,6 +39,10 @@ export interface RunSearchOptions {
    */
   deadlineStartedAt?: number;
   maxResults?: number;
+  /** Fetch only: the character the returned window of the page starts at. */
+  startIndex?: number;
+  /** Fetch only: how many characters of the page one run returns. */
+  maxLength?: number;
   workdir?: string;
   /** One-off override for the local engine's private network guard. */
   allowPrivateNetwork?: boolean;
@@ -468,6 +473,17 @@ async function runOneSource(
     delete body.durationSeconds;
     delete body.warnings;
     delete body.attempts;
+    delete body.contentRange;
+
+    const windowWarnings: string[] = [];
+    if (mode === 'fetch' && typeof body.content === 'string') {
+      const window = contentWindow(body.content, options.startIndex, options.maxLength);
+      body.content = window.content;
+      body.contentRange = window.range;
+      if (window.note) {
+        windowWarnings.push(window.note);
+      }
+    }
 
     return {
       ...body,
@@ -476,7 +492,7 @@ async function runOneSource(
       engine: engine.name,
       model,
       status,
-      warnings: [...warnings, ...engineWarnings],
+      warnings: [...warnings, ...engineWarnings, ...windowWarnings],
       attempts,
       durationSeconds,
     };
@@ -486,6 +502,38 @@ async function runOneSource(
     `Every engine for the ${plan.source} source failed.\n${failures.map((line) => `  - ${line}`).join('\n')}`,
     attempts,
   );
+}
+
+/**
+ * One window of a fetched page. Engines return the whole page up to the
+ * document cap, and a run hands back `maxLength` characters of it from
+ * `startIndex`, so a long page is read in turns rather than cut off (#57).
+ * The range is stamped here, never taken from the engine.
+ */
+function contentWindow(
+  content: string,
+  startIndex = 0,
+  maxLength = MAX_CONTENT_CHARS,
+): { content: string; range: { start: number; end: number; total: number }; note?: string } {
+  const total = content.length;
+  if (startIndex >= total && total > 0) {
+    return {
+      content: '',
+      range: { start: total, end: total, total },
+      note: `--start ${startIndex} is past the end of the page, which has ${total} characters.`,
+    };
+  }
+  const start = Math.min(startIndex, total);
+  const end = Math.min(total, start + maxLength);
+  return {
+    content: content.slice(start, end),
+    range: { start, end, total },
+    ...(end < total
+      ? {
+          note: `Showing characters ${start} to ${end} of ${total}. Run again with --start ${end} to read on.`,
+        }
+      : {}),
+  };
 }
 
 /** The run-wide deadline: when it falls, and the budget it came from. */

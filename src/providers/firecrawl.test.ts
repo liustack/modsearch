@@ -474,8 +474,25 @@ describe('firecrawl fetch path', () => {
     expect(parsed.result).toMatchObject({ content: markdown, uncertainty: [] });
   });
 
-  it('caps oversized markdown at the shared 50000-char limit and warns', async () => {
-    const huge = 'x'.repeat(60_000);
+  it('keeps a page past one 50,000-character window so a run can page through it (#57)', async () => {
+    const long = 'y'.repeat(60_000);
+    mockFetchJson({
+      success: true,
+      data: { markdown: long, links: [], metadata: { statusCode: 200 } },
+    });
+    const parsed = await executeFirecrawl({
+      mode: 'fetch',
+      url: 'http://93.184.216.34/long',
+      timeoutMs: 30000,
+      settings: { apiKey: 'fc-test' },
+    });
+    const result = parsed.result as { content: string; warnings: string[] };
+    expect(result.content).toHaveLength(60_000);
+    expect(result.warnings.join(' ')).not.toMatch(/truncated/i);
+  });
+
+  it('caps oversized markdown at the shared 500000-char document limit and warns', async () => {
+    const huge = 'x'.repeat(600_000);
     mockFetchJson({
       success: true,
       data: { markdown: huge, links: [], metadata: { statusCode: 200 } },
@@ -487,8 +504,8 @@ describe('firecrawl fetch path', () => {
       settings: { apiKey: 'fc-test' },
     });
     const result = parsed.result as { content: string; warnings: string[] };
-    expect(result.content).toHaveLength(50_000);
-    expect(result.warnings.join(' ')).toMatch(/truncated at 50000 characters/i);
+    expect(result.content).toHaveLength(500_000);
+    expect(result.warnings.join(' ')).toMatch(/truncated at 500000 characters/i);
   });
 
   it('treats a non-2xx page statusCode as a failure', async () => {

@@ -1003,3 +1003,93 @@ describeSpawn('routing facts cannot be faked by an engine', () => {
     expect(result.results[0].durationSeconds).toBeLessThan(100);
   }, 30_000);
 });
+
+describe('a fetched page is read one window at a time (#57)', () => {
+  // Engines hand back the whole page (up to the document cap), and the run
+  // returns one window of it. contentRange says where the window sits, so a
+  // caller can ask for the next one instead of losing everything past it.
+  const page = Array.from({ length: 120_000 }, (_, index) =>
+    String.fromCharCode(97 + (index % 26)),
+  ).join('');
+
+  function fetchedBy(result: Record<string, unknown>) {
+    const firecrawl = findEngine('firecrawl') as Required<SearchEngine>;
+    vi.spyOn(firecrawl, 'execute').mockResolvedValue({
+      result,
+      meta: { conversationId: null, durationSeconds: 1, usage: null },
+    });
+  }
+
+  async function read(options: { startIndex?: number; maxLength?: number; query?: string }) {
+    const run = await runSearch({
+      url: 'https://example.com/long',
+      engine: 'firecrawl',
+      config: {},
+      env: BARE_ENV,
+      ...options,
+    });
+    return run.results[0];
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns the first 50,000 characters by default and says where to go on', async () => {
+    fetchedBy({ summary: 'Long', content: page, uncertainty: [] });
+    const entry = await read({});
+    expect(entry.content).toBe(page.slice(0, 50_000));
+    expect(entry.contentRange).toEqual({ start: 0, end: 50_000, total: 120_000 });
+    expect(entry.warnings).toContainEqual(expect.stringContaining('--start 50000'));
+  });
+
+  it('returns the window asked for', async () => {
+    fetchedBy({ summary: 'Long', content: page, uncertainty: [] });
+    const entry = await read({ startIndex: 50_000, maxLength: 30_000 });
+    expect(entry.content).toBe(page.slice(50_000, 80_000));
+    expect(entry.contentRange).toEqual({ start: 50_000, end: 80_000, total: 120_000 });
+  });
+
+  it('says nothing about reading on once the window reaches the end', async () => {
+    fetchedBy({ summary: 'Long', content: page, uncertainty: [] });
+    const entry = await read({ startIndex: 100_000 });
+    expect(entry.content).toBe(page.slice(100_000));
+    expect(entry.contentRange).toEqual({ start: 100_000, end: 120_000, total: 120_000 });
+    expect((entry.warnings as string[]).join(' ')).not.toContain('--start');
+  });
+
+  it('names the page length when the start is past the end', async () => {
+    fetchedBy({ summary: 'Long', content: page, uncertainty: [] });
+    const entry = await read({ startIndex: 200_000 });
+    expect(entry.content).toBe('');
+    expect(entry.contentRange).toEqual({ start: 120_000, end: 120_000, total: 120_000 });
+    expect(entry.warnings).toContainEqual(expect.stringContaining('120000 characters'));
+  });
+
+  it('never lets the engine say where the window is', async () => {
+    fetchedBy({
+      summary: 'Short',
+      content: 'tiny',
+      uncertainty: [],
+      contentRange: { start: 9, end: 9, total: 9 },
+    });
+    const entry = await read({});
+    expect(entry.contentRange).toEqual({ start: 0, end: 4, total: 4 });
+  });
+
+  it('leaves search results without a window', async () => {
+    const firecrawl = findEngine('firecrawl') as Required<SearchEngine>;
+    vi.spyOn(firecrawl, 'execute').mockResolvedValue({
+      result: { summary: 's', items: [], uncertainty: [] },
+      meta: { conversationId: null, durationSeconds: 1, usage: null },
+    });
+    const run = await runSearch({
+      query: 'anything',
+      engine: 'firecrawl',
+      config: {},
+      env: BARE_ENV,
+      startIndex: 10,
+    });
+    expect(run.results[0]).not.toHaveProperty('contentRange');
+  });
+});

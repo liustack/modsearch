@@ -156,6 +156,7 @@ CLI 向 stdout 打印一个 JSON 对象。顶层信封对每次运行都一样�
       "durationSeconds": 8.1,
       "summary": "About page for the Node.js project.",
       "content": "# About Node.js\nNode.js is a JavaScript runtime...",
+      "contentRange": { "start": 0, "end": 48, "total": 48 },
       "links": [
         { "text": "Downloads", "url": "https://nodejs.org/en/download" }
       ],
@@ -174,6 +175,7 @@ CLI 向 stdout 打印一个 JSON 对象。顶层信封对每次运行都一样�
 ```
 
 - `content` 是页面主体内容，agy 给 markdown，本地引擎给原样文本（它不跑 JavaScript，也不做综述）。
+- `contentRange` 是 `{ start, end, total }`，单位是字符：本次 `content` 在整页里的位置。一次运行从 `--start`（默认 0）起返回 50,000 个字符，`--max-length` 可以改。`end` 小于 `total` 时，warning 会写明下一段该传的 `--start`。每次运行都会重新读页面。引擎最多保留一页的前 500,000 个字符，更长的页面会带截断 warning。这个字段由 modsearch 填写，不由引擎填写。
 - `links` 是有用的外链，至多 20 条，可以为空。
 
 ## 备注

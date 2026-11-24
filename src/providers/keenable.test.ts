@@ -240,7 +240,7 @@ describe('keenable fetch', () => {
     expect(calls[0].init.method).toBe('GET');
     expect(sent.searchParams.get('url')).toBe(PAGE.url);
     expect(sent.searchParams.get('live')).toBe('true');
-    expect(sent.searchParams.get('max_chars')).toBe('50000');
+    expect(sent.searchParams.get('max_chars')).toBe('500000');
     expect(sent.searchParams.has('prompt')).toBe(false);
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers['x-keenable-title']).toBe('modsearch');
@@ -293,7 +293,7 @@ describe('keenable fetch', () => {
     mockFetchJson({ ...PAGE, truncated: true, total_chars: 90_000 });
     const output = await fetchPage();
     expect((output.result as { warnings: string[] }).warnings).toEqual(
-      expect.arrayContaining(['Content truncated at 50000 characters.']),
+      expect.arrayContaining(['Content truncated at 500000 characters.']),
     );
   });
 

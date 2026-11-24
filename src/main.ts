@@ -71,6 +71,8 @@ program
   .option('-m, --model <name>', 'Engine model, where the engine has one')
   .option('--prompt <text>', 'Extra constraints for this run')
   .option('--max-results <n>', 'Maximum number of search results', '8')
+  .option('--start <n>', 'Page fetch: the character to start reading at (default: 0)')
+  .option('--max-length <n>', 'Page fetch: how many characters to return (default: 50000)')
   .option('--timeout <ms>', 'Engine timeout in milliseconds', '180000')
   .option(
     '--deadline <ms>',
@@ -97,6 +99,26 @@ program
         }
       }
 
+      // The page window: whole numbers only, so a typo such as 12abc is an
+      // error rather than a silent 12.
+      const wholeNumber = (value: string | undefined, flag: string, minimum: number) => {
+        if (value === undefined) {
+          return undefined;
+        }
+        const parsed = /^\d+$/.test(value) ? Number(value) : Number.NaN;
+        if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+          throw new Error(
+            `Invalid ${flag}. Use a whole number${minimum > 0 ? ' above zero' : ''}.`,
+          );
+        }
+        return parsed;
+      };
+      const startIndex = wholeNumber(options.start, '--start', 0);
+      const maxLength = wholeNumber(options.maxLength, '--max-length', 1);
+      if ((startIndex !== undefined || maxLength !== undefined) && !options.url) {
+        throw new Error('--start and --max-length window a fetched page. Use them with -u.');
+      }
+
       const maxResults = Number.parseInt(options.maxResults, 10);
       if (!Number.isFinite(maxResults) || maxResults <= 0) {
         throw new Error('Invalid --max-results. Use a positive integer.');
@@ -121,6 +143,8 @@ program
         // Config loading comes out of the budget the caller is holding.
         deadlineStartedAt: runStartedAt,
         maxResults,
+        startIndex,
+        maxLength,
         workdir: options.workdir,
         allowPrivateNetwork: options.allowPrivateNetwork,
         config,
