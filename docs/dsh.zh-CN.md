@@ -62,7 +62,7 @@ bundle 贡献两条 patch：
 | :-- | :-- | :-- |
 | 网页搜索 | 内置 `web_search` | 运行 ModSearch 网页引擎链，保留原生引用卡片。 |
 | X 搜索 | 新增 `x_search` 工具 | 有 Grok Build 时直接使用。网页替代结果会明确标成降级。 |
-| 带焦点读单页 | 新增 `read_page` 工具 | 读取一个 URL，可附问题聚焦。私网目标仍会拦截。dsh 自带的 `web_fetch` 照常保留，用于取原始正文和状态码。 |
+| 带焦点读单页 | 新增 `read_page` 工具 | 读取一个 URL，可附问题聚焦。长页面每次返回 20,000 个字符（`start_index` 指定起点，`max_length` 最多 100,000），5 分钟内翻同一页直接用已读到的那份，只存在内存里。私网目标仍会拦截。dsh 自带的 `web_fetch` 照常保留，用于取原始正文和状态码。 |
 | 网页抓取（需手动选） | 内置 `web_fetch` | 注册为抓取 provider，但默认不选中。你选 `modsearch` 之前，`web_fetch` 仍走 dsh 本地的 `http` 抓取（见下节）。 |
 
 ## 让 web_fetch 走 ModSearch

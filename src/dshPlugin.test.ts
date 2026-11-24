@@ -504,6 +504,7 @@ describe('dsh read_page tool', () => {
     expect(value).toEqual({
       summary: 'The page in one line.',
       content: 'Full extracted content.',
+      contentRange: { start: 0, end: 23, total: 23 },
       links: [{ text: 'docs', url: 'https://a.example/docs' }],
       uncertainty: [],
       warnings: ['Fetched through Firecrawl in the cloud.'],
@@ -518,6 +519,133 @@ describe('dsh read_page tool', () => {
     const { tools } = await load();
     const tool = toolNamed(tools, 'read_page');
     await expect(tool.execute({ url: 'file:///etc/passwd' }, {})).rejects.toThrow(/http\(s\)/);
+  });
+});
+
+describe('dsh read_page pages through a long page (#57)', () => {
+  // The CLI reads the whole page once (up to its document cap), and the
+  // plugin keeps it for five minutes, so paging costs one engine call.
+  const page = Array.from({ length: 50_000 }, (_, index) => String(index % 10)).join('');
+
+  /** A fake CLI that serves `page` and counts its runs in a file. */
+  function countingCli(content = page): { runs: () => number; argv: () => string[][] } {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'modsearch-dsh-count-'));
+    created.push(dir);
+    const counter = path.join(dir, 'runs');
+    fs.writeFileSync(counter, '');
+    fakeCli(`
+      require('fs').appendFileSync(${JSON.stringify(counter)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+      const entry = ${JSON.stringify({ ...okFetchEntry, warnings: [] })};
+      entry.content = ${JSON.stringify(content)};
+      console.log(JSON.stringify({ results: [entry] }));
+    `);
+    const lines = () => fs.readFileSync(counter, 'utf-8').split('\n').filter(Boolean);
+    return {
+      runs: () => lines().length,
+      argv: () => lines().map((line) => JSON.parse(line) as string[]),
+    };
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reads the whole page once and hands back 20,000 characters at a time', async () => {
+    const cli = countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+
+    const first = await tool.execute({ url: 'https://a.example/long' }, {});
+    expect(first.content).toBe(page.slice(0, 20_000));
+    expect(first.contentRange).toEqual({ start: 0, end: 20_000, total: 50_000 });
+    expect(first.warnings).toContainEqual(expect.stringContaining('start_index 20000'));
+
+    const second = await tool.execute({ url: 'https://a.example/long', start_index: 20_000 }, {});
+    expect(second.content).toBe(page.slice(20_000, 40_000));
+    expect(second.warnings).toContainEqual(expect.stringMatching(/copy of this page read/));
+    expect(cli.runs()).toBe(1);
+  });
+
+  it('asks the CLI for the whole document, not one window', async () => {
+    const cli = countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    await tool.execute({ url: 'https://a.example/long' }, {});
+    const [argv] = cli.argv();
+    expect(flag(argv, '--max-length')).toBe('500000');
+    expect(argv).not.toContain('--start');
+  });
+
+  it('keeps one copy per question, since a focused read is a different text', async () => {
+    const cli = countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    await tool.execute({ url: 'https://a.example/long' }, {});
+    await tool.execute({ url: 'https://a.example/long', query: 'limits' }, {});
+    expect(cli.runs()).toBe(2);
+  });
+
+  it('reads the page again once the copy is five minutes old', async () => {
+    const cli = countingCli();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    await tool.execute({ url: 'https://a.example/long' }, {});
+    vi.setSystemTime(Date.now() + 5 * 60_000 + 1_000);
+    await tool.execute({ url: 'https://a.example/long', start_index: 20_000 }, {});
+    expect(cli.runs()).toBe(2);
+  });
+
+  it('takes a window size, up to 100,000 characters', async () => {
+    countingCli(page.repeat(3));
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    const wide = await tool.execute({ url: 'https://a.example/long', max_length: 500_000 }, {});
+    expect(wide.contentRange).toEqual({ start: 0, end: 100_000, total: 150_000 });
+    const narrow = await tool.execute({ url: 'https://a.example/long', max_length: 10 }, {});
+    expect(narrow.content).toBe(page.slice(0, 10));
+  });
+
+  it('says so when the start is past the end of the page', async () => {
+    countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    const value = await tool.execute({ url: 'https://a.example/long', start_index: 90_000 }, {});
+    expect(value.content).toBe('');
+    expect(value.warnings).toContainEqual(expect.stringContaining('50000 characters'));
+  });
+
+  it('rejects a window that is not a whole number before spawning anything', async () => {
+    const cli = countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    for (const args of [{ start_index: -1 }, { start_index: 1.5 }, { max_length: 0 }]) {
+      await expect(tool.execute({ url: 'https://a.example/long', ...args }, {})).rejects.toThrow(
+        /whole number/,
+      );
+    }
+    expect(cli.runs()).toBe(0);
+  });
+
+  it('renders the whole window the model asked for', async () => {
+    countingCli();
+    const { tools } = await load();
+    const tool = toolNamed(tools, 'read_page');
+    const value = await tool.execute({ url: 'https://a.example/long', max_length: 40_000 }, {});
+    const [block] = tool.output.render({}, value as never);
+    expect(block.text).toContain(page.slice(0, 40_000));
+  });
+});
+
+describe('dsh web_fetch provider reports a cut-short page (#57)', () => {
+  it('flags truncated when the CLI returned only the first window', async () => {
+    envelopeCli({
+      ...okFetchEntry,
+      contentRange: { start: 0, end: 50_000, total: 80_000 },
+    });
+    const { fetchProviders } = await load();
+    const result = await fetchProviders[0].fetch({ url: 'https://example.com' });
+    expect(result.truncated).toBe(true);
   });
 });
 

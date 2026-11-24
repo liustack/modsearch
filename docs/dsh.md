@@ -62,7 +62,7 @@ The plugin then exposes:
 | :-- | :-- | :-- |
 | Web search | Built-in `web_search` | Runs the ModSearch web engine chain and keeps native citation cards. |
 | X search | Added `x_search` tool | Uses Grok Build when available. A web substitute is labeled degraded. |
-| Focused page read | Added `read_page` tool | Reads one URL, optionally focused by a question. Private-network targets stay blocked. dsh's own `web_fetch` stays on for raw page text and status codes. |
+| Focused page read | Added `read_page` tool | Reads one URL, optionally focused by a question. Long pages come back 20,000 characters at a time (`start_index`, `max_length` up to 100,000), and paging a page read in the last five minutes reuses that copy, kept in memory only. Private-network targets stay blocked. dsh's own `web_fetch` stays on for raw page text and status codes. |
 | Page fetch (opt in) | Built-in `web_fetch` | Registered as a fetch provider, not selected. `web_fetch` keeps dsh's local `http` fetch until you pick `modsearch` (see below). |
 
 ## Send web_fetch through ModSearch

@@ -53,6 +53,13 @@ const OWN_TOOL_DEADLINE_MS = 180_000;
 const OWN_TOOL_BACKSTOP_MS = OWN_TOOL_DEADLINE_MS + 20_000;
 // The provider path runs under tool-web's budget (60s for the shipped search
 // route): 40s for one engine leaves a fast fallback room inside a 55s run.
+// read_page windows: the CLI's document cap is read once, then handed out
+// READ_WINDOW_CHARS at a time from a five-minute in-process copy (#57).
+const DOCUMENT_CHARS = 500_000;
+const READ_WINDOW_CHARS = 20_000;
+const READ_WINDOW_MAX_CHARS = 100_000;
+const PAGE_CACHE_TTL_MS = 5 * 60_000;
+const PAGE_CACHE_MAX_ENTRIES = 64;
 const PROVIDER_TIMEOUT_MS = 40_000;
 const PROVIDER_DEADLINE_MS = 55_000;
 // The fetch provider runs under web_fetch's budget (30s by default): 20s for
@@ -213,7 +220,9 @@ function registerFetchProvider(ctx, config) {
         url: request.url,
         statusCode: 200,
         body: { kind: 'text', content: typeof entry.content === 'string' ? entry.content : '' },
-        truncated: warnings.some((warning) => /^Content truncated\b/.test(warning)),
+        truncated:
+          (entry.contentRange && entry.contentRange.end < entry.contentRange.total) ||
+          warnings.some((warning) => /^Content truncated\b/.test(warning)),
       };
     },
   });
@@ -299,10 +308,11 @@ function registerXSearchTool(ctx) {
  * exposes its own raw web_fetch by default, so the description names the split.
  */
 function registerReadPageTool(ctx) {
+  const pages = pageCache();
   ctx.tools.register({
     name: 'read_page',
     description:
-      'Read one web page through the modsearch bridge and return digested evidence: a summary, the extracted content, outgoing links, uncertainty, and operational warnings such as cloud fetching. Use it over web_fetch when you want the page digested or focused on one question (pass "query"), or when the page is rendered by JavaScript and a plain fetch returns an empty shell. Use web_fetch, where available, when you need the raw page text or the HTTP status code. Private-network URLs are blocked. Page reading needs no engine setup. Run `npx @liustack/modsearch doctor` to inspect the resolved route.',
+      'Read one web page through the modsearch bridge and return digested evidence: a summary, the extracted content, outgoing links, uncertainty, and operational warnings such as cloud fetching. Use it over web_fetch when you want the page digested or focused on one question (pass "query"), or when the page is rendered by JavaScript and a plain fetch returns an empty shell. Use web_fetch, where available, when you need the raw page text or the HTTP status code. Long pages come back 20,000 characters at a time: contentRange says where this part sits, and a warning names the start_index to pass for the next part. Paging a page read in the last five minutes reuses that copy instead of reading it again. Private-network URLs are blocked. Page reading needs no engine setup. Run `npx @liustack/modsearch doctor` to inspect the resolved route.',
     parameters: {
       type: 'object',
       properties: {
@@ -314,6 +324,15 @@ function registerReadPageTool(ctx) {
           type: 'string',
           description:
             'Optional question to focus the reading on (e.g. "what are the rate limits")',
+        },
+        start_index: {
+          type: 'number',
+          description:
+            'Character to start the returned content at (default 0). Pass the value a previous call named to read on.',
+        },
+        max_length: {
+          type: 'number',
+          description: `Characters of content to return (default ${READ_WINDOW_CHARS}, at most ${READ_WINDOW_MAX_CHARS})`,
         },
       },
       required: ['url'],
@@ -334,20 +353,110 @@ function registerReadPageTool(ctx) {
       if (typeof args?.url !== 'string' || !/^https?:\/\//i.test(args.url.trim())) {
         throw new Error('read_page needs an http(s) "url".');
       }
-      const cliArgs = ['-u', args.url, ...ownToolBudget()];
-      if (typeof args.query === 'string' && args.query.trim() !== '') {
-        cliArgs.push('-q', args.query);
+      const startIndex = windowNumber(args.start_index, 'start_index', 0) ?? 0;
+      const maxLength = Math.min(
+        windowNumber(args.max_length, 'max_length', 1) ?? READ_WINDOW_CHARS,
+        READ_WINDOW_MAX_CHARS,
+      );
+      const query =
+        typeof args.query === 'string' && args.query.trim() !== '' ? args.query : undefined;
+
+      const key = `${args.url}\n${query ?? ''}`;
+      const kept = pages.get(key);
+      let entry;
+      const notes = [];
+      if (kept) {
+        entry = kept.entry;
+        const age = Math.round((Date.now() - kept.at) / 1000);
+        notes.push(`From the copy of this page read ${age} seconds ago.`);
+      } else {
+        // The whole document in one run, so every later window is free.
+        const cliArgs = [
+          '-u',
+          args.url,
+          '--max-length',
+          String(DOCUMENT_CHARS),
+          ...ownToolBudget(),
+        ];
+        if (query) {
+          cliArgs.push('-q', query);
+        }
+        entry = await runCli(cliArgs, exec.signal);
+        pages.set(key, entry);
       }
-      const entry = await runCli(cliArgs, exec.signal);
+
+      const full = typeof entry.content === 'string' ? entry.content : '';
+      const total = full.length;
+      const start = Math.min(startIndex, total);
+      const end = Math.min(total, start + maxLength);
+      if (startIndex >= total && total > 0) {
+        notes.push(
+          `start_index ${startIndex} is past the end of the page, which has ${total} characters.`,
+        );
+      } else if (end < total) {
+        notes.push(
+          `Showing characters ${start} to ${end} of ${total}. Call read_page again with start_index ${end} to read on.`,
+        );
+      }
+      // The CLI's own window notes speak of its flags, which this tool does
+      // not have, so they make way for the ones above.
+      const warnings = (Array.isArray(entry.warnings) ? entry.warnings : []).filter(
+        (warning) => !/^Showing characters \d+ to \d+ of \d+\./.test(warning),
+      );
       return {
         summary: entry.summary,
-        content: typeof entry.content === 'string' ? entry.content : '',
+        content: full.slice(start, end),
+        contentRange: { start, end, total },
         ...(Array.isArray(entry.links) ? { links: entry.links } : {}),
         uncertainty: Array.isArray(entry.uncertainty) ? entry.uncertainty : [],
-        warnings: Array.isArray(entry.warnings) ? entry.warnings : [],
+        warnings: [...warnings, ...notes],
       };
     },
   });
+}
+
+/**
+ * Pages read in the last five minutes, at most 64, so paging through one
+ * costs one engine call. Kept in this process only: nothing is written to
+ * disk, and a restart forgets them. Keyed by URL and question, since a
+ * focused read is a different text.
+ */
+function pageCache() {
+  const entries = new Map();
+  return {
+    get(key) {
+      const kept = entries.get(key);
+      if (!kept) {
+        return undefined;
+      }
+      if (Date.now() - kept.at > PAGE_CACHE_TTL_MS) {
+        entries.delete(key);
+        return undefined;
+      }
+      return kept;
+    },
+    set(key, entry) {
+      entries.delete(key);
+      entries.set(key, { entry, at: Date.now() });
+      // A Map iterates in insertion order, so the first key is the oldest.
+      while (entries.size > PAGE_CACHE_MAX_ENTRIES) {
+        entries.delete(entries.keys().next().value);
+      }
+    },
+  };
+}
+
+/** A whole-number tool argument, or undefined when absent. */
+function windowNumber(value, name, minimum) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) {
+    throw new Error(
+      `read_page needs "${name}" as a whole number${minimum > 0 ? ' above zero' : ''}.`,
+    );
+  }
+  return value;
 }
 
 /** The CLI budget flags for the plugin's own tools. */
@@ -471,18 +580,14 @@ function renderSearchEvidence(value) {
   return lines.join('\n');
 }
 
-const RENDER_CONTENT_CAP = 20_000;
 const RENDER_LINK_CAP = 20;
 
 function renderFetchEvidence(value) {
   const lines = [value.summary];
   const content = value.content?.trim();
   if (content) {
-    lines.push(
-      '',
-      'Content:',
-      content.length > RENDER_CONTENT_CAP ? `${content.slice(0, RENDER_CONTENT_CAP)}…` : content,
-    );
+    // Already one window long: the window is the size the model asked for.
+    lines.push('', 'Content:', content);
   }
   const links = Array.isArray(value.links) ? value.links.slice(0, RENDER_LINK_CAP) : [];
   if (links.length > 0) {
