@@ -1,8 +1,8 @@
 import {
-  chosenEngine,
   engineChoiceIsConsent,
   engineSettings,
   type ModsearchConfig,
+  preferredEngine,
   type Role,
 } from './config.ts';
 import { coolingEngineEntry, type CooldownState } from './cooldown.ts';
@@ -94,9 +94,9 @@ export function defaultSources(query: string | undefined): Source[] {
 /**
  * Pick the engine chain for one role.
  *
- * Only searching takes a configured engine. Fetching follows that same choice
- * when the engine can fetch and lands on the built-in local fetcher when it
- * cannot, so nobody has to configure page fetch separately. Searching X has
+ * Searching takes the configured `engine`. Fetching takes `fetchEngine` when
+ * set, and otherwise follows `engine` when that engine can fetch, so nobody
+ * has to configure page fetch separately but anyone can. Searching X has
  * one possible engine. The per-engine `enabled` switch can still keep any
  * role's engine out of automatic routing.
  *
@@ -149,19 +149,26 @@ export function planRole(
 
   // No explicit --engine: the config choice is a preference, backed by the
   // role defaults and (for fetch) the local floor.
-  const configured = chosenEngine(config);
-  if (configured) {
+  const preference = preferredEngine(config, role);
+  if (preference) {
+    const { name: configured, field } = preference;
     const engine = findEngine(configured);
     if (!engine) {
       notes.push(
-        `Unknown engine "${configured}" (engine in the config file), so modsearch chose one that works.`,
+        `Unknown engine "${configured}" (${field} in the config file), so modsearch chose one that works.`,
+      );
+    } else if (field === 'fetchEngine' && !engine.roles.includes(role)) {
+      // Unlike `engine`, this field exists only to pick a fetcher, so naming
+      // one that cannot fetch is a mistake worth saying out loud.
+      notes.push(
+        `The configured fetchEngine ${engine.name} cannot fetch pages, so modsearch chose one that can.`,
       );
     } else if (engine.roles.includes(role)) {
       if (!enabled(engine)) {
         notes.push(
           `The configured ${engine.name} preference is disabled by engines.${engine.name}.enabled, so modsearch skipped it.`,
         );
-      } else if (engineChoiceIsConsent(config) || usable(engine)) {
+      } else if (engineChoiceIsConsent(config, field) || usable(engine)) {
         // The user's own choice is added even when not usable on its face:
         // choosing a cloud engine is consent to its keyless fetch, and a
         // missing key should fail loudly rather than be skipped. A project

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   allowsPrivateNetwork,
   chosenEngine,
+  chosenFetchEngine,
   cooldownEnabled,
   engineSettings,
   initConfigFile,
@@ -70,6 +71,24 @@ describe('config file', () => {
     expect(chosenEngine(loadConfigFile(p))).toBe('antigravity-cli');
     setConfigValue('engine', '', p);
     expect(chosenEngine(loadConfigFile(p))).toBeUndefined();
+  });
+
+  it('sets fetchEngine apart from engine, refusing engines that cannot fetch', () => {
+    const p = tempConfigPath();
+    setConfigValue('engine', 'tavily', p);
+    setConfigValue('fetchEngine', 'Keenable', p);
+    expect(loadConfigFile(p)).toMatchObject({ engine: 'tavily', fetchEngine: 'keenable' });
+    setConfigValue('fetch.engine', 'http', p);
+    expect(chosenFetchEngine(loadConfigFile(p))).toBe('local');
+    expect(() => setConfigValue('fetchEngine', 'tavily', p)).toThrow(
+      /tavily cannot fetch pages. Engines that can: .*keenable/,
+    );
+    expect(() => setConfigValue('fetchEngine', 'bing', p)).toThrow('Unknown engine');
+    setConfigValue('fetchEngine', '', p);
+    expect(chosenFetchEngine(loadConfigFile(p))).toBeUndefined();
+    expect(JSON.parse(renderEffectiveConfig(loadConfigFile(p), {})).fetchEngine).toBe(
+      '(unset: follows engine)',
+    );
   });
 
   it('refuses prototype-chain engine names and pollutes nothing', () => {

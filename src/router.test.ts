@@ -368,6 +368,54 @@ describe('fetch follows the chosen engine without being configured', () => {
     ]);
   });
 
+  it('lets fetchEngine lead page fetch apart from the search engine (#58)', () => {
+    const own = config({ engine: 'tavily', fetchEngine: 'keenable' });
+    const fetch = planRole('fetch', own, undefined, BARE);
+    expect(names(fetch.chain)).toEqual(['keenable', 'firecrawl', 'local']);
+    expect(fetch.notes).toEqual([]);
+    // Search keeps its own choice and ignores fetchEngine.
+    const search = planRole('search', own, undefined, { ...BARE, TAVILY_API_KEY: 'k' });
+    expect(names(search.chain)[0]).toBe('tavily');
+    expect(names(search.chain).indexOf('keenable')).toBe(2);
+  });
+
+  it('fetchEngine wins over a search engine that can also fetch', () => {
+    const chain = planRole(
+      'fetch',
+      config({ engine: 'antigravity-cli', fetchEngine: 'local' }),
+      undefined,
+      WITH_AGY,
+    );
+    expect(names(chain.chain)).toEqual(['local', 'firecrawl', 'keenable', 'antigravity-cli']);
+  });
+
+  it('treats a fetchEngine choice as consent to its keyless fetch', () => {
+    const chain = planRole(
+      'fetch',
+      config({ fetchEngine: 'keenable', engines: { keenable: { keylessFetch: false } } }),
+      undefined,
+      BARE,
+    );
+    expect(names(chain.chain)).toEqual(['keenable', 'firecrawl', 'local']);
+  });
+
+  it('says so when fetchEngine names an engine that cannot fetch', () => {
+    const chain = planRole('fetch', config({ fetchEngine: 'tavily' }), undefined, BARE);
+    expect(names(chain.chain)).toEqual(['firecrawl', 'keenable', 'local']);
+    expect(chain.notes[0]).toMatch(/fetchEngine tavily cannot fetch/);
+  });
+
+  it('skips a disabled fetchEngine with a note', () => {
+    const chain = planRole(
+      'fetch',
+      config({ fetchEngine: 'keenable', engines: { keenable: { enabled: false } } }),
+      undefined,
+      BARE,
+    );
+    expect(names(chain.chain)).toEqual(['firecrawl', 'local']);
+    expect(chain.notes[0]).toMatch(/keenable preference is disabled/);
+  });
+
   it('complains and refuses to fall back when --engine names something that cannot fetch', () => {
     const chain = planRole('fetch', config(), 'tavily', BARE);
     expect(chain.chain).toEqual([]);

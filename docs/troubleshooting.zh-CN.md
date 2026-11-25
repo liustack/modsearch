@@ -232,7 +232,7 @@ The project config /path/to/repo/.modsearch/config.json is not a JSON object. Fi
 当前目录或上层目录里的 `.modsearch/config.json` 读不了、不是合法 JSON，或者不是 JSON 对象。和全局文件不同，它会让这次运行失败，这样仓库里的设置不会只生效一半。修好或删掉它。想跳过这个查找，设 `MODSEARCH_PROJECT_CONFIG=off`。`modsearch doctor` 的 `project:` 一行会指出是哪个文件。
 
 ```
-modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. ...
+modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, fetchEngine, engines.<name>.enabled false, and engines.<name>.model. ...
 ```
 
 这不是错误。项目文件设了项目不允许设的东西，这些被丢掉了。这一行只报路径，不报值。key、`bin`、`baseURL`、`keylessFetch`、`cooldown` 和 `allowPrivateNetwork` 要写在 `~/.modsearch/config.json` 里。项目的 `engine` 如果指向一个这里没配好的引擎（比如没有 key 的 Tavily），会被跳过并给出说明，你关掉了 `keylessFetch` 的云端引擎也一样。

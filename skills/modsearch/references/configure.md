@@ -11,7 +11,7 @@ Three jobs, called roles. Each role has engines that can do it:
 | Job | Engines | Configurable? |
 | :-- | :-- | :-- |
 | search the public web | `firecrawl`, `keenable`, `youcom`, `antigravity-cli`, `tavily`, `exa` | preferred engine plus per-engine participation |
-| read one URL | the preferred engine if it can fetch, then `firecrawl`, `keenable`, `antigravity-cli`, `local` | per-engine participation |
+| read one URL | `fetchEngine`, or else the preferred engine if it can fetch, then `firecrawl`, `keenable`, `antigravity-cli`, `local` | page-fetch engine plus per-engine participation |
 | search X (Twitter) | `grok-cli` | per-engine participation |
 
 The search order is fixed at `firecrawl` then `keenable` then `youcom` then `antigravity-cli` then `tavily` then `exa`, and fetch is `firecrawl` then `keenable` then `antigravity-cli` then `local`. Every engine participates by default. `engines.<name>.enabled: false` filters one out, availability filters what remains, and quota cooldown reorders the ready chain (see below). Firecrawl leads both chains because its keyless tier works on a bare machine, no signup, no key. Keenable comes second in both chains for the same reason, so a bare machine still has a keyless fallback when Firecrawl's allowance runs out. You.com comes third: a smaller keyless pool (100 searches a day per IP) for when both run dry on a busy IP.
@@ -50,6 +50,7 @@ Full structure. Every field is optional, and so is the file itself:
 ```json
 {
   "engine": "tavily",
+  "fetchEngine": "keenable",
   "cooldown": "on",
   "allowPrivateNetwork": false,
   "engines": {
@@ -68,6 +69,7 @@ JSON has no comments, so here is every field:
 | Field | Type | Applies to | Meaning |
 | :-- | :-- | :-- | :-- |
 | `engine` | string | top level | Which engine searches. Empty means automatic (the best available here). One of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `keenable`, `youcom`. The aliases `agy`, `antigravity`, `grok`, `http`, `direct` are accepted and normalized to the canonical name. |
+| `fetchEngine` | string | top level | Which engine reads a page first, apart from the search choice. Empty means it follows `engine` when that engine can read pages, and the built-in fetch order otherwise. One of `firecrawl`, `keenable`, `antigravity-cli`, `local`. Choosing `firecrawl` or `keenable` here in your own global config also counts as consent to its keyless fetch. |
 | `cooldown` | `"on"` / `"off"` | top level | Quota cooldown failover. On by default. Off reads and writes no state and routes exactly as before. |
 | `allowPrivateNetwork` | boolean | top level | Allow the local fetcher to reach private or reserved addresses, including other VPN ranges and hosts-file accelerators. Default `false`. DNS answers in `198.18.0.0/15` already pass as fake-IP placeholders without this switch. Literal URLs in that range stay blocked while it is off. This setting never authorizes cloud disclosure (Firecrawl or Keenable). Literal private and reserved targets always stay off the cloud. For DNS answers, the cloud engine withholds the URL only when every address is private or reserved after the fake-IP exemption. |
 | `engines` | object | top level | Per-engine settings, keyed by canonical engine name. |
@@ -83,6 +85,8 @@ JSON has no comments, so here is every field:
 ```bash
 modsearch config set engine tavily            # choose the search engine
 modsearch config set engine ""                # back to automatic
+modsearch config set fetchEngine keenable     # read pages with Keenable first
+modsearch config set fetchEngine ""           # page fetch follows engine again
 modsearch config set tavily.apiKey <key>      # engine credentials
 modsearch config set tavily.apiKey <key1,key2> # rotate keys in this order
 modsearch config set tavily.apiKey            # no value: hidden prompt (see below)
@@ -100,7 +104,7 @@ this conversation, argv, or their shell history (`pbpaste | modsearch config
 set tavily.apiKey` pipes it too). If they paste it into the chat anyway, just
 save it for them: the offer is for the users who care, not a gate.
 
-The shared `enabled` switch applies to search, fetch, and X. Fetching uses the preferred engine when it can fetch, then the enabled engines in the built-in order. Disabling `local` removes the default fetch floor. Disabling `grok-cli` makes an X request take the documented public-web degrade path. A one-off explicit `--engine` ignores these persistent opt-outs.
+The shared `enabled` switch applies to search, fetch, and X. Fetching uses `fetchEngine` when set, or else the preferred engine when it can fetch, then the enabled engines in the built-in order. Disabling `local` removes the default fetch floor. Disabling `grok-cli` makes an X request take the documented public-web degrade path. A one-off explicit `--engine` ignores these persistent opt-outs.
 
 A project can also carry a small config of its own. See the next section.
 
@@ -110,11 +114,12 @@ A config written before roles existed (one global `provider` plus a `providers` 
 
 A project can add a `.modsearch/config.json`. modsearch looks for it from the current directory upward and stops at the home directory. `~/.modsearch/config.json` is never taken for a project file. The nearest one wins and it is laid over the global file.
 
-A project file can only narrow, never widen. It may set three things:
+A project file can only narrow, never widen. It may set four things:
 
 ```json
 {
   "engine": "tavily",
+  "fetchEngine": "keenable",
   "engines": {
     "exa": { "enabled": false },
     "antigravity-cli": { "model": "gemini-3.8-flash-low" }
@@ -123,6 +128,7 @@ A project file can only narrow, never widen. It may set three things:
 ```
 
 - `engine`: the preferred search engine for this project.
+- `fetchEngine`: the engine that reads pages first in this project. Like `engine`, it is not consent to keyless cloud fetch.
 - `engines.<name>.enabled: false`: keep an engine out of automatic routing here. `true` cannot switch back on what the global file turned off.
 - `engines.<name>.model`: the model for that engine.
 

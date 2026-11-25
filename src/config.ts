@@ -3,13 +3,14 @@ import * as os from 'os';
 import * as path from 'path';
 // Runtime-safe: providers/index.ts imports nothing from this module at runtime
 // (its config import is type-only), so this does not create an import cycle.
-import { findEngine, listEngines } from './providers/index.ts';
+import { enginesForRole, findEngine, listEngines } from './providers/index.ts';
 import { splitApiKeys } from './util/apiKeys.ts';
 import { maskUrlCredentials, redactSecrets } from './util/redact.ts';
 
 // Layered configuration: CLI flags > environment variables > ~/.modsearch/config.json > built-ins.
 //
-// `engine` is the soft preference. `engines.<name>.enabled` decides which
+// `engine` is the soft search preference and `fetchEngine` the soft page-fetch
+// one (unset, fetch follows `engine`). `engines.<name>.enabled` decides which
 // engines automatic routing may use, with missing meaning enabled. Everything
 // else follows from engine capability. Credentials and binaries also live
 // under `engines`.
@@ -45,6 +46,11 @@ export interface EngineSettings {
 export interface ModsearchConfig {
   /** Engine for searching. Empty means: use the best one available here. */
   engine?: string;
+  /**
+   * Engine for page fetch. Empty means: follow `engine` when it can fetch,
+   * otherwise the built-in fetch order.
+   */
+  fetchEngine?: string;
   engines?: Record<string, EngineSettings>;
   /**
    * Quota cooldown switch: 'on' (default) or 'off'. On, a quota-spent engine is
@@ -259,6 +265,9 @@ export function migrateLegacyConfig(raw: ModsearchConfig & LegacyConfig): Modsea
   if (engine !== undefined) {
     config.engine = engine;
   }
+  if (typeof raw.fetchEngine === 'string') {
+    config.fetchEngine = raw.fetchEngine;
+  }
   if (raw.cooldown !== undefined) {
     config.cooldown = raw.cooldown;
   }
@@ -306,8 +315,9 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
  * directory may be someone else's clone, so the file can only narrow what the
  * user's global config allows, never widen it:
  *
- * - `engine` sets the preferred search engine. A project's choice is not
- *   consent to keyless cloud fetch (see engineChoiceIsConsent).
+ * - `engine` and `fetchEngine` set the preferred search and page-fetch
+ *   engines. A project's choice is not consent to keyless cloud fetch (see
+ *   engineChoiceIsConsent).
  * - `engines.<name>.enabled: false` keeps an engine out of automatic routing.
  *   `true` cannot switch back on what the global config switched off.
  * - `engines.<name>.model` picks the model.
@@ -320,6 +330,7 @@ export function loadConfigFile(configPath = currentConfigPath()): ModsearchConfi
 export interface ProjectConfig {
   path: string;
   engine?: string;
+  fetchEngine?: string;
   engines: Record<string, { enabled?: false; model?: string }>;
   /** Dotted paths the file set that a project config may not set. */
   ignored: string[];
@@ -381,6 +392,8 @@ export function loadProjectConfig(filePath: string): ProjectConfig {
   for (const [key, value] of Object.entries(parsed)) {
     if (key === 'engine' && typeof value === 'string') {
       project.engine = value;
+    } else if (key === 'fetchEngine' && typeof value === 'string') {
+      project.fetchEngine = value;
     } else if (key === 'engines' && isPlainObject(value)) {
       for (const [rawName, settings] of Object.entries(value)) {
         const name = canonicalEngineName(rawName);
@@ -405,8 +418,11 @@ export function loadProjectConfig(filePath: string): ProjectConfig {
   return project;
 }
 
+/** The config fields that hold an engine preference. */
+export type PreferenceField = 'engine' | 'fetchEngine';
+
 /** Engine choices that came from a project file, keyed by the merged config. */
-const PROJECT_ENGINE_CHOICE = new WeakSet<ModsearchConfig>();
+const PROJECT_ENGINE_CHOICE = new WeakMap<ModsearchConfig, Set<PreferenceField>>();
 
 /** Lay a project file over the global config. The global object is not mutated. */
 export function applyProjectConfig(
@@ -422,9 +438,17 @@ export function applyProjectConfig(
     engines[name] = { ...engines[name], ...settings };
   }
   const merged: ModsearchConfig = { ...global, engines };
+  const fromProject = new Set<PreferenceField>();
   if (project.engine !== undefined) {
     merged.engine = project.engine;
-    PROJECT_ENGINE_CHOICE.add(merged);
+    fromProject.add('engine');
+  }
+  if (project.fetchEngine !== undefined) {
+    merged.fetchEngine = project.fetchEngine;
+    fromProject.add('fetchEngine');
+  }
+  if (fromProject.size > 0) {
+    PROJECT_ENGINE_CHOICE.set(merged, fromProject);
   }
   const seen = SEEN_API_KEYS.get(global);
   if (seen) {
@@ -434,12 +458,16 @@ export function applyProjectConfig(
 }
 
 /**
- * Does the configured engine count as the user's consent to its keyless cloud
- * fetch, overriding `keylessFetch: false`? Only when the user chose it in
- * their own global config. A project file cannot opt anyone into the cloud.
+ * Does the engine named in this preference field count as the user's consent
+ * to its keyless cloud fetch, overriding `keylessFetch: false`? Only when the
+ * user chose it in their own global config. A project file cannot opt anyone
+ * into the cloud.
  */
-export function engineChoiceIsConsent(config: ModsearchConfig): boolean {
-  return !PROJECT_ENGINE_CHOICE.has(config);
+export function engineChoiceIsConsent(
+  config: ModsearchConfig,
+  field: PreferenceField = 'engine',
+): boolean {
+  return !PROJECT_ENGINE_CHOICE.get(config)?.has(field);
 }
 
 export interface EffectiveConfig {
@@ -474,12 +502,36 @@ export function describeIgnoredProjectFields(project: ProjectConfig): string | u
   if (project.ignored.length === 0) {
     return undefined;
   }
-  return `modsearch: ignored ${project.ignored.join(', ')} in ${project.path}. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. Keys, binaries, endpoints, and network settings come from ~/.modsearch/config.json.`;
+  return `modsearch: ignored ${project.ignored.join(', ')} in ${project.path}. A project config may set only engine, fetchEngine, engines.<name>.enabled false, and engines.<name>.model. Keys, binaries, endpoints, and network settings come from ~/.modsearch/config.json.`;
 }
 
 /** The engine the user asked for, if any. */
 export function chosenEngine(config: ModsearchConfig): string | undefined {
   return config.engine?.trim() || undefined;
+}
+
+/** The engine the user asked for page fetch, if any. */
+export function chosenFetchEngine(config: ModsearchConfig): string | undefined {
+  return config.fetchEngine?.trim() || undefined;
+}
+
+/**
+ * The engine the user prefers for one role, and the field it came from. Page
+ * fetch reads `fetchEngine` first and falls back to `engine`, so a user who
+ * set only one engine still has it tried for both jobs when it can do both.
+ */
+export function preferredEngine(
+  config: ModsearchConfig,
+  role: Role,
+): { name: string; field: PreferenceField } | undefined {
+  if (role === 'fetch') {
+    const fetchName = chosenFetchEngine(config);
+    if (fetchName) {
+      return { name: fetchName, field: 'fetchEngine' };
+    }
+  }
+  const name = chosenEngine(config);
+  return name ? { name, field: 'engine' } : undefined;
 }
 
 /** Whether the quota cooldown is active. On by default, off only when set to 'off'. */
@@ -519,6 +571,7 @@ export function engineSettings(
 /**
  * Set a dotted key and persist with 0600 perms. Two shapes:
  *   search.engine tavily             role to engine
+ *   fetchEngine keenable             page-fetch engine
  *   engines.tavily.apiKey <key>      engine setting
  * The `engines.` prefix may be dropped: `tavily.apiKey` works too.
  */
@@ -545,6 +598,30 @@ export function setConfigValue(
       throw new Error(`Unknown engine: ${value}. Known engines: ${listEngines().join(', ')}.`);
     }
     config.engine = trimmed === '' ? '' : canonicalEngineName(trimmed);
+  } else if (
+    (parts.length === 1 && parts[0] === 'fetchEngine') ||
+    (parts.length === 2 && parts[0] === 'fetch' && parts[1] === 'engine')
+  ) {
+    // Same rules as `engine`, plus the engine must be able to fetch: a
+    // search-only engine here would never be tried, which reads as a silent
+    // no-op. Empty returns page fetch to following `engine`.
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      config.fetchEngine = '';
+    } else {
+      const engine = findEngine(trimmed);
+      if (!engine) {
+        throw new Error(`Unknown engine: ${value}. Known engines: ${listEngines().join(', ')}.`);
+      }
+      if (!engine.roles.includes('fetch')) {
+        throw new Error(
+          `${engine.name} cannot fetch pages. Engines that can: ${enginesForRole('fetch')
+            .map((candidate) => candidate.name)
+            .join(', ')}.`,
+        );
+      }
+      config.fetchEngine = engine.name;
+    }
   } else if (parts.length === 1 && parts[0] === 'cooldown') {
     const normalized = value.trim().toLowerCase();
     if (normalized !== 'on' && normalized !== 'off') {
@@ -562,7 +639,7 @@ export function setConfigValue(
       parts[0] === 'engines' ? [parts[1], parts[2]] : [parts[0], parts[1]];
     if (!rawEngineName || !field) {
       throw new Error(
-        `Invalid config key: ${dottedKey}. Use "engine" or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
+        `Invalid config key: ${dottedKey}. Use "engine", "fetchEngine", or "engines.<engine>.<${SETTABLE_ENGINE_FIELDS.join('|')}>".`,
       );
     }
     // The file is read back by exact lowercase canonical key, so an unknown or
@@ -803,6 +880,14 @@ export function renderEffectiveConfig(
   if (project?.engine !== undefined) {
     out.engine = project.engine ? tag(project.engine, 'project') : '(unset: automatic) (project)';
   }
+  out.fetchEngine = config.fetchEngine?.trim()
+    ? tag(config.fetchEngine, 'file')
+    : '(unset: follows engine)';
+  if (project?.fetchEngine !== undefined) {
+    out.fetchEngine = project.fetchEngine.trim()
+      ? tag(project.fetchEngine, 'project')
+      : '(unset: follows engine) (project)';
+  }
   out.cooldown = config.cooldown ? tag(config.cooldown, 'file') : 'on (default)';
   out.allowPrivateNetwork =
     config.allowPrivateNetwork === undefined
@@ -891,7 +976,7 @@ export function renderEffectiveConfig(
     out.projectConfig = project.path;
     if (project.ignored.length > 0) {
       notes.push(
-        `project config entries ignored (a project may set only engine, engines.<name>.enabled false, engines.<name>.model): ${project.ignored.join(', ')}`,
+        `project config entries ignored (a project may set only engine, fetchEngine, engines.<name>.enabled false, engines.<name>.model): ${project.ignored.join(', ')}`,
       );
     }
   }

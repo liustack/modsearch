@@ -11,7 +11,7 @@
 | 工作 | 引擎 | 可配置吗 |
 | :-- | :-- | :-- |
 | 搜公开网页 | `firecrawl`、`keenable`、`youcom`、`antigravity-cli`、`tavily`、`exa` | 首选引擎加每引擎参与开关 |
-| 读一个 URL | 首选引擎（若它能抓取），然后是 `firecrawl`、`keenable`、`antigravity-cli`、`local` | 每引擎参与开关 |
+| 读一个 URL | `fetchEngine`，没设时用首选引擎（若它能抓取），然后是 `firecrawl`、`keenable`、`antigravity-cli`、`local` | 抓取首选引擎加每引擎参与开关 |
 | 搜 X（推特） | `grok-cli` | 每引擎参与开关 |
 
 搜索顺序固定为 `firecrawl`、`keenable`、`youcom`、`antigravity-cli`、`tavily`、`exa`。抓取顺序是 `firecrawl`、`keenable`、`antigravity-cli`、`local`。每个引擎默认都参与。`engines.<name>.enabled: false` 会先排除一个引擎，可用性再过滤剩余名单，额度冷却最后重排就绪链（见下文）。Firecrawl 领跑两条链，因为它的免注册通道在裸机上就能用，不要账号不要 key。Keenable 在搜索和抓取里都排第二，也是同样的理由：Firecrawl 额度用完时，裸机上还有一个免注册的后备。You.com 排第三：额度更小的免注册通道（每个 IP 每天 100 次），给前两个都用完的繁忙 IP 兜底。
@@ -50,6 +50,7 @@ modsearch config show     # 生效配置：文件与环境变量合并，每个�
 ```json
 {
   "engine": "tavily",
+  "fetchEngine": "keenable",
   "cooldown": "on",
   "allowPrivateNetwork": false,
   "engines": {
@@ -68,6 +69,7 @@ JSON 不支持注释，所以每个字段的说明在这里：
 | 字段 | 类型 | 作用范围 | 含义 |
 | :-- | :-- | :-- | :-- |
 | `engine` | string | 顶层 | 由哪个引擎搜索。空表示自动（用本机可用的最好那个）。取值 `antigravity-cli`、`tavily`、`exa`、`firecrawl`、`keenable`、`youcom` 之一。别名 `agy`、`antigravity`、`grok`、`http`、`direct` 也接受，会归一为正式名。 |
+| `fetchEngine` | string | 顶层 | 读网页时先用哪个引擎，和搜索的选择分开。空表示跟随 `engine`：它能读网页就用它，不能就按内置抓取顺序。取值 `firecrawl`、`keenable`、`antigravity-cli`、`local` 之一。在你自己的全局配置里选 `firecrawl` 或 `keenable`，也算同意它的免注册抓取。 |
 | `cooldown` | `"on"` / `"off"` | 顶层 | 额度冷却故障转移。默认开。关掉后不读不写任何状态，路由与从前完全一致。 |
 | `allowPrivateNetwork` | boolean | 顶层 | 允许本地抓取器访问私有或保留地址，包括 VPN 使用的其他保留地址段和 hosts 文件加速器。默认 `false`。DNS 返回的 `198.18.0.0/15` 地址已按 fake-ip 占位值放行，无需此开关。在 URL 中直写该地址段，开关关闭时仍会被拦截。此设置从不授权云端披露（Firecrawl 或 Keenable），URL 中直写的私有和保留目标始终不会发往云端。对于 DNS 结果，只有应用 fake-ip 例外后所有地址仍被判为私有或保留地址时，云端引擎才会拒绝披露。 |
 | `engines` | object | 顶层 | 按引擎正式名分组的每引擎设置。 |
@@ -83,6 +85,8 @@ JSON 不支持注释，所以每个字段的说明在这里：
 ```bash
 modsearch config set engine tavily            # 选定搜索引擎
 modsearch config set engine ""                # 回到自动
+modsearch config set fetchEngine keenable     # 读网页先用 Keenable
+modsearch config set fetchEngine ""           # 抓取重新跟随 engine
 modsearch config set tavily.apiKey <key>      # 引擎凭据
 modsearch config set tavily.apiKey <key1,key2> # 按此顺序轮换 key
 modsearch config set tavily.apiKey            # 不带值：隐藏输入提示（见下）
@@ -99,7 +103,7 @@ modsearch config set allowPrivateNetwork true # 允许访问保留/私有地址�
 tavily.apiKey` 管道喂入也行）。用户还是直接贴进对话的话，照常替他保存：这个选
 项是给在意的人的，不是一道门。
 
-通用 `enabled` 开关同时作用于搜索、抓取和 X。抓取先用能抓取的首选引擎，再按内置顺序尝试已启用的引擎。禁用 `local` 会移除默认抓取兜底。禁用 `grok-cli` 会让 X 请求走文档约定的公开网页降级路径。单次显式 `--engine` 不受这些持久化禁用项影响。
+通用 `enabled` 开关同时作用于搜索、抓取和 X。抓取先用 `fetchEngine`，没设时用能抓取的首选引擎，再按内置顺序尝试已启用的引擎。禁用 `local` 会移除默认抓取兜底。禁用 `grok-cli` 会让 X 请求走文档约定的公开网页降级路径。单次显式 `--engine` 不受这些持久化禁用项影响。
 
 项目也可以带一份自己的小配置，见下一节。
 
@@ -109,11 +113,12 @@ tavily.apiKey` 管道喂入也行）。用户还是直接贴进对话的话，�
 
 项目里可以放一个 `.modsearch/config.json`。modsearch 从当前目录往上找，到家目录为止停下。`~/.modsearch/config.json` 不会被当成项目文件。取最近的一个，叠在全局文件之上。
 
-项目文件只能收紧，不能放宽。它只能设三样东西：
+项目文件只能收紧，不能放宽。它只能设四样东西：
 
 ```json
 {
   "engine": "tavily",
+  "fetchEngine": "keenable",
   "engines": {
     "exa": { "enabled": false },
     "antigravity-cli": { "model": "gemini-3.8-flash-low" }
@@ -122,6 +127,7 @@ tavily.apiKey` 管道喂入也行）。用户还是直接贴进对话的话，�
 ```
 
 - `engine`：这个项目首选的搜索引擎。
+- `fetchEngine`：这个项目里读网页先用的引擎。和 `engine` 一样，它不算同意免注册云端抓取。
 - `engines.<name>.enabled: false`：在这里把某个引擎排除出自动路由。`true` 不能把全局文件关掉的引擎再打开。
 - `engines.<name>.model`：该引擎用的模型。
 

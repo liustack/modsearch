@@ -231,7 +231,7 @@ config
 config
   .command('set <key> [value]')
   .description(
-    'Set a value, e.g. tavily.apiKey <key>, or search.engine tavily. Omit the value for an .apiKey to be prompted with the echo muted, so the key stays out of argv and shell history (a pipe works too: pbpaste | modsearch config set tavily.apiKey)',
+    'Set a value, e.g. tavily.apiKey <key>, search.engine tavily, or fetchEngine keenable. Omit the value for an .apiKey to be prompted with the echo muted, so the key stays out of argv and shell history (a pipe works too: pbpaste | modsearch config set tavily.apiKey)',
   )
   .action(async (key: string, value: string | undefined) => {
     try {

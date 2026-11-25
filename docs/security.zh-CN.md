@@ -52,7 +52,7 @@ Clash、Clash Verge Rev、mihomo 和 Surge 的代理 fake-ip 模式开箱即用�
 
 ## 项目配置是一条信任边界
 
-项目目录可能是别人的仓库，所以里面的 `.modsearch/config.json` 不像你自己的 `~/.modsearch/config.json` 那样可信。modsearch 会读它（从当前目录往上找，到家目录为止），但只允许它收紧：选首选搜索引擎、关掉某个引擎、设某个引擎的模型。key、`bin`、`baseURL`、`keylessFetch`、`cooldown`、`allowPrivateNetwork` 和 `enabled: true` 都会被忽略，并在 stderr、`modsearch doctor` 和 `modsearch config show` 里按路径报出来。否则仓库里的 `bin` 能运行任意程序，`baseURL` 能把你的 key 发到任何主机。项目的 `engine` 也不等于同意云端抓取：它不能把你关掉了 `keylessFetch` 的云端引擎重新打开。设 `MODSEARCH_PROJECT_CONFIG=off` 可关闭这个查找。
+项目目录可能是别人的仓库，所以里面的 `.modsearch/config.json` 不像你自己的 `~/.modsearch/config.json` 那样可信。modsearch 会读它（从当前目录往上找，到家目录为止），但只允许它收紧：选首选搜索引擎和抓取引擎、关掉某个引擎、设某个引擎的模型。key、`bin`、`baseURL`、`keylessFetch`、`cooldown`、`allowPrivateNetwork` 和 `enabled: true` 都会被忽略，并在 stderr、`modsearch doctor` 和 `modsearch config show` 里按路径报出来。否则仓库里的 `bin` 能运行任意程序，`baseURL` 能把你的 key 发到任何主机。项目的 `engine` 或 `fetchEngine` 也不等于同意云端抓取：它不能把你关掉了 `keylessFetch` 的云端引擎重新打开。设 `MODSEARCH_PROJECT_CONFIG=off` 可关闭这个查找。
 
 ## 不可信的页面内容
 

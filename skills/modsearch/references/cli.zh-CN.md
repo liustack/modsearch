@@ -52,7 +52,7 @@ modsearch -q "reactions on X" --source x       # 搜 X，关于 X 的查询会�
 | `--workdir <path>` | 运行命令类引擎的工作目录 | 当前目录 |
 | `--allow-private-network` | 允许本地抓取器访问保留地址段，给把公网主机映射进去的 VPN 用 | 关 |
 
-配置是可选的。`~/.modsearch/config.json` 可以指定首选引擎（`modsearch config set engine tavily`，空表示自动），也可以把单个引擎排除在自动故障转移之外（`modsearch config set tavily.enabled false`）。没有覆盖时每个引擎都参与。额度冷却故障转移默认开，`modsearch config set cooldown off` 关掉，`modsearch state clear` 重置冷却记录。完整的文件结构和每个字段，包括顶层的 `allowPrivateNetwork` 开关，见[配置文档](configure.zh-CN.md)。
+配置是可选的。`~/.modsearch/config.json` 可以指定首选引擎（`modsearch config set engine tavily`，空表示自动），单独指定读网页的引擎（`modsearch config set fetchEngine keenable`，空表示跟随 `engine`），也可以把单个引擎排除在自动故障转移之外（`modsearch config set tavily.enabled false`）。没有覆盖时每个引擎都参与。额度冷却故障转移默认开，`modsearch config set cooldown off` 关掉，`modsearch state clear` 重置冷却记录。完整的文件结构和每个字段，包括顶层的 `allowPrivateNetwork` 开关，见[配置文档](configure.zh-CN.md)。
 
 `modsearch doctor` 打印本机诊断：Node 版本、每项任务的引擎就绪状态与启用状态、每个配置值的来源、私有网络设置、当前在冷却的引擎。就绪与启用分开报告。它不花额度、不发网络请求，`--json` 让输出可被程序读取。路由行为不符合预期时先跑它。
 

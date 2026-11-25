@@ -155,7 +155,9 @@ describe('doctor: fetch and X', () => {
     expect(engine(on, 'fetch', 'keenable')?.reason).toMatch(/keenable\.keylessFetch false/);
 
     const off = runDoctor({
-      config: { engines: { firecrawl: { keylessFetch: false }, keenable: { keylessFetch: false } } },
+      config: {
+        engines: { firecrawl: { keylessFetch: false }, keenable: { keylessFetch: false } },
+      },
       env: BARE_ENV,
     });
     const keenable = engine(off, 'fetch', 'keenable');
@@ -190,6 +192,20 @@ describe('doctor: fetch and X', () => {
     const report = runDoctor({ config: { engine: 'Firecrawl' }, env: BARE_ENV });
     expect(engine(report, 'fetch', 'firecrawl')?.ready).toBe(true);
     expect(role(report, 'fetch')?.resolved).toBe('firecrawl');
+  });
+
+  it('treats choosing Keenable as fetchEngine as consent, and leads fetch with it', () => {
+    const report = runDoctor({
+      config: {
+        engine: 'tavily',
+        fetchEngine: 'keenable',
+        engines: { keenable: { keylessFetch: false } },
+      },
+      env: BARE_ENV,
+    });
+    expect(engine(report, 'fetch', 'keenable')?.ready).toBe(true);
+    expect(role(report, 'fetch')?.candidates[0]?.engine).toBe('keenable');
+    expect(role(report, 'fetch')?.resolved).toBe('keenable');
   });
 
   it('reports grok not ready when the login file is missing', () => {
@@ -235,6 +251,16 @@ describe('doctor: config layer', () => {
     const report = runDoctor({ config: {}, env: BARE_ENV });
     expect(report.engineChoice.value).toBeNull();
     expect(report.engineChoice.source).toBe('default');
+    expect(report.fetchEngineChoice).toEqual({ value: null, source: 'default' });
+    expect(formatDoctorReport(report)).toContain('fetch engine:  (unset: follows search engine)');
+  });
+
+  it('reports the fetch engine choice and flags one that cannot fetch', () => {
+    const report = runDoctor({ config: { fetchEngine: 'keenable' }, env: BARE_ENV });
+    expect(report.fetchEngineChoice).toEqual({ value: 'keenable', source: 'file' });
+    expect(formatDoctorReport(report)).toContain('fetch engine:  keenable (from config file)');
+    const wrong = runDoctor({ config: { fetchEngine: 'tavily' }, env: BARE_ENV });
+    expect(wrong.fetchEngineChoice.problem).toContain('tavily cannot fetch pages');
   });
 
   it('reports the top-level allowPrivateNetwork when set in the file', () => {

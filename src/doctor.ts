@@ -8,6 +8,7 @@ import * as path from 'path';
 import {
   allowsPrivateNetwork,
   chosenEngine,
+  chosenFetchEngine,
   cooldownEnabled,
   currentConfigPath,
   applyProjectConfig,
@@ -19,6 +20,7 @@ import {
   engineSettings,
   loadConfigFile,
   type ModsearchConfig,
+  preferredEngine,
   type Role,
   ROLES,
 } from './config.ts';
@@ -78,6 +80,13 @@ export interface DoctorReport {
     value: string | null;
     source: 'file' | 'project' | 'default';
     /** Set when the configured name is not a known engine. */
+    problem?: string;
+  };
+  fetchEngineChoice: {
+    /** The configured page-fetch engine, or null when fetch follows the search engine. */
+    value: string | null;
+    source: 'file' | 'project' | 'default';
+    /** Set when the name is not a known engine or names one that cannot fetch. */
     problem?: string;
   };
   configFile: {
@@ -156,13 +165,13 @@ function keylessFetchAllowed(
   config: ModsearchConfig,
   engineName: string,
 ): boolean {
-  const configuredEngine = chosenEngine(config);
+  const preference = preferredEngine(config, 'fetch');
   return (
     settings.keylessFetch === undefined ||
     settings.keylessFetch === true ||
-    (configuredEngine !== undefined &&
-      engineChoiceIsConsent(config) &&
-      findEngine(configuredEngine)?.name === engineName)
+    (preference !== undefined &&
+      engineChoiceIsConsent(config, preference.field) &&
+      findEngine(preference.name)?.name === engineName)
   );
 }
 
@@ -355,7 +364,7 @@ function diagnoseEngine(
 /** The candidate engines for a role, in resolution order, deduplicated. */
 function candidatesForRole(role: Role, config: ModsearchConfig): SearchEngine[] {
   const names: string[] = [];
-  const configured = chosenEngine(config);
+  const configured = preferredEngine(config, role)?.name;
   if (configured) {
     const engine = findEngine(configured);
     if (engine && engine.roles.includes(role)) {
@@ -485,6 +494,14 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
   if (configuredName && !findEngine(configuredName)) {
     engineProblem = `"${configuredName}" is not a known engine, so search picks one automatically`;
   }
+  const fetchName = chosenFetchEngine(config);
+  const fetchEngine = fetchName ? findEngine(fetchName) : undefined;
+  let fetchEngineProblem: string | undefined;
+  if (fetchName && !fetchEngine) {
+    fetchEngineProblem = `"${fetchName}" is not a known engine, so page fetch picks one automatically`;
+  } else if (fetchEngine && !fetchEngine.roles.includes('fetch')) {
+    fetchEngineProblem = `${fetchEngine.name} cannot fetch pages, so page fetch picks one automatically`;
+  }
 
   const roles: RoleDiagnosis[] = ROLES.map((role) => {
     const candidates = candidatesForRole(role, config).map((engine) =>
@@ -507,6 +524,15 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
       value: configuredName ?? null,
       source: configuredName ? (engineChoiceIsConsent(config) ? 'file' : 'project') : 'default',
       ...(engineProblem ? { problem: engineProblem } : {}),
+    },
+    fetchEngineChoice: {
+      value: fetchName ?? null,
+      source: fetchName
+        ? engineChoiceIsConsent(config, 'fetchEngine')
+          ? 'file'
+          : 'project'
+        : 'default',
+      ...(fetchEngineProblem ? { problem: fetchEngineProblem } : {}),
     },
     configFile: {
       path: configPath,
@@ -549,6 +575,14 @@ export function formatDoctorReport(report: DoctorReport): string {
   if (choice.problem) {
     lines.push(`    ! ${choice.problem}`);
   }
+  const fetchChoice = report.fetchEngineChoice;
+  const fetchFrom = fetchChoice.source === 'project' ? 'from project config' : 'from config file';
+  lines.push(
+    `  fetch engine:  ${fetchChoice.value ? `${fetchChoice.value} (${fetchFrom})` : '(unset: follows search engine)'}`,
+  );
+  if (fetchChoice.problem) {
+    lines.push(`    ! ${fetchChoice.problem}`);
+  }
   const file = report.configFile;
   if (!file.exists) {
     lines.push(`  file: ${file.path} (not present, running on defaults)`);
@@ -569,7 +603,7 @@ export function formatDoctorReport(report: DoctorReport): string {
     }
     if (project.ignored.length > 0) {
       lines.push(
-        `    ! ignored ${project.ignored.join(', ')}: a project may set only engine, engines.<name>.enabled false, and engines.<name>.model`,
+        `    ! ignored ${project.ignored.join(', ')}: a project may set only engine, fetchEngine, engines.<name>.enabled false, and engines.<name>.model`,
       );
     }
   }

@@ -158,6 +158,19 @@ describe('project engine choice and cloud fetch consent', () => {
     expect(names(planRole('search', merged, undefined, BARE_ENV).chain)[0]).toBe('keenable');
   });
 
+  it('does not let a project fetchEngine opt the user into keyless cloud fetch', () => {
+    const global: ModsearchConfig = { engines: { keenable: { keylessFetch: false } } };
+    const { projectPath } = layout({ fetchEngine: 'keenable' });
+    const project = loadProjectConfig(projectPath);
+    expect(project.ignored).toEqual([]);
+    const merged = applyProjectConfig(global, project);
+    expect(engineChoiceIsConsent(merged, 'fetchEngine')).toBe(false);
+    expect(engineChoiceIsConsent(merged, 'engine')).toBe(true);
+    const plan = planRole('fetch', merged, undefined, BARE_ENV);
+    expect(names(plan.chain)).toEqual(['firecrawl', 'local']);
+    expect(plan.notes[0]).toMatch(/project config prefers keenable/);
+  });
+
   it('leads search with the project choice when that engine is ready', () => {
     const { projectPath } = layout({ engine: 'youcom' });
     const merged = applyProjectConfig({}, loadProjectConfig(projectPath));

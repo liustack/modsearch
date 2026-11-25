@@ -232,7 +232,7 @@ The project config /path/to/repo/.modsearch/config.json is not a JSON object. Fi
 A `.modsearch/config.json` found in the current directory or above it is unreadable, not valid JSON, or not a JSON object. Unlike the global file, it fails the run, so a repository's settings never get half-applied. Fix or delete it. To skip the lookup, set `MODSEARCH_PROJECT_CONFIG=off`. `modsearch doctor` names the file in its `project:` line.
 
 ```
-modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, engines.<name>.enabled false, and engines.<name>.model. ...
+modsearch: ignored engines.tavily.apiKey, engines.tavily.bin in /path/to/repo/.modsearch/config.json. A project config may set only engine, fetchEngine, engines.<name>.enabled false, and engines.<name>.model. ...
 ```
 
 Not an error. The project file set things a project may not set, so they were left out. The line names paths, never values. Keys, `bin`, `baseURL`, `keylessFetch`, `cooldown`, and `allowPrivateNetwork` belong in `~/.modsearch/config.json`. A project's `engine` that names an engine not set up here (Tavily with no key, say) is skipped with a note, and so is a cloud engine whose `keylessFetch` you turned off.
