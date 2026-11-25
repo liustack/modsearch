@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.10.17 - 2026-11-26
+
+- Page fetch can now lead with its own engine (#58). There was one engine preference, `engine`, and it only steered page fetch when that engine could read pages, so choosing a search-only engine such as Tavily left page fetch on the built-in order with Firecrawl first. The new `fetchEngine` setting picks the engine that reads pages first: `modsearch config set fetchEngine keenable`. It takes `firecrawl`, `keenable`, `antigravity-cli`, or `local`, and refuses an engine that cannot read pages. Left empty, page fetch follows `engine` as before. `doctor` shows it on a `fetch engine:` line and `config show` lists it. Choosing Firecrawl or Keenable here in your own config counts as consent to its keyless fetch, the same as choosing it as `engine`. A project `.modsearch/config.json` may set it too, but there it does not count as that consent.
+- The DeepSeek Harness settings card gains a **Preferred page reader** select under the preferred engine. It saves with the Save button. Unticking the chosen reader in the engine chain returns it to following the preferred engine.
+
 ## 5.10.16 - 2026-11-25
 
 - Long pages can now be read past the first part (#57). Fetch engines used to keep only the first 50,000 characters of a page, so the rest of a long changelog or API reference was out of reach. They now keep up to 500,000, and a run returns one part of it: `--start` and `--max-length` pick which (default: the first 50,000 characters, as before). The result carries `contentRange` with `start`, `end`, and `total`, and when more is left a warning names the `--start` for the next part. Each CLI run reads the page again.
