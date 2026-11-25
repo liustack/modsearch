@@ -28,6 +28,11 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
+<p align="center"><b>More from the author</b><br>
+  <a href="https://tifago.com"><b>Tifa</b></a> · Let your agent build a full web app in Go and React, then ship it as one file to a small VPS.<br>
+  <a href="https://github.com/liustack/sqlite"><b>liustack/sqlite</b></a> · One SQLite file runs your Go app: writes wait their turn instead of failing with "database is locked", and R2 restores any moment.
+</p>
+
 Models like DeepSeek and GLM have no web access, or a weak one. ModSearch is a plug-in that greatly strengthens web search, X search, and single-page fetch. It works the moment it lands: the default engine is Firecrawl's keyless tier, [1,000 free credits every month](https://www.firecrawl.dev/blog/firecrawl-keyless-launch), with no account, no API key, and no card.
 
 ## Talk to us

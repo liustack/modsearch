@@ -28,6 +28,11 @@
   <img src="https://img.shields.io/badge/users-unknown-lightgrey?style=flat-square" alt="Users unknown">
 </p>
 
+<p align="center"><b>同一作者的其他项目</b><br>
+  <a href="https://tifago.com"><b>Tifa</b></a> · 让 agent 用 Go 和 React 写出完整的网站，打成一个文件放到小 VPS 上就能跑。<br>
+  <a href="https://github.com/liustack/sqlite"><b>liustack/sqlite</b></a> · Go 服务只靠一个 SQLite 文件上线：并发写排队不报 database is locked，数据随时能从 R2 恢复。
+</p>
+
 DeepSeek 和 GLM 等模型没有联网能力或联网能力羸弱。ModSearch 通过外挂方式大幅增强模型联网搜索、X 搜索、单页抓取能力。装完即用：默认引擎是 Firecrawl 的免注册通道，[每月 1,000 免费 credits](https://www.firecrawl.dev/blog/firecrawl-keyless-launch)，不用注册账号，不用 API key，不用绑卡。
 
 ## 交流
