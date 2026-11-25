@@ -57,6 +57,10 @@ window.__ModuleLoader__.load({
         keylessSuffix: ' (keyless free tier)',
         pickToConfigure: 'Pick an engine above to configure its key and endpoint.',
         engine: 'Preferred engine',
+        fetchEngine: 'Preferred page reader',
+        fetchFollows: 'Same as preferred engine',
+        fetchEngineHint:
+          'Tried first when a page is read. Left as is, the preferred engine reads pages when it can, and the default order applies when it cannot.',
         apiKey: 'API key',
         apiKeyHint:
           'Separate multiple keys with commas. ModSearch rotates to the next key after authentication, rate-limit, or quota failures.',
@@ -104,6 +108,9 @@ window.__ModuleLoader__.load({
         keylessSuffix: '（免注册免费）',
         pickToConfigure: '在上面选一个引擎，才能配置它的密钥和地址。',
         engine: '首选引擎',
+        fetchEngine: '抓取首选引擎',
+        fetchFollows: '跟随首选引擎',
+        fetchEngineHint: '读网页时先用它。不改时，首选引擎能读网页就用它，不能就按默认顺序。',
         apiKey: 'API 密钥',
         apiKeyHint: '多个密钥用英文逗号分隔。鉴权、限流或配额失败时会自动轮换到下一个密钥。',
         baseUrl: '接口地址',
@@ -186,6 +193,7 @@ window.__ModuleLoader__.load({
       var current = summary.engines?.[engine] || { baseURL: '', model: '' };
       return {
         engine: engine,
+        fetchEngine: summary.fetchEngine || '',
         apiKey: '',
         baseURL: current.baseURL || '',
         model: current.model || '',
@@ -212,10 +220,36 @@ window.__ModuleLoader__.load({
      */
     function selectEngine(summary, draft, engine) {
       var next = nextDraft(summary, engine, draft.enabled);
+      next.fetchEngine = draft.fetchEngine;
       if (engine !== '' && chainEngines(summary).indexOf(engine) >= 0) {
         next.enabled[engine] = true;
       }
       return next;
+    }
+
+    /** Select the page-fetch preference, switching it on the way selectEngine does. */
+    function selectFetchEngine(summary, draft, engine) {
+      var next = Object.assign({}, draft, {
+        fetchEngine: engine,
+        enabled: Object.assign({}, draft.enabled),
+      });
+      if (engine !== '' && chainEngines(summary).indexOf(engine) >= 0) {
+        next.enabled[engine] = true;
+      }
+      return next;
+    }
+
+    /**
+     * The engines the page-reader list offers: the ones that can read a page.
+     * A configured value outside that list stays listed for the same reason
+     * `preferable` keeps `local`: the select must show what the file says.
+     */
+    function fetchable(summary) {
+      var list = Array.isArray(summary.fetchable) ? summary.fetchable.slice() : [];
+      if (summary.fetchEngine && list.indexOf(summary.fetchEngine) < 0) {
+        list.push(summary.fetchEngine);
+      }
+      return list;
     }
 
     /** Change automatic participation, clearing an impossible preference. */
@@ -224,6 +258,9 @@ window.__ModuleLoader__.load({
       next.enabled[engine] = enabled;
       if (!enabled && next.engine === engine) {
         next.engine = '';
+      }
+      if (!enabled && next.fetchEngine === engine) {
+        next.fetchEngine = '';
       }
       return next;
     }
@@ -251,6 +288,9 @@ window.__ModuleLoader__.load({
       }
       if (draft.engine !== summary.engine) {
         payload.engine = draft.engine;
+      }
+      if (draft.fetchEngine !== (summary.fetchEngine || '')) {
+        payload.fetchEngine = draft.fetchEngine;
       }
       var pristine = nextDraft(summary, draft.engine);
       var canKey = keyed(summary, draft.engine);
@@ -713,6 +753,7 @@ window.__ModuleLoader__.load({
             // light up over a change no save would carry.
             const dirty =
               draft.engine !== summary.engine ||
+              draft.fetchEngine !== (summary.fetchEngine || '') ||
               (canKey && (draft.apiKey !== '' || draft.baseURL !== pristine.baseURL)) ||
               (canModel && draft.model !== pristine.model) ||
               chain.some(
@@ -878,6 +919,50 @@ window.__ModuleLoader__.load({
             const optionPaint = darkCard
               ? { color: '#f2f2f2', background: '#23262a' }
               : { color: '#23262a', background: '#f2f2f2' };
+            const selectStyle = {
+              appearance: 'none',
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
+              background: 'transparent',
+              color: 'inherit',
+              font: 'inherit',
+              fontSize: '13px',
+              colorScheme: darkCard ? 'dark' : 'light',
+            };
+            const engineOption = (name) =>
+              h(
+                'option',
+                { key: name, value: name, style: optionPaint },
+                KEYLESS_ENGINES.indexOf(name) >= 0 ? `${name}${t.keylessSuffix}` : name,
+              );
+            // An older host sends no `fetchable` list and ignores `fetchEngine`,
+            // so the row only appears when the host can act on it.
+            const fetchEngineRow = Array.isArray(summary.fetchable)
+              ? [
+                  fieldRow(
+                    t.fetchEngine,
+                    h(
+                      'select',
+                      {
+                        value: draft.fetchEngine,
+                        'data-setting': 'fetchEngine',
+                        onChange: (event) => {
+                          draftState[1](selectFetchEngine(summary, draft, event.target.value));
+                          noteState[1]('');
+                        },
+                        style: selectStyle,
+                      },
+                      [
+                        h('option', { key: '', value: '', style: optionPaint }, t.fetchFollows),
+                      ].concat(fetchable(summary).map(engineOption)),
+                    ),
+                    'fetchEngine',
+                  ),
+                  hint(t.fetchEngineHint, 'fetch-engine'),
+                ]
+              : null;
             body = h(
               'div',
               null,
@@ -891,27 +976,10 @@ window.__ModuleLoader__.load({
                       draftState[1](selectEngine(summary, draft, event.target.value));
                       noteState[1]('');
                     },
-                    style: {
-                      appearance: 'none',
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
-                      background: 'transparent',
-                      color: 'inherit',
-                      font: 'inherit',
-                      fontSize: '13px',
-                      colorScheme: darkCard ? 'dark' : 'light',
-                    },
+                    style: selectStyle,
                   },
                   [h('option', { key: '', value: '', style: optionPaint }, t.automatic)].concat(
-                    preferable(summary, draft).map((name) =>
-                      h(
-                        'option',
-                        { key: name, value: name, style: optionPaint },
-                        KEYLESS_ENGINES.indexOf(name) >= 0 ? `${name}${t.keylessSuffix}` : name,
-                      ),
-                    ),
+                    preferable(summary, draft).map(engineOption),
                   ),
                 ),
                 'engine',
@@ -942,6 +1010,7 @@ window.__ModuleLoader__.load({
               // having done nothing.
               canKey && current.keySource === 'env' ? hint(t.envNote, 'envnote') : null,
               canModel ? textField(t.model, 'model', t.modelFallback) : null,
+              fetchEngineRow,
               fieldRow(
                 h(
                   'span',
@@ -1269,6 +1338,7 @@ window.__ModuleLoader__.load({
     exports.__card = {
       nextDraft: nextDraft,
       selectEngine: selectEngine,
+      selectFetchEngine: selectFetchEngine,
       toggleEngine: toggleEngine,
       savePayload: savePayload,
       secretFieldProps: secretFieldProps,

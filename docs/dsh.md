@@ -94,6 +94,7 @@ Common settings:
 
 ```sh
 modsearch config set engine antigravity-cli
+modsearch config set fetchEngine keenable
 modsearch config set tavily.apiKey <key>
 modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
@@ -111,15 +112,16 @@ See the [full engine configuration reference](../skills/modsearch/references/con
 
 The dsh web UI has no terminal, so the plugin brings its own settings card. On dsh 0.1.6-alpha.2 and later it sits on the plugin's page: open **Plugins** in the sidebar and pick `@liustack/modsearch`. Earlier dsh releases show it as a **Search engine (ModSearch)** card under Settings → Plugins → Plugin config. Either way it edits the same `~/.modsearch/config.json` as the CLI, through a route the plugin registers at `/modsearch/config`. That file belongs to your user account, not to a dsh profile, so every dsh profile on this machine and the CLI share one set of engine settings.
 
-The card holds four things:
+The card holds five things:
 
 - The preferred engine: automatic, or one of `antigravity-cli`, `tavily`, `exa`, `firecrawl`, `keenable`, `youcom`, `grok-cli`. The `firecrawl`, `keenable`, and `youcom` options are labelled as the keyless free tier. `local` fetches single pages and searches nothing, so it is not offered, unless the config file already names it as `engine`, in which case it stays listed rather than let the card disagree with the file.
 - The selected engine's own settings: API key and base URL for the HTTP engines (`tavily`, `exa`, `firecrawl`, `keenable`), and the model for `antigravity-cli`. Engines that sign in through their own command-line tool, and the built-in fetcher, show a line saying they need neither. Selecting `firecrawl` or `keenable` with no key stored adds a line saying it runs on the keyless free tier by default. Selecting `youcom` shows a note instead of a key field, since it is keyless only.
+- The preferred page reader: the engine `read_page` (and `web_fetch`, when it runs on ModSearch) tries first, one of `firecrawl`, `keenable`, `antigravity-cli`, `local`. Left at "Same as preferred engine", page fetch uses the preferred engine when it can read pages and the default order when it cannot. It saves with the Save button as `fetchEngine`.
 - The automatic engine chain: one checkbox per search engine `modsearch doctor` found ready on this machine. Checked means automatic routing may use it. Engines this machine cannot run are left out, since they are not a decision to make, and so is `local`, which fetches pages rather than searching. `grok-cli` carries an "X search only" note, since it serves the social role alone. When doctor's answer never arrives, every search engine is listed with a line saying the status is unknown. A successful save re-reads doctor, so an engine the save just made ready gets its checkbox straight away.
 
 - The `web_fetch` switch, shown when dsh's web UI offers its settings forms service: whether dsh's `web_fetch` runs on ModSearch's page readers or on dsh's local fetch. It is dsh's setting, not part of the config file, so it applies when clicked and the Save button does not carry it. Unticking it removes the override when local fetch is the composed default, and writes `http` otherwise. See [Send web_fetch through ModSearch](#send-web_fetch-through-modsearch).
 
-Every engine is checked by default. Unchecking one writes only `enabled: false`. Checking it again deletes that override instead of storing a redundant `true`. Unchecking the current preference returns the preference to automatic. The card only edits engines it lists: the `enabled` of an engine with no checkbox (one this machine cannot run, and `local`) is copied through untouched, and `modsearch config set <engine>.enabled` is the only way to change it. When no engine is ready here, the row of checkboxes is replaced by a line reading "No engine is ready on this machine yet."
+Every engine is checked by default. Unchecking one writes only `enabled: false`. Checking it again deletes that override instead of storing a redundant `true`. Unchecking the current preference, or the current page reader, returns that choice to automatic. The card only edits engines it lists: the `enabled` of an engine with no checkbox (one this machine cannot run, and `local`) is copied through untouched, and `modsearch config set <engine>.enabled` is the only way to change it. When no engine is ready here, the row of checkboxes is replaced by a line reading "No engine is ready on this machine yet."
 
 Official Tavily, Exa, Firecrawl, and Keenable endpoints live in the provider code. The base URL field is an override only. Leaving it blank or clearing it uses the built-in official address and writes no default URL into the config file.
 

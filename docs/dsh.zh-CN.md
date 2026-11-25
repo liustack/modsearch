@@ -94,6 +94,7 @@ npx -y @liustack/modsearch@5.10.16 doctor
 
 ```sh
 modsearch config set engine antigravity-cli
+modsearch config set fetchEngine keenable
 modsearch config set tavily.apiKey <key>
 modsearch config set exa.apiKey <key>
 modsearch config set firecrawl.apiKey <key>
@@ -111,15 +112,16 @@ modsearch config set cooldown off
 
 dsh 网页端没有终端，所以插件自带一张设置卡片。dsh 0.1.6-alpha.2 及之后的版本里，它在插件自己的页面上：在侧栏点开「插件」，进入 `@liustack/modsearch`。更早的 dsh 版本把它显示为「设置 → 插件 → 插件配置」里的**搜索引擎（ModSearch）**卡片（dsh 自带的「网页搜索」卡片是 DeepSeek 自己的搜索提供方，两者不是一回事）。无论在哪，它改的都是 CLI 改的那份 `~/.modsearch/config.json`，走插件注册的路由 `/modsearch/config`。这份文件属于当前系统用户，不属于某个 dsh profile，所以本机所有 dsh profile 和 CLI 共用同一套引擎设置。
 
-卡片管四件事：
+卡片管五件事：
 
 - 首选引擎：自动，或 `antigravity-cli`、`tavily`、`exa`、`firecrawl`、`keenable`、`youcom`、`grok-cli` 之一。`firecrawl`、`keenable` 和 `youcom` 三项标注「免注册免费」。`local` 只抓单页不搜索，所以不在这个列表里，除非配置文件当前就把它设成了 `engine`，那时它照常显示，免得界面与文件不一致。
 - 当前所选引擎自己的设置：HTTP 引擎（`tavily`、`exa`、`firecrawl`、`keenable`）显示 API 密钥与接口地址，`antigravity-cli` 显示模型。走自家命令行工具登录的引擎和内置抓取器只显示一行说明，因为它们两样都不需要。选中未配置密钥的 `firecrawl` 或 `keenable` 时会多一行说明，讲清它默认跑在免注册的免费额度上。选中 `youcom` 时不显示密钥框，改显示一行说明，因为它只有免注册这一种用法。
+- 抓取首选引擎：`read_page`（以及打开开关后的 `web_fetch`）读网页时先用的引擎，可选 `firecrawl`、`keenable`、`antigravity-cli`、`local`。保持「跟随首选引擎」时，首选引擎能读网页就用它，不能就按默认顺序。跟「保存」按钮一起写入 `fetchEngine`。
 - 自动引擎链：只列出 `modsearch doctor` 判定本机已就绪的搜索引擎，每个一个复选框，勾选表示允许自动路由使用它。本机跑不了的引擎不出现在这里，它们不是需要用户做的决定。`local` 是单页抓取，不参与搜索，所以也不在这排里。`grok-cli` 只服务 X 搜索，旁边标注「仅 X 搜索」。读不到 doctor 结果时会列出全部搜索引擎并说明状态未知。保存成功后卡片会重新问一次 doctor，刚配好密钥的引擎马上就能长出复选框。
 
 - `web_fetch` 开关（dsh 网页端提供设置表单服务时才显示）：dsh 的 `web_fetch` 走 ModSearch 的读取链，还是走 dsh 本地抓取。这是 dsh 自己的设置，不在配置文件里，所以点了就生效，不跟「保存」按钮走。取消勾选时，如果默认值本来就是本地抓取，就删掉这项覆盖，否则写入 `http`。见[让 web_fetch 走 ModSearch](#让-web_fetch-走-modsearch)。
 
-每个引擎默认都勾选。取消勾选只写入 `enabled: false`，重新勾选会删除这项覆盖，不保存多余的 `true`。取消当前首选引擎时，首选项会回到自动。卡片只改自己列出来的引擎：没有复选框的引擎（本机跑不了的，以及 `local`）的 `enabled` 一律原样带过，改它们只能用 `modsearch config set <engine>.enabled`。本机一个就绪引擎都没有时，这排复选框换成一行提示，说明本机暂无就绪的引擎。
+每个引擎默认都勾选。取消勾选只写入 `enabled: false`，重新勾选会删除这项覆盖，不保存多余的 `true`。取消勾选当前首选引擎或抓取首选引擎时，对应的选择会回到自动。卡片只改自己列出来的引擎：没有复选框的引擎（本机跑不了的，以及 `local`）的 `enabled` 一律原样带过，改它们只能用 `modsearch config set <engine>.enabled`。本机一个就绪引擎都没有时，这排复选框换成一行提示，说明本机暂无就绪的引擎。
 
 Tavily、Exa、Firecrawl、Keenable 的官方接口地址内置在 provider 代码里。界面的接口地址只表示覆盖值。留空或清空都会使用内置官方地址，不会把默认 URL 写进配置文件。
 

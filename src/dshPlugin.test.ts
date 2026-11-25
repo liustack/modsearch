@@ -829,6 +829,28 @@ describe('dsh settings card route', () => {
     );
   });
 
+  it('reads and writes the page-fetch preference apart from the search one (#58)', async () => {
+    await withConfig({ engine: 'tavily', engines: {} }, async (handler, file) => {
+      const read = await callRoute(handler, { method: 'GET', url: '/modsearch/config' });
+      expect(read.body.fetchEngine).toBe('');
+      // The card's list of page readers mirrors the CLI's fetch order.
+      const { ROLE_PREFERENCE } = await import('./providers/index.ts');
+      expect(read.body.fetchable).toEqual(ROLE_PREFERENCE.fetch);
+
+      expect((await callRoute(handler, postOf({ fetchEngine: 'Keenable' }))).status).toBe(200);
+      let saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      expect(saved).toMatchObject({ engine: 'tavily', fetchEngine: 'keenable' });
+
+      const refused = await callRoute(handler, postOf({ fetchEngine: 'tavily' }));
+      expect(refused.status).toBe(400);
+      expect(JSON.parse(fs.readFileSync(file, 'utf-8')).fetchEngine).toBe('keenable');
+
+      expect((await callRoute(handler, postOf({ fetchEngine: '' }))).status).toBe(200);
+      saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      expect(saved.fetchEngine).toBe('');
+    });
+  });
+
   it('does not report comma-only API key settings as stored keys', async () => {
     await withConfig(
       { engine: 'tavily', engines: { tavily: { apiKey: ', ,' } } },

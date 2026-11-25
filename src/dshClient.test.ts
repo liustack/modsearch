@@ -24,6 +24,7 @@ interface CardDraft extends Record<string, unknown> {
 interface Card {
   nextDraft: (summary: unknown, engine: string) => CardDraft;
   selectEngine: (summary: unknown, draft: CardDraft, engine: string) => CardDraft;
+  selectFetchEngine: (summary: unknown, draft: CardDraft, engine: string) => CardDraft;
   toggleEngine: (draft: CardDraft, engine: string, enabled: boolean) => CardDraft;
   savePayload: (summary: unknown, draft: unknown) => Record<string, unknown>;
   secretFieldProps: () => Record<string, unknown>;
@@ -363,6 +364,7 @@ describe('a save carries only what the save is about', () => {
     const next = nextDraft(SUMMARY, 'antigravity-cli');
     expect(next).toEqual({
       engine: 'antigravity-cli',
+      fetchEngine: '',
       apiKey: '',
       baseURL: '',
       model: 'gemini-3-pro',
@@ -871,6 +873,71 @@ describe('a save re-reads what the machine can do now', () => {
     }
     expect(notes).toEqual(['saving...', 'saved']);
   });
+});
+
+describe('page fetch can lead with its own engine (#58)', () => {
+  const FETCH_SUMMARY = {
+    ...SUMMARY,
+    fetchEngine: '',
+    fetchable: ['firecrawl', 'keenable', 'antigravity-cli', 'local'],
+  };
+  const fetchSelect = (view: Rendered) =>
+    view.nodes.find(
+      (node) => node.type === 'select' && node.props['data-setting'] === 'fetchEngine',
+    );
+  const optionValues = (select: Node | undefined) =>
+    ((select?.kids[0] ?? []) as Node[]).map((node) => node.props.value);
+
+  it('offers the engines that read pages, after one that follows the search choice', () => {
+    const select = fetchSelect(render(FETCH_SUMMARY));
+    expect(select?.props.value).toBe('');
+    expect(optionValues(select)).toEqual(['', 'firecrawl', 'keenable', 'antigravity-cli', 'local']);
+  });
+
+  it('shows no fetch select on a host that cannot store it', () => {
+    expect(fetchSelect(render(SUMMARY))).toBeUndefined();
+  });
+
+  it('keeps a stored value listed even when it cannot read pages', () => {
+    const select = fetchSelect(render({ ...FETCH_SUMMARY, fetchEngine: 'tavily' }));
+    expect(select?.props.value).toBe('tavily');
+    expect(optionValues(select)).toContain('tavily');
+  });
+
+  it('saves the fetch choice on its own, apart from the search pin', () => {
+    const { nextDraft, selectEngine, selectFetchEngine, savePayload } = card();
+    let draft = nextDraft(FETCH_SUMMARY, 'tavily');
+    draft = selectFetchEngine(FETCH_SUMMARY, draft, 'keenable');
+    expect(savePayload(FETCH_SUMMARY, draft)).toEqual({ fetchEngine: 'keenable' });
+    // Moving the search pin keeps the pending fetch choice.
+    draft = selectEngine(FETCH_SUMMARY, draft, 'exa');
+    expect(savePayload(FETCH_SUMMARY, draft)).toEqual({
+      engine: 'exa',
+      fetchEngine: 'keenable',
+      enabled: { exa: true },
+    });
+    const back = nextDraft({ ...FETCH_SUMMARY, fetchEngine: 'keenable' }, 'tavily');
+    expect(back.fetchEngine).toBe('keenable');
+    expect(
+      savePayload({ ...FETCH_SUMMARY, fetchEngine: 'keenable' }, { ...back, fetchEngine: '' }),
+    ).toEqual({ fetchEngine: '' });
+  });
+
+  it('switches a chosen reader back on, and clears the choice when it is switched off', () => {
+    const { nextDraft, selectFetchEngine, toggleEngine } = card();
+    const summary = {
+      ...FETCH_SUMMARY,
+      engines: { ...SUMMARY.engines, keenable: { ...SUMMARY.engines.keenable, enabled: false } },
+    };
+    let draft = selectFetchEngine(summary, nextDraft(summary, 'tavily'), 'keenable');
+    expect(draft.enabled.keenable).toBe(true);
+    draft = toggleEngine(draft, 'keenable', false);
+    expect(draft.fetchEngine).toBe('');
+  });
+
+  function card() {
+    return evaluate({}).factory(() => ({})).__card;
+  }
 });
 
 describe('the preference list offers only engines a preference can mean', () => {

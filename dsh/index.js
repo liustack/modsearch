@@ -633,6 +633,8 @@ const KEYED_ENGINES = ['tavily', 'exa', 'firecrawl', 'keenable'];
  * with.
  */
 const MODEL_ENGINES = ['antigravity-cli'];
+/** The engines that can read a page, in the CLI's fetch order (ROLE_PREFERENCE.fetch). */
+const FETCH_ENGINES = ['firecrawl', 'keenable', 'antigravity-cli', 'local'];
 /**
  * Every accepted spelling, mirroring CANONICAL_ENGINE in src/config.ts.
  * Settings saved under an alias are the same engine's settings, so the card
@@ -805,16 +807,19 @@ function engineSummary(config = readModsearchConfig(), env = process.env) {
     // aliases (reported canonically), or not pinned at all, which means the
     // chain picks by availability.
     engine: canonicalEngine(config.engine),
+    // Unset means page fetch follows `engine`, the same three states as above.
+    fetchEngine: canonicalEngine(config.fetchEngine),
     engines,
     keyed: KEYED_ENGINES,
     models: MODEL_ENGINES,
+    fetchable: FETCH_ENGINES,
   };
 }
 
 /**
- * Apply one card submission to the shared file. Only the card's three concerns
- * can move: the engine preference, the named engine's own key, endpoint and
- * model, and automatic participation. `bin`, `allowPrivateNetwork`, `cooldown`
+ * Apply one card submission to the shared file. Only the card's concerns can
+ * move: the search and page-fetch preferences, the named engine's own key,
+ * endpoint and model, and automatic participation. `bin`, `allowPrivateNetwork`, `cooldown`
  * and `keylessFetch` stay CLI only, and every other key is copied through.
  *
  * An absent or empty `apiKey` leaves the stored one alone: the card never
@@ -834,6 +839,19 @@ function applyCardSettings(patch) {
         throw new Error(`unknown engine: ${patch.engine}`);
       }
       config.engine = engine;
+    }
+  }
+  if (patch?.fetchEngine !== undefined) {
+    const pin = typeof patch.fetchEngine === 'string' ? patch.fetchEngine.trim() : '';
+    if (pin === '') {
+      // Empty means page fetch follows `engine` again.
+      config.fetchEngine = '';
+    } else {
+      const engine = canonicalEngine(pin);
+      if (!FETCH_ENGINES.includes(engine)) {
+        throw new Error(`${patch.fetchEngine} cannot fetch pages`);
+      }
+      config.fetchEngine = engine;
     }
   }
   // Engine fields are edited one engine at a time, named by `target`. Absent
